@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smash YUZU — Leaderboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a28;
+      --border: #2a2a40;
+      --accent: #f04a00;
+      --accent2: #ff8c00;
+      --gold: #ffd700;
+      --silver: #c0c0c0;
+      --bronze: #cd7f32;
+      --text: #e8e8f0;
+      --muted: #6b6b8a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(240,74,0,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(255,140,0,0.05) 0%, transparent 50%);
+    }
+
+    /* NAV */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,10,15,0.95);
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      letter-spacing: 3px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 1rem; align-items: center; }
+    .btn {
+      padding: 0.5rem 1.2rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+    }
+    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* USER AVATAR */
+    .user-info { display: flex; align-items: center; gap: 0.7rem; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--accent); }
+
+    /* HERO */
+    .hero { text-align: center; padding: 4rem 2rem 3rem; }
+    .hero h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 8vw, 6rem);
+      letter-spacing: 6px;
+      line-height: 1;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 60%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      margin-top: 1rem;
+      color: var(--muted);
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* LEADERBOARD */
+    .container { max-width: 900px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      letter-spacing: 3px;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .leaderboard { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .player-row {
+      display: grid;
+      grid-template-columns: 60px 1fr auto auto;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .player-row:hover { border-color: var(--accent); background: var(--surface2); transform: translateX(4px); }
+    .player-row.rank-1 { border-color: var(--gold); }
+    .player-row.rank-2 { border-color: var(--silver); }
+    .player-row.rank-3 { border-color: var(--bronze); }
+    .player-row.rank-1::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--gold); }
+    .player-row.rank-2::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--silver); }
+    .player-row.rank-3::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--bronze); }
+
+    .rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; text-align: center; color: var(--muted); }
+    .rank-1 .rank-num { color: var(--gold); }
+    .rank-2 .rank-num { color: var(--silver); }
+    .rank-3 .rank-num { color: var(--bronze); }
+
+    .player-info { display: flex; align-items: center; gap: 0.8rem; }
+    .player-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border); }
+    .player-name { font-size: 1.1rem; font-weight: 700; }
+    .player-record { font-size: 0.85rem; color: var(--muted); }
+
+    .player-stats { text-align: right; }
+    .player-points { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; color: var(--accent2); }
+    .player-points span { font-size: 0.9rem; color: var(--muted); font-family: 'Rajdhani', sans-serif; }
+    .elo-badge {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: block;
+    }
+
+    /* RECENT MATCHES */
+    .matches-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 3rem; }
+    .match-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.8rem 1.2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .match-winner { color: #4ade80; font-weight: 700; }
+    .match-loser { color: var(--muted); }
+    .match-score { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; color: var(--accent2); letter-spacing: 2px; }
+    .match-format { font-size: 0.8rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
+    .elo-change { font-size: 0.8rem; color: #4ade80; }
+
+    /* EMPTY */
+    .empty { text-align: center; padding: 3rem; color: var(--muted); font-size: 1.1rem; }
+
+    /* LOGIN CTA */
+    .login-cta {
+      text-align: center;
+      padding: 3rem 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 3rem;
+    }
+    .login-cta h2 { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 3px; margin-bottom: 0.5rem; }
+    .login-cta p { color: var(--muted); margin-bottom: 1.5rem; }
+
+    .discord-btn {
+      background: #5865F2;
+      color: white;
+      padding: 0.8rem 2rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+    .discord-btn:hover { background: #4752c4; transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">⚔ SMASH YUZU</div>
+  <div class="nav-links">
+    {% if user %}
+      <div class="user-info">
+        {% if user.avatar %}
+          <img class="avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="avatar">
+        {% endif %}
+        <span>{{ user.username }}</span>
+      </div>
+      <a href="/dashboard" class="btn btn-primary">My Profile</a>
+      <a href="/logout" class="btn btn-ghost">Log Out</a>
+    {% else %}
+      <a href="/login" class="discord-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.055a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        Sign in with Discord
+      </a>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>YUZU LEADERBOARD</h1>
+  <p>Smash Bros — Competitive Ladder</p>
+</div>
+
+<div class="container">
+
+  {% if not user %}
+  <div class="login-cta">
+    <h2>ENTER THE ARENA</h2>
+    <p>Sign in with your Discord account to challenge players and climb the rankings</p>
+    <a href="/login" class="discord-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.055a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+      Sign in with Discord
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="section-title">LEADERBOARD</div>
+
+  <div class="leaderboard">
+    {% if players %}
+      {% for player in players %}
+      <div class="player-row {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
+        <div class="rank-num">
+          {% if loop.index == 1 %}🥇
+          {% elif loop.index == 2 %}🥈
+          {% elif loop.index == 3 %}🥉
+          {% else %}{{ loop.index }}{% endif %}
+        </div>
+        <div class="player-info">
+          {% if player.avatar %}
+            <img class="player-avatar" src="https://cdn.discordapp.com/avatars/{{ player.id }}/{{ player.avatar }}.png" alt="">
+          {% else %}
+            <div class="player-avatar" style="background:var(--surface2);display:flex;align-items:center;justify-content:center;">👤</div>
+          {% endif %}
+          <div>
+            <div class="player-name">{{ player.username }}</div>
+            <div class="player-record">{{ player.wins }}W / {{ player.losses }}L — {{ player.matches_played }} sets</div>
+          </div>
+        </div>
+        <div class="player-stats">
+          <div class="player-points">{{ player.points }} <span>ELO</span></div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">No players registered yet.<br>Sign in to be the first!</div>
+    {% endif %}
+  </div>
+
+  {% if recent_matches %}
+  <div class="section-title" style="margin-top:3rem;">RECENT SETS</div>
+  <div class="matches-list">
+    {% for match in recent_matches %}
+    <div class="match-row">
+      <span class="match-winner">🏆 {{ match.winner_name }}</span>
+      <span class="match-score">{{ match.score if match.score else 'VS' }}</span>
+      <span class="match-loser">{{ match.loser_name }}</span>
+      <span class="match-format">{{ match.format }}</span>
+      {% if match.elo_change is defined %}
+        <span class="elo-change">+{{ match.elo_change }} ELO</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+
+</body>
+</html>
