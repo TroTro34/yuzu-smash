@@ -315,6 +315,10 @@
   let selectedWinnerId = null;
   const myId = "{{ user.id }}";
 
+  // Détection du nombre de défis pour l'auto-refresh
+  // On compte les éléments qui peuvent changer (défis, matchs en cours, historique)
+  let lastContentHash = document.querySelectorAll('.challenge-item, .match-en-cours, .match-item').length;
+
   function showToast(msg, ok=true) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -382,12 +386,33 @@
       body: JSON.stringify({ winner_id: selectedWinnerId, score })
     }).then(r => r.json()).then(d => {
       if (d.success) {
-        showToast(d.message);
+        showToast(d.message || "Résultat envoyé !");
         closeModal();
         setTimeout(() => location.reload(), 1800);
       } else showToast(d.error, false);
     });
   }
+
+  // AUTO-REFRESH TOUTES LES 1.5 SECONDES
+  setInterval(() => {
+    // Si une fenêtre de saisie est ouverte, on ne rafraîchit pas pour ne pas perdre la saisie
+    if (document.getElementById('resultModal').classList.contains('open')) return;
+
+    fetch('/dashboard')
+      .then(response => response.text())
+      .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        // On recompte les éléments dans la nouvelle version
+        const newContentHash = doc.querySelectorAll('.challenge-item, .match-en-cours, .match-item').length;
+
+        // Si le nombre a changé, on recharge la page
+        if (newContentHash !== lastContentHash) {
+            location.reload();
+        }
+      })
+      .catch(err => console.warn("Erreur synchro:", err));
+  }, 1500);
 </script>
 </body>
 </html>
