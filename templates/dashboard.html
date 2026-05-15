@@ -186,7 +186,7 @@
 <nav>
   <a href="/" class="logo">⚔ YUZU</a>
   <div class="nav-links">
-    <span><span class="live-dot"></span><span class="live-label">Live</span></span>
+    <span id="ws-status" title="WebSocket connection"><span class="live-dot" id="ws-dot" style="background:var(--muted);"></span><span class="live-label" id="ws-label" style="color:var(--muted);">Connecting…</span></span>
     <a href="/" class="btn btn-ghost">Leaderboard</a>
     <a href="/logout" class="btn btn-ghost">Log Out</a>
   </div>
@@ -451,11 +451,12 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script>
 const myId = "{{ user.id }}";
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
 let currentCharSlot = null, selectedChar = null;
-let lastKnownState = { pending: 0, active: 0, awaiting: 0 };
+
 
 // All Smash Ultimate characters with their icon IDs
 const SMASH_CHARS = [
@@ -542,23 +543,27 @@ function saveChar(slot, charId, charName) {
     });
 }
 
-// ── REAL-TIME ────────────────────────────────────────────────
-async function checkUpdates() {
-  if (modalOpen) return;
-  try {
-    const r = await fetch('/api/status');
-    if (!r.ok) return;
-    const data = await r.json();
-    const changed = data.pending !== lastKnownState.pending || data.active !== lastKnownState.active || data.awaiting !== lastKnownState.awaiting;
-    if (changed) { lastKnownState = data; await refreshSections(); }
-  } catch(e) {}
-}
+// ── WEBSOCKET REAL-TIME ──────────────────────────────────────
+const socket = io({ transports: ['websocket', 'polling'] });
 
-async function refreshSections() {
-  try {
-    const r = await fetch('/api/dashboard_data');
-    if (!r.ok) return;
-    const d = await r.json();
+socket.on('connect', () => {
+  document.getElementById('ws-dot').style.background = 'var(--green)';
+  document.getElementById('ws-label').style.color = 'var(--green)';
+  document.getElementById('ws-label').textContent = 'Live';
+});
+
+socket.on('disconnect', () => {
+  document.getElementById('ws-dot').style.background = 'var(--red)';
+  document.getElementById('ws-label').style.color = 'var(--red)';
+  document.getElementById('ws-label').textContent = 'Offline';
+});
+
+socket.on('dashboard_update', (d) => {
+  if (modalOpen) return; // Ne pas rafraîchir si un modal est ouvert
+  applyDashboardData(d);
+});
+
+function applyDashboardData(d) {
     document.getElementById('stat-points').textContent = d.player.points;
     document.getElementById('stat-wins').textContent = d.player.wins;
     document.getElementById('stat-losses').textContent = d.player.losses;
@@ -570,7 +575,6 @@ async function refreshSections() {
     renderMatchs(d.active_matches);
     renderAttente(d.awaiting_confirmation);
     renderHistory(d.my_matches);
-  } catch(e) {}
 }
 
 function renderDefis(defis) {
@@ -614,7 +618,6 @@ function renderHistory(matches) {
   z.innerHTML = h;
 }
 
-setInterval(checkUpdates, 8000);
 
 // ── ACTIONS ──────────────────────────────────────────────────
 function sendChallenge(id, name) {
