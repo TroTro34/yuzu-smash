@@ -7,93 +7,186 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a28;
-      --border: #2a2a40; --accent: #f04a00; --accent2: #ff8c00;
-      --gold: #ffd700; --text: #e8e8f0; --muted: #6b6b8a;
-      --green: #4ade80; --red: #f87171;
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --gold: #ffd700; --silver: #c0c0c0; --bronze: #cd7f32;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555; --purple: #9b59b6;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: var(--bg); color: var(--text);
-      font-family: 'Rajdhani', sans-serif; min-height: 100vh;
-      background-image:
-        radial-gradient(ellipse at 20% 0%, rgba(240,74,0,0.08) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 100%, rgba(255,140,0,0.05) 0%, transparent 50%);
-    }
-    nav {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
-      background: rgba(10,10,15,0.95); position: sticky; top: 0; z-index: 100;
-      backdrop-filter: blur(10px);
-    }
-    .logo {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 3px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none;
-    }
-    .nav-links { display: flex; gap: 1rem; align-items: center; }
-    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .live-label { font-size: 0.8rem; color: var(--green); letter-spacing: 1px; }
-    .btn { padding: 0.5rem 1.2rem; border: none; border-radius: 4px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
+      background-image: radial-gradient(ellipse at 10% 0%, rgba(232,64,10,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 100%, rgba(155,89,182,0.06) 0%, transparent 50%); }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .nav-links { display: flex; gap: 0.8rem; align-items: center; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
     .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
     .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
     .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
     .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-danger { background: var(--red); color: white; border: none; }
-    .btn-success { background: var(--green); color: #0a0a0f; border: none; }
-    .container { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }
-    .profile-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2rem; padding: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
-    .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(to bottom, var(--accent), var(--accent2)); }
-    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--accent); }
-    .profile-name { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 2px; }
-    .profile-sub { color: var(--muted); font-size: 1rem; margin-top: 0.2rem; }
-    .profile-stats { display: flex; gap: 2rem; text-align: center; }
-    .stat-block .val { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent2); display: block; }
-    .stat-block .lbl { font-size: 0.8rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 3px; color: var(--accent); margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; }
+    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .btn-danger:hover { background: var(--red); color: white; }
+    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
+    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+    .live-label { font-size: 0.75rem; color: var(--green); letter-spacing: 2px; text-transform: uppercase; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* TABS */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
+    .tab { padding: 0.8rem 1.5rem; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+      color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+    .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+    .tab:hover { color: var(--text); }
+    .tab-badge { background: var(--accent); color: white; border-radius: 50%; width: 18px; height: 18px;
+      font-size: 0.7rem; display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; margin-left: 6px; font-family: 'Rajdhani', sans-serif; vertical-align: middle; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* PROFILE CARD */
+    .profile-card { display: grid; grid-template-columns: auto 1fr; gap: 2rem;
+      padding: 2rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
+    .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2)); }
+    .profile-left { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; min-width: 120px; }
+    .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); }
+    .profile-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--muted); letter-spacing: 2px; }
+    .profile-right { display: flex; flex-direction: column; gap: 1rem; }
+    .profile-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 3px; line-height: 1; }
+    .profile-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1.2rem; text-align: center; min-width: 80px; }
+    .stat-box .val { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; display: block; }
+    .stat-box .lbl { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .stat-box.pts .val { color: var(--accent2); }
+    .stat-box.wins .val { color: var(--green); }
+    .stat-box.losses .val { color: var(--red); }
+    .stat-box.stocks .val { color: var(--purple); }
+
+    /* CHARS */
+    .chars-row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+    .char-slot { display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem;
+      cursor: pointer; transition: all 0.2s; min-width: 80px; }
+    .char-slot:hover { border-color: var(--accent2); }
+    .char-slot img { width: 48px; height: 48px; object-fit: contain; }
+    .char-slot .char-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .char-slot .char-name { font-size: 0.85rem; font-weight: 700; text-align: center; }
+    .char-add { background: var(--surface2); border: 1px dashed var(--border); border-radius: 8px;
+      padding: 0.5rem 1rem; cursor: pointer; transition: all 0.2s; min-width: 80px;
+      display: flex; flex-direction: column; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.8rem; }
+    .char-add:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    /* WR BAR */
+    .wr-section { margin-top: 0.5rem; }
+    .wr-row { display: flex; align-items: center; gap: 1rem; }
+    .wr-bar { flex: 1; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+    .wr-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--accent2)); border-radius: 3px; transition: width 1s; }
+    .wr-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+
+    /* CHALLENGES */
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 3px;
+      color: var(--accent); margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; }
     .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    .challenge-item { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.7rem; }
-    .challenge-item .challenger { font-weight: 700; font-size: 1.05rem; }
+    .challenge-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1.2rem; margin-bottom: 0.8rem; transition: all 0.2s; }
+    .challenge-card:hover { border-color: var(--accent2); }
+    .challenge-card.pending { border-left: 3px solid var(--accent2); }
+    .challenge-card.active { border-left: 3px solid var(--green); }
+    .challenge-card.awaiting { border-left: 3px solid var(--accent); }
+    .challenge-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.8rem; }
+    .challenge-title { font-weight: 700; font-size: 1.05rem; }
+    .challenge-sub { font-size: 0.85rem; color: var(--muted); margin-top: 0.2rem; }
     .challenge-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .fmt-btn { padding: 0.4rem 0.9rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; transition: all 0.15s; }
-    .fmt-btn:hover, .fmt-btn.selected { border-color: var(--accent2); color: var(--accent2); background: rgba(255,140,0,0.1); }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
-    @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; }
-    .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 2px; color: var(--accent); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
-    .player-item { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 1rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.5rem; transition: all 0.15s; }
-    .player-item:hover { border-color: var(--accent); }
-    .player-item-info { display: flex; align-items: center; gap: 0.7rem; }
-    .mini-avatar { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); }
-    .player-pts { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; color: var(--accent2); }
-    .match-item { padding: 0.7rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; font-size: 0.95rem; border: 1px solid var(--border); }
-    .match-item.win { border-left: 3px solid var(--green); background: rgba(74,222,128,0.05); }
-    .match-item.loss { border-left: 3px solid var(--red); background: rgba(248,113,113,0.05); }
-    .win .match-result { color: var(--green); font-weight: 700; }
-    .loss .match-result { color: var(--red); font-weight: 700; }
-    .match-en-cours { background: var(--surface2); border: 1px solid var(--accent2); border-radius: 8px; padding: 1rem; margin-bottom: 0.7rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.7rem; }
-    .match-en-cours .vs { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; color: var(--accent2); }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; align-items: center; justify-content: center; }
+    .fmt-btn { padding: 0.35rem 0.8rem; border: 1px solid var(--border); border-radius: 4px;
+      background: var(--surface2); color: var(--text); cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.9rem; transition: all 0.15s; }
+    .fmt-btn:hover, .fmt-btn.selected { border-color: var(--accent2); color: var(--accent2); background: rgba(255,128,0,0.1); }
+
+    /* SEARCH */
+    .search-wrap { position: relative; margin-bottom: 1.5rem; }
+    .search-input { width: 100%; background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 0.9rem 1.2rem 0.9rem 3rem; border-radius: 8px;
+      font-family: 'Rajdhani', sans-serif; font-size: 1.1rem; transition: border-color 0.2s; }
+    .search-input:focus { outline: none; border-color: var(--accent2); }
+    .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.1rem; }
+    .players-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+    .player-card { display: flex; align-items: center; justify-content: space-between;
+      padding: 0.9rem 1.2rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; transition: all 0.15s; }
+    .player-card:hover { border-color: var(--accent); background: var(--surface2); }
+    .player-card-left { display: flex; align-items: center; gap: 0.8rem; }
+    .mini-avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); }
+    .player-card-name { font-weight: 700; font-size: 1rem; }
+    .player-card-sub { font-size: 0.8rem; color: var(--muted); }
+    .player-card-pts { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--accent2); }
+
+    /* MATCH HISTORY */
+    .match-card { padding: 0.8rem 1.2rem; border-radius: 8px; margin-bottom: 0.5rem;
+      border: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .match-card.win { border-left: 3px solid var(--green); background: rgba(61,220,132,0.04); }
+    .match-card.loss { border-left: 3px solid var(--red); background: rgba(255,85,85,0.04); }
+    .match-result { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 1px; min-width: 40px; }
+    .win .match-result { color: var(--green); }
+    .loss .match-result { color: var(--red); }
+    .match-vs { font-size: 0.95rem; flex: 1; }
+    .match-elo { font-size: 0.85rem; font-weight: 700; }
+    .win .match-elo { color: var(--green); }
+    .loss .match-elo { color: var(--red); }
+    .match-fmt { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 200; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; max-width: 450px; width: 90%; }
-    .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 1rem; color: var(--accent2); }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 2rem; max-width: 480px; width: 90%; position: relative; }
+    .modal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 14px 14px 0 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 2px; margin-bottom: 1.2rem; color: var(--accent2); }
     .modal-actions { display: flex; gap: 0.7rem; margin-top: 1.5rem; flex-wrap: wrap; }
-    .score-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 4px; font-family: 'Rajdhani', sans-serif; font-size: 1rem; width: 100%; margin-top: 0.5rem; }
-    .score-input:focus { outline: none; border-color: var(--accent); }
-    label { color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
-    .empty { color: var(--muted); text-align: center; padding: 1.5rem; font-size: 0.95rem; }
-    .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2); border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem; border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px); transition: all 0.3s; font-weight: 700; max-width: 300px; }
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; color: var(--muted); font-size: 0.8rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.4rem; }
+    .form-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.6rem 1rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 1rem; width: 100%; }
+    .form-input:focus { outline: none; border-color: var(--accent2); }
+    .form-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.6rem 1rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 1rem; width: 100%; }
+
+    /* CHAR PICKER MODAL */
+    .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.5rem;
+      max-height: 400px; overflow-y: auto; padding-right: 0.3rem; }
+    .char-option { display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+      padding: 0.4rem; border-radius: 6px; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+    .char-option:hover, .char-option.selected { border-color: var(--accent2); background: rgba(255,128,0,0.1); }
+    .char-option img { width: 44px; height: 44px; object-fit: contain; }
+    .char-option span { font-size: 0.6rem; color: var(--muted); text-align: center; line-height: 1.2; }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
+      border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
+      border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px; }
     .toast.show { opacity: 1; transform: translateY(0); }
-    .badge { background: var(--accent); color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+
+    .empty { color: var(--muted); text-align: center; padding: 2rem; font-size: 0.95rem; }
+    @media (max-width: 700px) { .profile-stats { gap: 0.8rem; } .stat-box { min-width: 65px; padding: 0.6rem 0.8rem; } }
   </style>
 </head>
 <body>
 
 <nav>
-  <a href="/" class="logo">⚔ SMASH YUZU</a>
+  <a href="/" class="logo">⚔ YUZU</a>
   <div class="nav-links">
-    <span><span class="live-dot"></span><span class="live-label">LIVE</span></span>
+    <span><span class="live-dot"></span><span class="live-label">Live</span></span>
     <a href="/" class="btn btn-ghost">Leaderboard</a>
     <a href="/logout" class="btn btn-ghost">Log Out</a>
   </div>
@@ -101,136 +194,251 @@
 
 <div class="container">
 
-  <!-- PROFILE -->
+  <!-- PROFILE CARD -->
+  {% set wr = (player.wins / player.matches_played * 100)|round(1) if player.matches_played > 0 else 0 %}
   <div class="profile-card">
-    {% if user.avatar %}
-      <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="">
-    {% else %}
-      <div class="profile-avatar" style="background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
-    {% endif %}
-    <div>
-      <div class="profile-name" id="profile-name">{{ user.username }}</div>
-      <div class="profile-sub">Rank <span id="profile-rank">#{{ rank }}</span> on the leaderboard</div>
+    <div class="profile-left">
+      {% if user.avatar %}
+        <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="">
+      {% else %}
+        <div class="profile-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">👤</div>
+      {% endif %}
+      <div class="profile-rank">RANK #<span id="profile-rank">{{ rank }}</span></div>
     </div>
-    <div class="profile-stats">
-      <div class="stat-block"><span class="val" id="stat-points">{{ player.points }}</span><span class="lbl">Points</span></div>
-      <div class="stat-block"><span class="val" id="stat-wins" style="color:var(--green)">{{ player.wins }}</span><span class="lbl">Wins</span></div>
-      <div class="stat-block"><span class="val" id="stat-losses" style="color:var(--red)">{{ player.losses }}</span><span class="lbl">Losses</span></div>
-    </div>
-  </div>
-
-  <!-- INCOMING CHALLENGES -->
-  <div id="zone-defis">
-    {% if challenges_received %}
-    <div class="section-title">INCOMING CHALLENGES <span class="badge">{{ challenges_received|length }}</span></div>
-    {% for cid, c in challenges_received.items() %}
-    <div class="challenge-item">
-      <div class="challenger">⚔ {{ c.challenger_name }} is challenging you!</div>
-      <div style="color:var(--muted);font-size:0.9rem;">Pick a format to accept:</div>
-      <div class="challenge-actions">
-        <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO1')">Accept BO1</button>
-        <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO3')">Accept BO3</button>
-        <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO5')">Accept BO5</button>
-        <button class="btn btn-danger" style="font-size:0.9rem;" onclick="declineChallenge('{{ cid }}')">Decline</button>
+    <div class="profile-right">
+      <div class="profile-name">{{ user.username }}</div>
+      <div class="profile-stats">
+        <div class="stat-box pts"><span class="val" id="stat-points">{{ player.points }}</span><span class="lbl">ELO</span></div>
+        <div class="stat-box wins"><span class="val" id="stat-wins">{{ player.wins }}</span><span class="lbl">Wins</span></div>
+        <div class="stat-box losses"><span class="val" id="stat-losses">{{ player.losses }}</span><span class="lbl">Losses</span></div>
+        <div class="stat-box"><span class="val">{{ player.matches_played }}</span><span class="lbl">Sets</span></div>
+        <div class="stat-box stocks"><span class="val">{{ player.stocks_taken or 0 }}</span><span class="lbl">Stocks taken</span></div>
+      </div>
+      <div class="wr-section">
+        <div class="wr-row">
+          <span class="wr-label">Win Rate</span>
+          <div class="wr-bar"><div class="wr-fill" id="wr-fill" style="width:{{ wr }}%"></div></div>
+          <span class="wr-label" id="wr-val">{{ wr }}%</span>
+        </div>
+      </div>
+      <!-- CHARACTERS -->
+      <div class="chars-row">
+        <div class="char-slot" onclick="openCharPicker('main')">
+          {% if player.main_char %}
+            <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.main_char }}.png" onerror="this.src=''" alt="">
+            <span class="char-label">Main</span>
+            <span class="char-name">{{ player.main_char }}</span>
+          {% else %}
+            <span style="font-size:1.5rem;">🎮</span>
+            <span class="char-label">Main</span>
+            <span class="char-name" style="color:var(--muted);">Pick</span>
+          {% endif %}
+        </div>
+        <div class="char-slot" onclick="openCharPicker('secondary')">
+          {% if player.secondary_char %}
+            <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.secondary_char }}.png" onerror="this.src=''" alt="">
+            <span class="char-label">Secondary</span>
+            <span class="char-name">{{ player.secondary_char }}</span>
+          {% else %}
+            <span style="font-size:1.5rem;">➕</span>
+            <span class="char-label">Secondary</span>
+            <span class="char-name" style="color:var(--muted);">Pick</span>
+          {% endif %}
+        </div>
       </div>
     </div>
-    {% endfor %}
-    {% endif %}
   </div>
 
-  <!-- ACTIVE MATCHES -->
-  <div id="zone-matchs">
-    {% if active_matches %}
-    <div class="section-title" style="margin-top:1.5rem;">ACTIVE MATCHES <span class="badge">{{ active_matches|length }}</span></div>
-    {% for cid, c in active_matches.items() %}
-    <div class="match-en-cours">
-      <div>
-        <div class="vs">🎮 {{ c.challenger_name }} VS {{ c.challenged_name }} — {{ c.format }}</div>
-        <div style="color:var(--muted);font-size:0.85rem;">Match accepted — submit the result!</div>
-      </div>
-      <button class="btn btn-success" onclick="openResult('{{ cid }}','{{ c.challenger_id }}','{{ c.challenger_name }}','{{ c.challenged_id }}','{{ c.challenged_name }}','{{ c.format }}')">
-        🏆 Submit Result
-      </button>
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('activity', this)">
+      ⚡ Activity
+      {% set notif = challenges_received|length + active_matches|length + awaiting_confirmation|length %}
+      {% if notif > 0 %}<span class="tab-badge">{{ notif }}</span>{% endif %}
     </div>
-    {% endfor %}
-    {% endif %}
+    <div class="tab" onclick="showTab('search', this)">🔍 Find Players</div>
+    <div class="tab" onclick="showTab('history', this)">📋 Match History</div>
   </div>
 
-  <!-- AWAITING CONFIRMATION -->
-  <div id="zone-attente">
-    {% if awaiting_confirmation %}
-    <div class="section-title" style="margin-top:1.5rem;">AWAITING YOUR CONFIRMATION</div>
-    {% for cid, c in awaiting_confirmation.items() %}
-    <div class="match-en-cours" style="border-color:var(--accent);">
-      <div>
-        <div class="vs">⏳ {{ c.challenger_name }} VS {{ c.challenged_name }}</div>
-        <div style="color:var(--muted);font-size:0.85rem;">Your opponent submitted a result — confirm it!</div>
+  <!-- ACTIVITY TAB -->
+  <div class="tab-panel active" id="panel-activity">
+
+    <!-- INCOMING CHALLENGES -->
+    <div id="zone-defis">
+      {% if challenges_received %}
+      <div class="section-title">INCOMING CHALLENGES</div>
+      {% for cid, c in challenges_received.items() %}
+      <div class="challenge-card pending">
+        <div class="challenge-top">
+          <div>
+            <div class="challenge-title">⚔ {{ c.challenger_name }} is challenging you!</div>
+            <div class="challenge-sub">Pick a format to accept</div>
+          </div>
+        </div>
+        <div class="challenge-actions">
+          <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO1')">Accept BO1</button>
+          <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO3')">Accept BO3</button>
+          <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO5')">Accept BO5</button>
+          <button class="btn btn-danger" onclick="declineChallenge('{{ cid }}')">Decline</button>
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="openResult('{{ cid }}','{{ c.challenger_id }}','{{ c.challenger_name }}','{{ c.challenged_id }}','{{ c.challenged_name }}','{{ c.format }}')">
-        ✅ Confirm Result
-      </button>
+      {% endfor %}
+      {% endif %}
     </div>
-    {% endfor %}
+
+    <!-- ACTIVE MATCHES -->
+    <div id="zone-matchs">
+      {% if active_matches %}
+      <div class="section-title">ACTIVE MATCHES</div>
+      {% for cid, c in active_matches.items() %}
+      <div class="challenge-card active">
+        <div class="challenge-top">
+          <div>
+            <div class="challenge-title">🎮 {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
+            <div class="challenge-sub">{{ c.format }} — Submit the result when done</div>
+          </div>
+          <button class="btn btn-success" onclick="openResult('{{ cid }}','{{ c.challenger_id }}','{{ c.challenger_name }}','{{ c.challenged_id }}','{{ c.challenged_name }}','{{ c.format }}')">
+            🏆 Submit Result
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+    <!-- AWAITING CONFIRMATION -->
+    <div id="zone-attente">
+      {% if awaiting_confirmation %}
+      <div class="section-title">AWAITING YOUR CONFIRMATION</div>
+      {% for cid, c in awaiting_confirmation.items() %}
+      <div class="challenge-card awaiting">
+        <div class="challenge-top">
+          <div>
+            <div class="challenge-title">⏳ {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
+            <div class="challenge-sub">Your opponent submitted a result — confirm it!</div>
+          </div>
+          <button class="btn btn-primary" onclick="openResult('{{ cid }}','{{ c.challenger_id }}','{{ c.challenger_name }}','{{ c.challenged_id }}','{{ c.challenged_name }}','{{ c.format }}')">
+            ✅ Confirm
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+    {% if not challenges_received and not active_matches and not awaiting_confirmation %}
+    <div class="empty" style="padding:3rem;">
+      <div style="font-size:3rem;margin-bottom:1rem;">🎮</div>
+      No active challenges.<br>Go to <strong>Find Players</strong> to start a match!
+    </div>
     {% endif %}
   </div>
 
-  <div class="grid-2" style="margin-top:2rem;">
-
-    <!-- CHALLENGE A PLAYER -->
-    <div class="card">
-      <div class="card-title">⚔ CHALLENGE A PLAYER</div>
-      <div id="zone-joueurs">
-        {% for p in players %}
-          {% if p.id != user.id %}
-          <div class="player-item">
-            <div class="player-item-info">
-              {% if p.avatar %}<img class="mini-avatar" src="https://cdn.discordapp.com/avatars/{{ p.id }}/{{ p.avatar }}.png" alt="">{% endif %}
-              <span>{{ p.username }}</span>
+  <!-- SEARCH TAB -->
+  <div class="tab-panel" id="panel-search">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" type="text" id="search-input" placeholder="Search by player name..." oninput="filterPlayers(this.value)">
+    </div>
+    <div class="players-grid" id="players-grid">
+      {% for p in players %}
+        {% if p.id != user.id %}
+        {% set pwr = (p.wins / p.matches_played * 100)|round(0)|int if p.matches_played > 0 else 0 %}
+        <div class="player-card" data-name="{{ p.username|lower }}">
+          <div class="player-card-left">
+            {% if p.avatar %}
+              <img class="mini-avatar" src="https://cdn.discordapp.com/avatars/{{ p.id }}/{{ p.avatar }}.png" alt="">
+            {% else %}
+              <div class="mini-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>
+            {% endif %}
+            <div>
+              <div class="player-card-name">{{ p.username }}</div>
+              <div class="player-card-sub">{{ p.wins }}W {{ p.losses }}L · {{ pwr }}% WR{% if p.main_char %} · {{ p.main_char }}{% endif %}</div>
             </div>
-            <div style="display:flex;align-items:center;gap:0.7rem;">
-              <span class="player-pts">{{ p.points }} pts</span>
-              <button class="btn btn-primary" style="font-size:0.85rem;padding:0.3rem 0.8rem;" onclick="sendChallenge('{{ p.id }}','{{ p.username }}')">Challenge</button>
-            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:1rem;">
+            <span class="player-card-pts">{{ p.points }} ELO</span>
+            <button class="btn btn-primary" onclick="sendChallenge('{{ p.id }}','{{ p.username }}')">⚔ Challenge</button>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+      {% if players|length <= 1 %}
+        <div class="empty">No other players registered yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div class="tab-panel" id="panel-history">
+    <div id="zone-historique">
+      {% if my_matches %}
+        {% for match in my_matches %}
+          {% if match.winner_id == user.id %}
+          <div class="match-card win">
+            <span class="match-result">WIN</span>
+            <span class="match-vs">vs <strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+            <span class="match-fmt">{{ match.format }}</span>
+            {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
+          </div>
+          {% else %}
+          <div class="match-card loss">
+            <span class="match-result">LOSS</span>
+            <span class="match-vs">vs <strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+            <span class="match-fmt">{{ match.format }}</span>
+            {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
           </div>
           {% endif %}
         {% endfor %}
-        {% if players|length <= 1 %}<div class="empty">No other players registered yet.</div>{% endif %}
-      </div>
+      {% else %}
+        <div class="empty">No matches played yet. Challenge someone!</div>
+      {% endif %}
     </div>
-
-    <!-- MATCH HISTORY -->
-    <div class="card">
-      <div class="card-title">📋 RECENT MATCHES</div>
-      <div id="zone-historique">
-        {% if my_matches %}
-          {% for match in my_matches %}
-            {% if match.winner_id == user.id %}
-            <div class="match-item win"><span class="match-result">WIN</span> vs {{ match.loser_name }}{% if match.score %} — {{ match.score }}{% endif %} <span style="color:var(--muted);font-size:0.85rem;">{{ match.format }}</span></div>
-            {% else %}
-            <div class="match-item loss"><span class="match-result">LOSS</span> vs {{ match.winner_name }}{% if match.score %} — {{ match.score }}{% endif %} <span style="color:var(--muted);font-size:0.85rem;">{{ match.format }}</span></div>
-            {% endif %}
-          {% endfor %}
-        {% else %}
-          <div class="empty">No matches played yet.<br>Challenge someone!</div>
-        {% endif %}
-      </div>
-    </div>
-
   </div>
+
 </div>
 
 <!-- RESULT MODAL -->
 <div class="modal-overlay" id="resultModal">
   <div class="modal">
     <h2>SUBMIT RESULT</h2>
-    <p style="color:var(--muted);margin-bottom:1rem;" id="resultDesc"></p>
-    <label>Who won?</label>
-    <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;" id="winnerSelect"></div>
-    <label style="display:block;margin-top:1rem;">Score (e.g. 2-1 for BO3)</label>
-    <input class="score-input" type="text" id="scoreInput" placeholder="2-1">
+    <p style="color:var(--muted);margin-bottom:1.2rem;" id="resultDesc"></p>
+    <div class="form-group">
+      <label class="form-label">Who won?</label>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;" id="winnerSelect"></div>
+    </div>
+    <div class="form-group" id="stocksGroup" style="display:none;">
+      <label class="form-label">Winner stocks remaining</label>
+      <select class="form-select" id="winnerStocks">
+        <option value="1">1 stock</option>
+        <option value="2">2 stocks</option>
+        <option value="3" selected>3 stocks</option>
+      </select>
+      <label class="form-label" style="margin-top:0.8rem;">Total stocks per player</label>
+      <select class="form-select" id="totalStocks">
+        <option value="1">1 stock</option>
+        <option value="2">2 stocks</option>
+        <option value="3" selected>3 stocks</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Score (e.g. 2-1)</label>
+      <input class="form-input" type="text" id="scoreInput" placeholder="2-1">
+    </div>
     <div class="modal-actions">
-      <button class="btn btn-primary" onclick="submitResult()">Confirm</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitResult()">✅ Confirm</button>
+      <button class="btn btn-ghost" onclick="closeModal('resultModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHAR PICKER MODAL -->
+<div class="modal-overlay" id="charModal">
+  <div class="modal" style="max-width:600px;">
+    <h2 id="charModalTitle">SELECT CHARACTER</h2>
+    <div class="char-grid" id="char-grid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('charModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -238,148 +446,223 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const myId = "{{ user.id }}";
-  let currentChallengeId = null;
-  let selectedWinnerId = null;
-  let modalOpen = false;
-  let lastKnownState = { pending: 0, active: 0, awaiting: 0 };
+const myId = "{{ user.id }}";
+let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
+let currentCharSlot = null, selectedChar = null;
+let lastKnownState = { pending: 0, active: 0, awaiting: 0 };
 
-  function showToast(msg, ok=true) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.style.borderColor = ok ? 'var(--green)' : 'var(--red)';
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3500);
+// All Smash Ultimate characters with their icon IDs
+const SMASH_CHARS = [
+  {name:"Mario",id:"mario"},{name:"Donkey Kong",id:"donkey_kong"},{name:"Link",id:"link"},
+  {name:"Samus",id:"samus"},{name:"Dark Samus",id:"dark_samus"},{name:"Yoshi",id:"yoshi"},
+  {name:"Kirby",id:"kirby"},{name:"Fox",id:"fox"},{name:"Pikachu",id:"pikachu"},
+  {name:"Luigi",id:"luigi"},{name:"Ness",id:"ness"},{name:"Captain Falcon",id:"captain_falcon"},
+  {name:"Jigglypuff",id:"jigglypuff"},{name:"Peach",id:"peach"},{name:"Daisy",id:"daisy"},
+  {name:"Bowser",id:"bowser"},{name:"Ice Climbers",id:"ice_climbers"},{name:"Sheik",id:"sheik"},
+  {name:"Zelda",id:"zelda"},{name:"Dr. Mario",id:"dr_mario"},{name:"Pichu",id:"pichu"},
+  {name:"Falco",id:"falco"},{name:"Marth",id:"marth"},{name:"Lucina",id:"lucina"},
+  {name:"Young Link",id:"young_link"},{name:"Ganondorf",id:"ganondorf"},{name:"Mewtwo",id:"mewtwo"},
+  {name:"Roy",id:"roy"},{name:"Chrom",id:"chrom"},{name:"Mr. Game & Watch",id:"mr_game_and_watch"},
+  {name:"Meta Knight",id:"meta_knight"},{name:"Pit",id:"pit"},{name:"Dark Pit",id:"dark_pit"},
+  {name:"Zero Suit Samus",id:"zero_suit_samus"},{name:"Wario",id:"wario"},{name:"Snake",id:"snake"},
+  {name:"Ike",id:"ike"},{name:"Pokémon Trainer",id:"pokemon_trainer"},{name:"Diddy Kong",id:"diddy_kong"},
+  {name:"Lucas",id:"lucas"},{name:"Sonic",id:"sonic"},{name:"King Dedede",id:"dedede"},
+  {name:"Olimar",id:"olimar"},{name:"Lucario",id:"lucario"},{name:"R.O.B.",id:"rob"},
+  {name:"Toon Link",id:"toon_link"},{name:"Wolf",id:"wolf"},{name:"Villager",id:"villager"},
+  {name:"Mega Man",id:"mega_man"},{name:"Wii Fit Trainer",id:"wii_fit_trainer"},
+  {name:"Rosalina",id:"rosalina_and_luma"},{name:"Little Mac",id:"little_mac"},
+  {name:"Greninja",id:"greninja"},{name:"Mii Brawler",id:"mii_brawler"},
+  {name:"Mii Swordfighter",id:"mii_swordfighter"},{name:"Mii Gunner",id:"mii_gunner"},
+  {name:"Palutena",id:"palutena"},{name:"Pac-Man",id:"pac_man"},{name:"Robin",id:"robin"},
+  {name:"Shulk",id:"shulk"},{name:"Bowser Jr.",id:"bowser_jr"},{name:"Duck Hunt",id:"duck_hunt"},
+  {name:"Ryu",id:"ryu"},{name:"Ken",id:"ken"},{name:"Cloud",id:"cloud"},
+  {name:"Corrin",id:"corrin"},{name:"Bayonetta",id:"bayonetta"},{name:"Inkling",id:"inkling"},
+  {name:"Ridley",id:"ridley"},{name:"Simon",id:"simon"},{name:"Richter",id:"richter"},
+  {name:"King K. Rool",id:"king_k_rool"},{name:"Isabelle",id:"isabelle"},{name:"Incineroar",id:"incineroar"},
+  {name:"Piranha Plant",id:"piranha_plant"},{name:"Joker",id:"joker"},{name:"Hero",id:"hero"},
+  {name:"Banjo & Kazooie",id:"banjo_and_kazooie"},{name:"Terry",id:"terry"},{name:"Byleth",id:"byleth"},
+  {name:"Min Min",id:"min_min"},{name:"Steve",id:"steve"},{name:"Sephiroth",id:"sephiroth"},
+  {name:"Pyra/Mythra",id:"pyra_mythra"},{name:"Kazuya",id:"kazuya"},{name:"Sora",id:"sora"}
+];
+
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? 'var(--green)' : 'var(--red)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function showTab(name, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+function filterPlayers(q) {
+  document.querySelectorAll('.player-card').forEach(card => {
+    card.style.display = card.dataset.name.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// ── CHAR PICKER ─────────────────────────────────────────────
+function openCharPicker(slot) {
+  currentCharSlot = slot;
+  document.getElementById('charModalTitle').textContent = slot === 'main' ? 'SELECT MAIN' : 'SELECT SECONDARY';
+  const grid = document.getElementById('char-grid');
+  grid.innerHTML = '';
+  SMASH_CHARS.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'char-option';
+    div.innerHTML = `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c.id}.png" onerror="this.src=''" alt="${c.name}"><span>${c.name}</span>`;
+    div.onclick = () => {
+      document.querySelectorAll('.char-option').forEach(o => o.classList.remove('selected'));
+      div.classList.add('selected');
+      selectedChar = c.id;
+      saveChar(slot, c.id, c.name);
+    };
+    grid.appendChild(div);
+  });
+  document.getElementById('charModal').classList.add('open');
+  modalOpen = true;
+}
+
+function saveChar(slot, charId, charName) {
+  const data = slot === 'main' ? {main_char: charId} : {secondary_char: charId};
+  fetch('/api/update_profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r => r.json()).then(d => {
+      if (d.success) { showToast(charName + ' saved as ' + slot + '!'); closeModal('charModal'); setTimeout(() => location.reload(), 800); }
+    });
+}
+
+// ── REAL-TIME ────────────────────────────────────────────────
+async function checkUpdates() {
+  if (modalOpen) return;
+  try {
+    const r = await fetch('/api/status');
+    if (!r.ok) return;
+    const data = await r.json();
+    const changed = data.pending !== lastKnownState.pending || data.active !== lastKnownState.active || data.awaiting !== lastKnownState.awaiting;
+    if (changed) { lastKnownState = data; await refreshSections(); }
+  } catch(e) {}
+}
+
+async function refreshSections() {
+  try {
+    const r = await fetch('/api/dashboard_data');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('stat-points').textContent = d.player.points;
+    document.getElementById('stat-wins').textContent = d.player.wins;
+    document.getElementById('stat-losses').textContent = d.player.losses;
+    document.getElementById('profile-rank').textContent = d.rank;
+    const wr = d.player.matches_played > 0 ? (d.player.wins / d.player.matches_played * 100).toFixed(1) : 0;
+    document.getElementById('wr-fill').style.width = wr + '%';
+    document.getElementById('wr-val').textContent = wr + '%';
+    renderDefis(d.challenges_received);
+    renderMatchs(d.active_matches);
+    renderAttente(d.awaiting_confirmation);
+    renderHistory(d.my_matches);
+  } catch(e) {}
+}
+
+function renderDefis(defis) {
+  const z = document.getElementById('zone-defis');
+  if (!defis || !Object.keys(defis).length) { z.innerHTML = ''; return; }
+  let h = '<div class="section-title">INCOMING CHALLENGES</div>';
+  for (const [cid, c] of Object.entries(defis)) {
+    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${c.challenger_name} is challenging you!</div><div class="challenge-sub">Pick a format to accept</div></div></div><div class="challenge-actions"><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO1')">Accept BO1</button><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO3')">Accept BO3</button><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO5')">Accept BO5</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
   }
+  z.innerHTML = h;
+}
 
-  // ── REAL-TIME : check only if something changed ──────────────
-  async function checkUpdates() {
-    if (modalOpen) return;
-    try {
-      const r = await fetch('/api/status');
-      if (!r.ok) return;
-      const data = await r.json();
-      const changed = data.pending !== lastKnownState.pending
-                   || data.active !== lastKnownState.active
-                   || data.awaiting !== lastKnownState.awaiting;
-      if (changed) {
-        lastKnownState = { pending: data.pending, active: data.active, awaiting: data.awaiting };
-        await refreshSections();
-      }
-    } catch(e) {}
+function renderMatchs(matchs) {
+  const z = document.getElementById('zone-matchs');
+  if (!matchs || !Object.keys(matchs).length) { z.innerHTML = ''; return; }
+  let h = '<div class="section-title">ACTIVE MATCHES</div>';
+  for (const [cid, c] of Object.entries(matchs)) {
+    h += `<div class="challenge-card active"><div class="challenge-top"><div><div class="challenge-title">🎮 ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">${c.format} — Submit the result when done</div></div><button class="btn btn-success" onclick="openResult('${cid}','${c.challenger_id}','${c.challenger_name}','${c.challenged_id}','${c.challenged_name}','${c.format}')">🏆 Submit Result</button></div></div>`;
   }
+  z.innerHTML = h;
+}
 
-  async function refreshSections() {
-    try {
-      const r = await fetch('/api/dashboard_data');
-      if (!r.ok) return;
-      const data = await r.json();
-      document.getElementById('stat-points').textContent = data.player.points;
-      document.getElementById('stat-wins').textContent = data.player.wins;
-      document.getElementById('stat-losses').textContent = data.player.losses;
-      document.getElementById('profile-rank').textContent = '#' + data.rank;
-      renderDefis(data.challenges_received);
-      renderMatchs(data.active_matches);
-      renderAttente(data.awaiting_confirmation);
-      renderHistorique(data.my_matches);
-      renderJoueurs(data.players);
-    } catch(e) {}
+function renderAttente(att) {
+  const z = document.getElementById('zone-attente');
+  if (!att || !Object.keys(att).length) { z.innerHTML = ''; return; }
+  let h = '<div class="section-title">AWAITING YOUR CONFIRMATION</div>';
+  for (const [cid, c] of Object.entries(att)) {
+    h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="openResult('${cid}','${c.challenger_id}','${c.challenger_name}','${c.challenged_id}','${c.challenged_name}','${c.format}')">✅ Confirm</button></div></div>`;
   }
+  z.innerHTML = h;
+}
 
-  function renderDefis(defis) {
-    const zone = document.getElementById('zone-defis');
-    if (!defis || Object.keys(defis).length === 0) { zone.innerHTML = ''; return; }
-    let html = '<div class="section-title">INCOMING CHALLENGES <span class="badge">' + Object.keys(defis).length + '</span></div>';
-    for (const [cid, c] of Object.entries(defis)) {
-      html += `<div class="challenge-item"><div class="challenger">⚔ ${c.challenger_name} is challenging you!</div><div style="color:var(--muted);font-size:0.9rem;">Pick a format to accept:</div><div class="challenge-actions"><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO1')">Accept BO1</button><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO3')">Accept BO3</button><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO5')">Accept BO5</button><button class="btn btn-danger" style="font-size:0.9rem;" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
-    }
-    zone.innerHTML = html;
+function renderHistory(matches) {
+  const z = document.getElementById('zone-historique');
+  if (!matches || !matches.length) { z.innerHTML = '<div class="empty">No matches yet.</div>'; return; }
+  let h = '';
+  for (const m of matches) {
+    if (m.winner_id === myId) h += `<div class="match-card win"><span class="match-result">WIN</span><span class="match-vs">vs <strong>${m.loser_name}</strong>${m.score?' — '+m.score:''}</span><span class="match-fmt">${m.format}</span>${m.elo_change?'<span class="match-elo">+'+m.elo_change+' ELO</span>':''}</div>`;
+    else h += `<div class="match-card loss"><span class="match-result">LOSS</span><span class="match-vs">vs <strong>${m.winner_name}</strong>${m.score?' — '+m.score:''}</span><span class="match-fmt">${m.format}</span>${m.elo_change?'<span class="match-elo">-'+m.elo_change+' ELO</span>':''}</div>`;
   }
+  z.innerHTML = h;
+}
 
-  function renderMatchs(matchs) {
-    const zone = document.getElementById('zone-matchs');
-    if (!matchs || Object.keys(matchs).length === 0) { zone.innerHTML = ''; return; }
-    let html = '<div class="section-title" style="margin-top:1.5rem;">ACTIVE MATCHES <span class="badge">' + Object.keys(matchs).length + '</span></div>';
-    for (const [cid, c] of Object.entries(matchs)) {
-      html += `<div class="match-en-cours"><div><div class="vs">🎮 ${c.challenger_name} VS ${c.challenged_name} — ${c.format}</div><div style="color:var(--muted);font-size:0.85rem;">Match accepted — submit the result!</div></div><button class="btn btn-success" onclick="openResult('${cid}','${c.challenger_id}','${c.challenger_name}','${c.challenged_id}','${c.challenged_name}','${c.format}')">🏆 Submit Result</button></div>`;
-    }
-    zone.innerHTML = html;
-  }
+setInterval(checkUpdates, 8000);
 
-  function renderAttente(attente) {
-    const zone = document.getElementById('zone-attente');
-    if (!attente || Object.keys(attente).length === 0) { zone.innerHTML = ''; return; }
-    let html = '<div class="section-title" style="margin-top:1.5rem;">AWAITING YOUR CONFIRMATION</div>';
-    for (const [cid, c] of Object.entries(attente)) {
-      html += `<div class="match-en-cours" style="border-color:var(--accent);"><div><div class="vs">⏳ ${c.challenger_name} VS ${c.challenged_name}</div><div style="color:var(--muted);font-size:0.85rem;">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="openResult('${cid}','${c.challenger_id}','${c.challenger_name}','${c.challenged_id}','${c.challenged_name}','${c.format}')">✅ Confirm Result</button></div>`;
-    }
-    zone.innerHTML = html;
-  }
+// ── ACTIONS ──────────────────────────────────────────────────
+function sendChallenge(id, name) {
+  fetch('/challenge/' + id, {method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.success) showToast('Challenge sent to ' + name + '!');
+    else showToast(d.error, false);
+  });
+}
 
-  function renderHistorique(matches) {
-    const zone = document.getElementById('zone-historique');
-    if (!matches || matches.length === 0) { zone.innerHTML = '<div class="empty">No matches played yet.<br>Challenge someone!</div>'; return; }
-    let html = '';
-    for (const m of matches) {
-      if (m.winner_id === myId) html += `<div class="match-item win"><span class="match-result">WIN</span> vs ${m.loser_name}${m.score?' — '+m.score:''} <span style="color:var(--muted);font-size:0.85rem;">${m.format}</span></div>`;
-      else html += `<div class="match-item loss"><span class="match-result">LOSS</span> vs ${m.winner_name}${m.score?' — '+m.score:''} <span style="color:var(--muted);font-size:0.85rem;">${m.format}</span></div>`;
-    }
-    zone.innerHTML = html;
-  }
+function acceptChallenge(cid, fmt) {
+  fetch('/challenge/'+cid+'/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
+    .then(r=>r.json()).then(d=>{ if(d.success) showToast('Challenge accepted in '+fmt+'!'); else showToast(d.error,false); });
+}
 
-  function renderJoueurs(players) {
-    const zone = document.getElementById('zone-joueurs');
-    const others = players.filter(p => p.id !== myId);
-    if (others.length === 0) { zone.innerHTML = '<div class="empty">No other players registered yet.</div>'; return; }
-    let html = '';
-    for (const p of others) {
-      const av = p.avatar ? `<img class="mini-avatar" src="https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png" alt="">` : '';
-      html += `<div class="player-item"><div class="player-item-info">${av}<span>${p.username}</span></div><div style="display:flex;align-items:center;gap:0.7rem;"><span class="player-pts">${p.points} pts</span><button class="btn btn-primary" style="font-size:0.85rem;padding:0.3rem 0.8rem;" onclick="sendChallenge('${p.id}','${p.username}')">Challenge</button></div></div>`;
-    }
-    zone.innerHTML = html;
-  }
+function declineChallenge(cid) {
+  fetch('/challenge/'+cid+'/decline',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.success) showToast('Challenge declined.'); else showToast(d.error,false);
+  });
+}
 
-  // Poll every 6 seconds (reduced from 4)
-  setInterval(checkUpdates, 6000);
+function openResult(cid, chalId, chalName, chaldId, chaldName, fmt) {
+  currentChallengeId = cid; selectedWinnerId = null; currentFormat = fmt; modalOpen = true;
+  document.getElementById('resultDesc').textContent = fmt + ' match: ' + chalName + ' vs ' + chaldName;
+  document.getElementById('winnerSelect').innerHTML =
+    '<button class="fmt-btn" onclick="selectWinner(\''+chalId+'\',this)">'+chalName+'</button>' +
+    '<button class="fmt-btn" onclick="selectWinner(\''+chaldId+'\',this)">'+chaldName+'</button>';
+  document.getElementById('scoreInput').value = '';
+  document.getElementById('stocksGroup').style.display = fmt === 'STOCKS' ? 'block' : 'none';
+  document.getElementById('resultModal').classList.add('open');
+}
 
-  function sendChallenge(opponentId, opponentName) {
-    fetch('/challenge/' + opponentId, { method: 'POST' })
-      .then(r => r.json()).then(d => { if (d.success) showToast('Challenge sent to ' + opponentName + '!'); else showToast(d.error, false); });
-  }
+function selectWinner(id, btn) {
+  selectedWinnerId = id;
+  document.querySelectorAll('#winnerSelect .fmt-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
 
-  function acceptChallenge(challengeId, format) {
-    fetch('/challenge/' + challengeId + '/accept', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({format}) })
-      .then(r => r.json()).then(d => { if (d.success) showToast('Challenge accepted in ' + format + '!'); else showToast(d.error, false); });
-  }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  modalOpen = false;
+}
 
-  function declineChallenge(challengeId) {
-    fetch('/challenge/' + challengeId + '/decline', { method: 'POST' })
-      .then(r => r.json()).then(d => { if (d.success) showToast('Challenge declined.'); else showToast(d.error, false); });
-  }
-
-  function openResult(cid, chal_id, chal_name, chald_id, chald_name, format) {
-    currentChallengeId = cid; selectedWinnerId = null; modalOpen = true;
-    document.getElementById('resultDesc').textContent = format + ' match: ' + chal_name + ' vs ' + chald_name;
-    document.getElementById('winnerSelect').innerHTML =
-      '<button class="fmt-btn" onclick="selectWinner(\'' + chal_id + '\',this)">' + chal_name + '</button>' +
-      '<button class="fmt-btn" onclick="selectWinner(\'' + chald_id + '\',this)">' + chald_name + '</button>';
-    document.getElementById('scoreInput').value = '';
-    document.getElementById('resultModal').classList.add('open');
-  }
-
-  function selectWinner(id, btn) {
-    selectedWinnerId = id;
-    document.querySelectorAll('#winnerSelect .fmt-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-  }
-
-  function closeModal() { document.getElementById('resultModal').classList.remove('open'); modalOpen = false; }
-
-  function submitResult() {
-    if (!selectedWinnerId) { showToast('Pick a winner!', false); return; }
-    fetch('/result/' + currentChallengeId, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ winner_id: selectedWinnerId, score: document.getElementById('scoreInput').value }) })
-      .then(r => r.json()).then(d => { if (d.success) { showToast(d.message); closeModal(); } else showToast(d.error, false); });
-  }
+function submitResult() {
+  if (!selectedWinnerId) { showToast('Pick a winner!', false); return; }
+  const body = {
+    winner_id: selectedWinnerId,
+    score: document.getElementById('scoreInput').value,
+    mode: currentFormat === 'STOCKS' ? 'stocks' : 'sets',
+    winner_stocks: parseInt(document.getElementById('winnerStocks')?.value || 3),
+    total_stocks: parseInt(document.getElementById('totalStocks')?.value || 3)
+  };
+  fetch('/result/'+currentChallengeId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{ if(d.success){showToast(d.message);closeModal('resultModal');}else showToast(d.error,false); });
+}
 </script>
 </body>
 </html>
