@@ -408,20 +408,22 @@
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;" id="winnerSelect"></div>
     </div>
     <div class="form-group" id="stocksGroup" style="display:none;">
-      <label class="form-label">Winner stocks remaining</label>
-      <select class="form-select" id="winnerStocks">
-        <option value="1">1 stock</option>
-        <option value="2">2 stocks</option>
-        <option value="3" selected>3 stocks</option>
-      </select>
-      <label class="form-label" style="margin-top:0.8rem;">Total stocks per player</label>
-      <select class="form-select" id="totalStocks">
-        <option value="1">1 stock</option>
-        <option value="2">2 stocks</option>
-        <option value="3" selected>3 stocks</option>
-      </select>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.5rem;">
+        <div style="color:var(--accent2);font-weight:700;margin-bottom:0.8rem;font-size:0.9rem;letter-spacing:1px;">📊 STOCKS TAKEN</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <label class="form-label">Winner — stocks taken</label>
+            <input class="form-input" type="number" id="winnerStocksTaken" min="0" max="99" value="0" placeholder="e.g. 8">
+          </div>
+          <div>
+            <label class="form-label">Loser — stocks taken</label>
+            <input class="form-input" type="number" id="loserStocksTaken" min="0" max="99" value="0" placeholder="e.g. 3">
+          </div>
+        </div>
+        <div style="color:var(--muted);font-size:0.8rem;margin-top:0.6rem;">Score calculated automatically (e.g. 8-3)</div>
+      </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="scoreGroup">
       <label class="form-label">Score (e.g. 2-1)</label>
       <input class="form-input" type="text" id="scoreInput" placeholder="2-1">
     </div>
@@ -631,12 +633,19 @@ function declineChallenge(cid) {
 
 function openResult(cid, chalId, chalName, chaldId, chaldName, fmt) {
   currentChallengeId = cid; selectedWinnerId = null; currentFormat = fmt; modalOpen = true;
+  const isStocks = fmt === 'STOCKS';
   document.getElementById('resultDesc').textContent = fmt + ' match: ' + chalName + ' vs ' + chaldName;
   document.getElementById('winnerSelect').innerHTML =
     '<button class="fmt-btn" onclick="selectWinner(\''+chalId+'\',this)">'+chalName+'</button>' +
     '<button class="fmt-btn" onclick="selectWinner(\''+chaldId+'\',this)">'+chaldName+'</button>';
-  document.getElementById('scoreInput').value = '';
-  document.getElementById('stocksGroup').style.display = fmt === 'STOCKS' ? 'block' : 'none';
+  document.getElementById('stocksGroup').style.display = isStocks ? 'block' : 'none';
+  document.getElementById('scoreGroup').style.display = isStocks ? 'none' : 'block';
+  if (isStocks) {
+    document.getElementById('winnerStocksTaken').value = 0;
+    document.getElementById('loserStocksTaken').value = 0;
+  } else {
+    document.getElementById('scoreInput').value = '';
+  }
   document.getElementById('resultModal').classList.add('open');
 }
 
@@ -653,13 +662,19 @@ function closeModal(id) {
 
 function submitResult() {
   if (!selectedWinnerId) { showToast('Pick a winner!', false); return; }
-  const body = {
-    winner_id: selectedWinnerId,
-    score: document.getElementById('scoreInput').value,
-    mode: currentFormat === 'STOCKS' ? 'stocks' : 'sets',
-    winner_stocks: parseInt(document.getElementById('winnerStocks')?.value || 3),
-    total_stocks: parseInt(document.getElementById('totalStocks')?.value || 3)
-  };
+  const isStocks = currentFormat === 'STOCKS';
+  let body = { winner_id: selectedWinnerId };
+  if (isStocks) {
+    const wSt = parseInt(document.getElementById('winnerStocksTaken').value || 0);
+    const lSt = parseInt(document.getElementById('loserStocksTaken').value || 0);
+    if (wSt === lSt) { showToast('Stocks taken cannot be equal — there must be a winner!', false); return; }
+    if (wSt < lSt) { showToast('The winner must have taken more stocks than the loser!', false); return; }
+    body.winner_stocks_taken = wSt;
+    body.loser_stocks_taken = lSt;
+    body.score = wSt + '-' + lSt;
+  } else {
+    body.score = document.getElementById('scoreInput').value;
+  }
   fetch('/result/'+currentChallengeId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(r=>r.json()).then(d=>{ if(d.success){showToast(d.message);closeModal('resultModal');}else showToast(d.error,false); });
 }
