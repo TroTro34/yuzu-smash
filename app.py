@@ -1,14 +1,14 @@
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "yuzu_dev_secret")
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24h
+app.config["PERMANENT_SESSION_LIFETIME"] = 86400
 
 CLIENT_ID = "1504467669712240861"
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
@@ -23,8 +23,7 @@ DISCORD_AUTH_URL = (
     f"&response_type=code&scope=identify guilds"
 )
 
-POINTS_WIN = 10
-POINTS_LOSS = 10
+ELO_K = 32
 
 def sb_headers():
     return {
@@ -47,12 +46,35 @@ def sb_patch(table, match, data):
     r = requests.patch(f"{SUPABASE_URL}/rest/v1/{table}?{params}", headers=sb_headers(), json=data)
     return r.ok
 
+def sb_delete(table, match):
+    params = "&".join([f"{k}=eq.{v}" for k, v in match.items()])
+    r = requests.delete(f"{SUPABASE_URL}/rest/v1/{table}?{params}", headers=sb_headers())
+    return r.ok
+
+def calc_elo(winner_pts, loser_pts):
+    expected = 1 / (1 + 10 ** ((loser_pts - winner_pts) / 400))
+    change = round(ELO_K * (1 - expected))
+    return max(change, 1)
+
+def calc_elo_stocks(winner_pts, loser_pts, winner_stocks, loser_stocks_taken, total_stocks):
+    """ELO proportionnel aux stocks pris"""
+    expected = 1 / (1 + 10 ** ((loser_pts - winner_pts) / 400))
+    stock_ratio = (winner_stocks + loser_stocks_taken) / (total_stocks * 2) if total_stocks > 0 else 0.5
+    change = round(ELO_K * (1 - expected) * (0.5 + stock_ratio))
+    return max(change, 1)
+
+# ── ROUTES PRINCIPALES ───────────────────────────────────────
+
 @app.route("/")
 def index():
     user = session.get("user")
     players = sb_get("players", "order=points.desc")
     matches = sb_get("matches", "order=id.desc&limit=10")
-    return render_template("index.html", user=user, players=players, recent_matches=matches)
+    # Nettoyer les annonces expirées
+    now = datetime.utcnow().isoformat()
+    sb_delete("lfm_posts", {"expires_at": f"lt.{now}"})
+    lfm = sb_get("lfm_posts", "order=created_at.desc")
+    return render_template("index.html", user=user, players=players, recent_matches=matches, lfm_posts=lfm)
 
 @app.route("/login")
 def login():
@@ -83,7 +105,8 @@ def callback():
     existing = sb_get("players", f"id=eq.{uid}")
     if not existing:
         sb_post("players", {"id": uid, "username": user_data["username"], "avatar": user_data.get("avatar"),
-                            "points": 1000, "wins": 0, "losses": 0, "matches_played": 0})
+                            "points": 1000, "wins": 0, "losses": 0, "matches_played": 0,
+                            "main_char": "", "secondary_char": "", "stocks_taken": 0, "stocks_lost": 0})
     else:
         sb_patch("players", {"id": uid}, {"username": user_data["username"], "avatar": user_data.get("avatar")})
     return redirect(url_for("dashboard"))
@@ -100,7 +123,7 @@ def dashboard():
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
     active_matches = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
     awaiting = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
-    my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=5")
+    my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
     return render_template("dashboard.html",
         user=session["user"], player=player, players=players, rank=rank,
         challenges_received=challenges_received, active_matches=active_matches,
@@ -111,23 +134,32 @@ def logout():
     session.clear()
     return redirect(url_for("index"))
 
-# ── API : une seule requête légère pour le temps réel ──────────
+# ── PROFIL ───────────────────────────────────────────────────
+
+@app.route("/api/update_profile", methods=["POST"])
+def update_profile():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.json
+    user_id = session["user"]["id"]
+    sb_patch("players", {"id": user_id}, {
+        "main_char": data.get("main_char", ""),
+        "secondary_char": data.get("secondary_char", "")
+    })
+    return jsonify({"success": True})
+
+# ── API TEMPS RÉEL ────────────────────────────────────────────
+
 @app.route("/api/status")
 def api_status():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
     user_id = session["user"]["id"]
-    # UNE seule requête Supabase au lieu de 3
-    all_challenges = sb_get("challenges", "status=neq.completed&status=neq.declined&status=neq.disputed&order=created_at.desc&limit=1")
-    last_update = 0
-    if all_challenges:
-        try:
-            last_update = datetime.fromisoformat(all_challenges[0]["created_at"].replace("Z","")).timestamp()
-        except: pass
+    all_challenges = sb_get("challenges", "status=neq.completed&status=neq.declined&status=neq.disputed&order=created_at.desc&limit=50")
     pending = sum(1 for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending")
     active = sum(1 for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]])
     awaiting = sum(1 for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]])
-    return jsonify({"last_update": last_update, "pending": pending, "active": active, "awaiting": awaiting})
+    return jsonify({"pending": pending, "active": active, "awaiting": awaiting})
 
 @app.route("/api/dashboard_data")
 def api_dashboard_data():
@@ -141,12 +173,27 @@ def api_dashboard_data():
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
     active_matches = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
     awaiting = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
-    my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=5")
+    my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
     return jsonify({"player": player, "players": players, "rank": rank,
         "challenges_received": challenges_received, "active_matches": active_matches,
         "awaiting_confirmation": awaiting, "my_matches": my_matches})
 
-# ── DÉFIS ────────────────────────────────────────────────────────
+@app.route("/api/lfm")
+def api_lfm():
+    now = datetime.utcnow().isoformat()
+    posts = sb_get("lfm_posts", f"expires_at=gt.{now}&order=created_at.desc")
+    return jsonify(posts)
+
+@app.route("/api/players/search")
+def search_players():
+    q = request.args.get("q", "").lower()
+    players = sb_get("players", "order=points.desc")
+    if q:
+        players = [p for p in players if q in p["username"].lower()]
+    return jsonify(players)
+
+# ── DÉFIS ────────────────────────────────────────────────────
+
 @app.route("/challenge/<opponent_id>", methods=["POST"])
 def challenge(opponent_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -165,7 +212,7 @@ def challenge(opponent_id):
 def accept_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     fmt = request.json.get("format", "BO3")
-    if fmt not in ["BO1", "BO3", "BO5"]: return jsonify({"error": "Invalid format"}), 400
+    if fmt not in ["BO1", "BO3", "BO5", "STOCKS"]: return jsonify({"error": "Invalid format"}), 400
     sb_patch("challenges", {"id": challenge_id}, {"status": "accepted", "format": fmt})
     return jsonify({"success": True})
 
@@ -175,7 +222,60 @@ def decline_challenge(challenge_id):
     sb_patch("challenges", {"id": challenge_id}, {"status": "declined"})
     return jsonify({"success": True})
 
-# ── RÉSULTATS ────────────────────────────────────────────────────
+# ── LFM POSTS ────────────────────────────────────────────────
+
+@app.route("/lfm", methods=["POST"])
+def create_lfm():
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    user_id = session["user"]["id"]
+    data = request.json
+    # Supprimer l'annonce existante du joueur
+    sb_delete("lfm_posts", {"player_id": user_id})
+    player = sb_get("players", f"id=eq.{user_id}")
+    pts = player[0]["points"] if player else 1000
+    main = player[0].get("main_char", "") if player else ""
+    avatar = session["user"].get("avatar", "")
+    expires = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
+    post_id = f"lfm_{int(datetime.now().timestamp())}_{user_id}"
+    sb_post("lfm_posts", {
+        "id": post_id,
+        "player_id": user_id,
+        "player_name": session["user"]["username"],
+        "player_avatar": avatar,
+        "player_points": pts,
+        "main_char": main,
+        "format": data.get("format", "BO3"),
+        "mode": data.get("mode", "sets"),
+        "message": data.get("message", ""),
+        "created_at": datetime.utcnow().isoformat(),
+        "expires_at": expires
+    })
+    return jsonify({"success": True})
+
+@app.route("/lfm/<post_id>/accept", methods=["POST"])
+def accept_lfm(post_id):
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    user_id = session["user"]["id"]
+    posts = sb_get("lfm_posts", f"id=eq.{post_id}")
+    if not posts: return jsonify({"error": "Post not found"}), 404
+    post = posts[0]
+    if post["player_id"] == user_id: return jsonify({"error": "You can't accept your own post"}), 400
+    # Créer un défi depuis l'annonce
+    cid = f"ch_{int(datetime.now().timestamp())}_{user_id}"
+    sb_post("challenges", {
+        "id": cid,
+        "challenger_id": user_id,
+        "challenger_name": session["user"]["username"],
+        "challenged_id": post["player_id"],
+        "challenged_name": post["player_name"],
+        "status": "accepted",
+        "format": post["format"]
+    })
+    sb_delete("lfm_posts", {"id": post_id})
+    return jsonify({"success": True})
+
+# ── RÉSULTATS ────────────────────────────────────────────────
+
 @app.route("/result/<challenge_id>", methods=["POST"])
 def submit_result(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -183,27 +283,59 @@ def submit_result(challenge_id):
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges: return jsonify({"error": "Challenge not found"}), 404
     c = challenges[0]
-    if user_id not in [c["challenger_id"], c["challenged_id"]]: return jsonify({"error": "You are not part of this match"}), 403
+    if user_id not in [c["challenger_id"], c["challenged_id"]]: return jsonify({"error": "Not part of this match"}), 403
     data = request.json
     winner_id = data.get("winner_id")
     score = data.get("score", "")
+    mode = data.get("mode", "sets")
+    winner_stocks = data.get("winner_stocks", 0)
+    loser_stocks_taken = data.get("loser_stocks_taken", 0)
+    total_stocks = data.get("total_stocks", 3)
     if winner_id not in [c["challenger_id"], c["challenged_id"]]: return jsonify({"error": "Invalid winner"}), 400
     loser_id = c["challenged_id"] if winner_id == c["challenger_id"] else c["challenger_id"]
+
     if c["status"] == "accepted":
-        sb_patch("challenges", {"id": challenge_id}, {"status": "reported", "reported_by": user_id, "report": {"winner_id": winner_id, "score": score}})
+        sb_patch("challenges", {"id": challenge_id}, {
+            "status": "reported", "reported_by": user_id,
+            "report": {"winner_id": winner_id, "score": score, "mode": mode,
+                       "winner_stocks": winner_stocks, "loser_stocks_taken": loser_stocks_taken,
+                       "total_stocks": total_stocks}
+        })
         return jsonify({"success": True, "message": "Result submitted! Waiting for opponent confirmation."})
+
     if c["status"] == "reported" and c.get("reported_by") != user_id:
         report = c.get("report") or {}
         if winner_id == report.get("winner_id"):
             winner = sb_get("players", f"id=eq.{winner_id}")
             loser = sb_get("players", f"id=eq.{loser_id}")
             if winner and loser:
-                sb_patch("players", {"id": winner_id}, {"points": winner[0]["points"] + POINTS_WIN, "wins": winner[0]["wins"] + 1, "matches_played": winner[0]["matches_played"] + 1})
-                sb_patch("players", {"id": loser_id}, {"points": max(0, loser[0]["points"] - POINTS_LOSS), "losses": loser[0]["losses"] + 1, "matches_played": loser[0]["matches_played"] + 1})
-                sb_post("matches", {"challenge_id": challenge_id, "winner_id": winner_id, "winner_name": winner[0]["username"],
-                    "loser_id": loser_id, "loser_name": loser[0]["username"], "score": score, "format": c["format"], "date": datetime.now().isoformat()})
+                wp, lp = winner[0]["points"], loser[0]["points"]
+                rep_mode = report.get("mode", "sets")
+                if rep_mode == "stocks":
+                    elo_gain = calc_elo_stocks(wp, lp, report.get("winner_stocks", 0),
+                                               report.get("loser_stocks_taken", 0), report.get("total_stocks", 3))
+                else:
+                    elo_gain = calc_elo(wp, lp)
+                sb_patch("players", {"id": winner_id}, {
+                    "points": wp + elo_gain, "wins": winner[0]["wins"] + 1,
+                    "matches_played": winner[0]["matches_played"] + 1,
+                    "stocks_taken": winner[0].get("stocks_taken", 0) + report.get("loser_stocks_taken", 0)
+                })
+                sb_patch("players", {"id": loser_id}, {
+                    "points": max(0, lp - elo_gain), "losses": loser[0]["losses"] + 1,
+                    "matches_played": loser[0]["matches_played"] + 1,
+                    "stocks_lost": loser[0].get("stocks_lost", 0) + report.get("loser_stocks_taken", 0)
+                })
+                sb_post("matches", {
+                    "challenge_id": challenge_id,
+                    "winner_id": winner_id, "winner_name": winner[0]["username"],
+                    "loser_id": loser_id, "loser_name": loser[0]["username"],
+                    "score": score, "format": c["format"],
+                    "elo_change": elo_gain,
+                    "date": datetime.now().isoformat()
+                })
                 sb_patch("challenges", {"id": challenge_id}, {"status": "completed"})
-                return jsonify({"success": True, "message": "Match validated! Points updated."})
+                return jsonify({"success": True, "message": f"Match validated! +{elo_gain} ELO for the winner."})
         else:
             sb_patch("challenges", {"id": challenge_id}, {"status": "disputed"})
             return jsonify({"success": True, "message": "Conflict detected! Contact an admin."})
