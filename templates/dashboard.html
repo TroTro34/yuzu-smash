@@ -272,13 +272,17 @@
         <div class="challenge-top">
           <div>
             <div class="challenge-title">⚔ {{ c.challenger_name }} is challenging you!</div>
-            <div class="challenge-sub">Pick a format to accept</div>
+            <div class="challenge-sub">Pick a mode and accept</div>
           </div>
         </div>
         <div class="challenge-actions">
-          <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO1')">Accept BO1</button>
-          <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO3')">Accept BO3</button>
-          <button class="fmt-btn" onclick="acceptChallenge('{{ cid }}', 'BO5')">Accept BO5</button>
+          <select class="form-select" id="fmt-{{ cid }}" style="padding:0.35rem 0.8rem;font-size:0.9rem;width:auto;">
+            <option value="BO1">BO1 — Best of 1</option>
+            <option value="BO3" selected>BO3 — Best of 3</option>
+            <option value="BO5">BO5 — Best of 5</option>
+            <option value="STOCKS">STOCKS — Stocks Taken</option>
+          </select>
+          <button class="btn btn-success" onclick="acceptChallenge('{{ cid }}', document.getElementById('fmt-{{ cid }}').value)">✅ Accept</button>
           <button class="btn btn-danger" onclick="declineChallenge('{{ cid }}')">Decline</button>
         </div>
       </div>
@@ -574,7 +578,7 @@ function renderDefis(defis) {
   if (!defis || !Object.keys(defis).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">INCOMING CHALLENGES</div>';
   for (const [cid, c] of Object.entries(defis)) {
-    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${c.challenger_name} is challenging you!</div><div class="challenge-sub">Pick a format to accept</div></div></div><div class="challenge-actions"><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO1')">Accept BO1</button><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO3')">Accept BO3</button><button class="fmt-btn" onclick="acceptChallenge('${cid}','BO5')">Accept BO5</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
+    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${c.challenger_name} is challenging you!</div><div class="challenge-sub">Pick a mode and accept</div></div></div><div class="challenge-actions"><select class="form-select" id="fmt-${cid}" style="padding:0.35rem 0.8rem;font-size:0.9rem;width:auto;"><option value="BO1">BO1 — Best of 1</option><option value="BO3" selected>BO3 — Best of 3</option><option value="BO5">BO5 — Best of 5</option><option value="STOCKS">STOCKS — Stocks Taken</option></select><button class="btn btn-success" onclick="acceptChallenge('${cid}', document.getElementById('fmt-${cid}').value)">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
   }
   z.innerHTML = h;
 }
