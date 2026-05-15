@@ -256,18 +256,12 @@
       <div class="section-title">POST A CHALLENGE</div>
       <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
         <div>
-          <label style="display:block;color:var(--muted);font-size:0.8rem;letter-spacing:1px;margin-bottom:0.3rem;">FORMAT</label>
-          <select id="lfm-format" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.5rem 1rem;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:1rem;">
-            <option value="BO1">BO1</option>
-            <option value="BO3" selected>BO3</option>
-            <option value="BO5">BO5</option>
-          </select>
-        </div>
-        <div>
           <label style="display:block;color:var(--muted);font-size:0.8rem;letter-spacing:1px;margin-bottom:0.3rem;">MODE</label>
-          <select id="lfm-mode" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.5rem 1rem;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:1rem;">
-            <option value="sets">Sets (ELO standard)</option>
-            <option value="stocks">Stocks taken (ELO proportionnel)</option>
+          <select id="lfm-format" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.5rem 1rem;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:1rem;">
+            <option value="BO1">BO1 — Best of 1</option>
+            <option value="BO3" selected>BO3 — Best of 3</option>
+            <option value="BO5">BO5 — Best of 5</option>
+            <option value="STOCKS">STOCKS — Stocks Taken</option>
           </select>
         </div>
         <div style="flex:1;min-width:200px;">
@@ -349,9 +343,10 @@
   }
 
   function postLFM() {
-    const format = document.getElementById('lfm-format').value;
-    const mode = document.getElementById('lfm-mode').value;
+    const val = document.getElementById('lfm-format').value;
     const message = document.getElementById('lfm-msg').value;
+    const format = val;
+    const mode = val === 'STOCKS' ? 'stocks' : 'sets';
     fetch('/lfm', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({format, mode, message}) })
       .then(r => r.json()).then(d => {
