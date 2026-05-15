@@ -5,6 +5,10 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "yuzu_dev_secret")
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24h
 
 CLIENT_ID = "1504467669712240861"
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
@@ -74,6 +78,7 @@ def callback():
     if GUILD_ID not in [g["id"] for g in guilds]:
         return render_template("not_member.html")
     session["user"] = {"id": user_data["id"], "username": user_data["username"], "avatar": user_data.get("avatar")}
+    session.permanent = True
     uid = user_data["id"]
     existing = sb_get("players", f"id=eq.{uid}")
     if not existing:
