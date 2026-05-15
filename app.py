@@ -3,6 +3,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 import requests
 import os
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "yuzu_dev_secret")
@@ -69,13 +70,16 @@ def calc_elo_stocks(winner_pts, loser_pts, winner_stocks_taken, loser_stocks_tak
     return max(round(base * multiplier), 1)
 
 def push_dashboard(user_id):
-    players = sb_get("players", "order=points.desc")
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_players    = ex.submit(sb_get, "players", "order=points.desc")
+        f_challenges = ex.submit(sb_get, "challenges", "status=neq.completed&status=neq.declined&status=neq.disputed")
+        players        = f_players.result()
+        all_challenges = f_challenges.result()
     player = next((p for p in players if p["id"] == user_id), None)
-    rank = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
-    all_challenges = sb_get("challenges", "status=neq.completed&status=neq.declined&status=neq.disputed")
+    rank   = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
-    active_matches = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
-    awaiting = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
+    active_matches      = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
+    awaiting            = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
     my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
     socketio.emit("dashboard_update", {
         "player": player, "players": players, "rank": rank,
@@ -86,14 +90,14 @@ def push_dashboard(user_id):
     }, room=f"user_{user_id}")
 
 def push_leaderboard():
-    players = sb_get("players", "order=points.desc")
-    matches = sb_get("matches", "order=id.desc&limit=10")
     now = datetime.utcnow().isoformat()
-    lfm = sb_get("lfm_posts", f"expires_at=gt.{now}&order=created_at.desc")
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_players = ex.submit(sb_get, "players", "order=points.desc")
+        f_matches = ex.submit(sb_get, "matches", "order=id.desc&limit=10")
+        f_lfm     = ex.submit(sb_get, "lfm_posts", f"expires_at=gt.{now}&order=created_at.desc")
+        players, matches, lfm = f_players.result(), f_matches.result(), f_lfm.result()
     socketio.emit("leaderboard_update", {
-        "players": players,
-        "recent_matches": matches,
-        "lfm_posts": lfm
+        "players": players, "recent_matches": matches, "lfm_posts": lfm
     }, room="global")
 
 @socketio.on("connect")
@@ -111,11 +115,13 @@ def on_disconnect():
 @app.route("/")
 def index():
     user = session.get("user")
-    players = sb_get("players", "order=points.desc")
-    matches = sb_get("matches", "order=id.desc&limit=10")
     now = datetime.utcnow().isoformat()
     sb_delete("lfm_posts", {"expires_at": f"lt.{now}"})
-    lfm = sb_get("lfm_posts", "order=created_at.desc")
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_players = ex.submit(sb_get, "players", "order=points.desc")
+        f_matches = ex.submit(sb_get, "matches", "order=id.desc&limit=10")
+        f_lfm     = ex.submit(sb_get, "lfm_posts", "order=created_at.desc")
+        players, matches, lfm = f_players.result(), f_matches.result(), f_lfm.result()
     return render_template("index.html", user=user, players=players, recent_matches=matches, lfm_posts=lfm)
 
 @app.route("/login")
@@ -159,13 +165,16 @@ def dashboard():
     if "user" not in session:
         return redirect(url_for("index"))
     user_id = session["user"]["id"]
-    players = sb_get("players", "order=points.desc")
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_players    = ex.submit(sb_get, "players", "order=points.desc")
+        f_challenges = ex.submit(sb_get, "challenges", "status=neq.completed&status=neq.declined&status=neq.disputed")
+        players      = f_players.result()
+        all_challenges = f_challenges.result()
     player = next((p for p in players if p["id"] == user_id), None)
-    rank = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
-    all_challenges = sb_get("challenges", "status=neq.completed&status=neq.declined&status=neq.disputed")
+    rank   = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
-    active_matches = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
-    awaiting = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
+    active_matches      = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
+    awaiting            = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
     my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
     return render_template("dashboard.html",
         user=session["user"], player=player, players=players, rank=rank,
