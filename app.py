@@ -56,12 +56,14 @@ def calc_elo(winner_pts, loser_pts):
     change = round(ELO_K * (1 - expected))
     return max(change, 1)
 
-def calc_elo_stocks(winner_pts, loser_pts, winner_stocks, loser_stocks_taken, total_stocks):
-    """ELO proportionnel aux stocks pris"""
+def calc_elo_stocks(winner_pts, loser_pts, winner_stocks_taken, loser_stocks_taken):
+    """ELO mode Stock Taken : base ELO * ratio de domination"""
     expected = 1 / (1 + 10 ** ((loser_pts - winner_pts) / 400))
-    stock_ratio = (winner_stocks + loser_stocks_taken) / (total_stocks * 2) if total_stocks > 0 else 0.5
-    change = round(ELO_K * (1 - expected) * (0.5 + stock_ratio))
-    return max(change, 1)
+    base = ELO_K * (1 - expected)
+    total = winner_stocks_taken + loser_stocks_taken
+    diff_ratio = (winner_stocks_taken - loser_stocks_taken) / total if total > 0 else 0
+    multiplier = 1.0 + (diff_ratio * 0.5)
+    return max(round(base * multiplier), 1)
 
 # ── ROUTES PRINCIPALES ───────────────────────────────────────
 
@@ -287,19 +289,23 @@ def submit_result(challenge_id):
     data = request.json
     winner_id = data.get("winner_id")
     score = data.get("score", "")
-    mode = data.get("mode", "sets")
-    winner_stocks = data.get("winner_stocks", 0)
-    loser_stocks_taken = data.get("loser_stocks_taken", 0)
-    total_stocks = data.get("total_stocks", 3)
+    # Stocks mode fields
+    winner_stocks_taken = int(data.get("winner_stocks_taken", 0))
+    loser_stocks_taken = int(data.get("loser_stocks_taken", 0))
+    is_stocks_mode = c["format"] == "STOCKS"
+    # Auto score for stocks mode
+    if is_stocks_mode and not score:
+        score = f"{winner_stocks_taken}-{loser_stocks_taken}"
     if winner_id not in [c["challenger_id"], c["challenged_id"]]: return jsonify({"error": "Invalid winner"}), 400
     loser_id = c["challenged_id"] if winner_id == c["challenger_id"] else c["challenger_id"]
 
     if c["status"] == "accepted":
         sb_patch("challenges", {"id": challenge_id}, {
             "status": "reported", "reported_by": user_id,
-            "report": {"winner_id": winner_id, "score": score, "mode": mode,
-                       "winner_stocks": winner_stocks, "loser_stocks_taken": loser_stocks_taken,
-                       "total_stocks": total_stocks}
+            "report": {"winner_id": winner_id, "score": score,
+                       "winner_stocks_taken": winner_stocks_taken,
+                       "loser_stocks_taken": loser_stocks_taken,
+                       "is_stocks_mode": is_stocks_mode}
         })
         return jsonify({"success": True, "message": "Result submitted! Waiting for opponent confirmation."})
 
@@ -310,29 +316,29 @@ def submit_result(challenge_id):
             loser = sb_get("players", f"id=eq.{loser_id}")
             if winner and loser:
                 wp, lp = winner[0]["points"], loser[0]["points"]
-                rep_mode = report.get("mode", "sets")
-                if rep_mode == "stocks":
-                    elo_gain = calc_elo_stocks(wp, lp, report.get("winner_stocks", 0),
-                                               report.get("loser_stocks_taken", 0), report.get("total_stocks", 3))
+                rep_is_stocks = report.get("is_stocks_mode", False)
+                if rep_is_stocks:
+                    elo_gain = calc_elo_stocks(wp, lp,
+                        report.get("winner_stocks_taken", 0),
+                        report.get("loser_stocks_taken", 0))
                 else:
                     elo_gain = calc_elo(wp, lp)
                 sb_patch("players", {"id": winner_id}, {
                     "points": wp + elo_gain, "wins": winner[0]["wins"] + 1,
                     "matches_played": winner[0]["matches_played"] + 1,
-                    "stocks_taken": winner[0].get("stocks_taken", 0) + report.get("loser_stocks_taken", 0)
+                    "stocks_taken": (winner[0].get("stocks_taken") or 0) + report.get("winner_stocks_taken", 0)
                 })
                 sb_patch("players", {"id": loser_id}, {
                     "points": max(0, lp - elo_gain), "losses": loser[0]["losses"] + 1,
                     "matches_played": loser[0]["matches_played"] + 1,
-                    "stocks_lost": loser[0].get("stocks_lost", 0) + report.get("loser_stocks_taken", 0)
+                    "stocks_lost": (loser[0].get("stocks_lost") or 0) + report.get("loser_stocks_taken", 0)
                 })
                 sb_post("matches", {
                     "challenge_id": challenge_id,
                     "winner_id": winner_id, "winner_name": winner[0]["username"],
                     "loser_id": loser_id, "loser_name": loser[0]["username"],
-                    "score": score, "format": c["format"],
-                    "elo_change": elo_gain,
-                    "date": datetime.now().isoformat()
+                    "score": report.get("score", score), "format": c["format"],
+                    "elo_change": elo_gain, "date": datetime.now().isoformat()
                 })
                 sb_patch("challenges", {"id": challenge_id}, {"status": "completed"})
                 return jsonify({"success": True, "message": f"Match validated! +{elo_gain} ELO for the winner."})
