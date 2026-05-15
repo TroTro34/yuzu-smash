@@ -334,6 +334,7 @@
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script>
   function showTab(name, el) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -350,7 +351,7 @@
     fetch('/lfm', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({format, mode, message}) })
       .then(r => r.json()).then(d => {
-        if (d.success) { alert('Challenge posted! It will expire in 30 minutes.'); location.reload(); }
+        if (d.success) { showToast('Challenge posted! Expires in 30 min.'); }
         else alert(d.error);
       });
   }
@@ -358,9 +359,123 @@
   function acceptLFM(postId) {
     fetch('/lfm/' + postId + '/accept', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.success) { alert('Challenge accepted! Go to your dashboard to submit the result.'); location.reload(); }
+        if (d.success) { showToast('Challenge accepted! Go to your dashboard.'); }
         else alert(d.error);
       });
+  }
+
+  function showToast(msg, ok=true) {
+    let t = document.getElementById('index-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'index-toast';
+      t.style.cssText = 'position:fixed;bottom:2rem;right:2rem;background:#16162a;border:1px solid var(--green);color:var(--text);padding:1rem 1.5rem;border-radius:8px;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;font-weight:700;font-family:Rajdhani,sans-serif;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.borderColor = ok ? 'var(--green)' : 'var(--red)';
+    t.style.opacity = '1';
+    t.style.transform = 'translateY(0)';
+    setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; }, 3500);
+  }
+
+  // ── WEBSOCKET LEADERBOARD LIVE ─────────────────────────────
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  socket.on('leaderboard_update', (d) => {
+    if (d.players) renderLeaderboard(d.players);
+    if (d.recent_matches) renderMatches(d.recent_matches);
+    if (d.lfm_posts) renderLFM(d.lfm_posts);
+  });
+
+  const currentUserId = "{{ user.id if user else '' }}";
+
+  function renderLeaderboard(players) {
+    const el = document.querySelector('#panel-leaderboard .leaderboard');
+    if (!el) return;
+    if (!players.length) { el.innerHTML = '<div class="empty">No players yet. Be the first to sign in!</div>'; return; }
+    el.innerHTML = players.map((p, i) => {
+      const wr = p.matches_played > 0 ? Math.round(p.wins / p.matches_played * 100) : 0;
+      const rankClass = i===0 ? 'rank-1' : i===1 ? 'rank-2' : i===2 ? 'rank-3' : '';
+      const rankNum = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1;
+      const avatarHtml = p.avatar
+        ? `<img class="player-avatar" src="https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png" alt="">`
+        : `<div class="player-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
+      const charHtml = p.main_char
+        ? `<img class="char-icon" src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${p.main_char}.png" onerror="this.style.display='none'" alt="">` : '';
+      const charLine = p.main_char ? `<div class="player-char">Main: ${p.main_char}${p.secondary_char?' · 2nd: '+p.secondary_char:''}</div>` : '';
+      return `<div class="player-row ${rankClass}" onclick="${currentUserId ? "window.location='/dashboard'" : ''}">
+        <div class="rank-num">${rankNum}</div>
+        <div class="player-avatar-wrap">${avatarHtml}${charHtml}</div>
+        <div class="player-info">
+          <div class="player-name">${p.username}</div>
+          <div class="player-record">${p.wins}W — ${p.losses}L — ${p.matches_played} sets</div>
+          ${charLine}
+        </div>
+        <div class="wr-bar-wrap"><div class="wr-label">${wr}% WR</div><div class="wr-bar"><div class="wr-fill" style="width:${wr}%"></div></div></div>
+        <div class="player-pts">${p.points} <span>ELO</span></div>
+      </div>`;
+    }).join('');
+    // Mettre à jour les hero stats
+    document.querySelectorAll('.hero-stat .n').forEach((el, i) => {
+      if (i === 0) el.textContent = players.length;
+    });
+  }
+
+  function renderMatches(matches) {
+    const el = document.querySelector('#panel-matches .matches-list');
+    if (!el) return;
+    if (!matches.length) { el.innerHTML = '<div class="empty">No matches played yet.</div>'; return; }
+    el.innerHTML = matches.map(m => `
+      <div class="match-row">
+        <span class="match-winner">🏆 ${m.winner_name}</span>
+        <span class="match-score">${m.score || 'VS'}</span>
+        <span class="match-loser">${m.loser_name}</span>
+        <span class="match-format">${m.format}</span>
+        ${m.elo_change ? `<span class="elo-change">+${m.elo_change} ELO</span>` : ''}
+      </div>`).join('');
+    document.querySelectorAll('.hero-stat .n').forEach((el, i) => {
+      if (i === 1) el.textContent = matches.length;
+    });
+  }
+
+  function renderLFM(posts) {
+    const grid = document.getElementById('lfm-grid');
+    if (!grid) return;
+    if (!posts.length) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No open challenges right now.<br>${currentUserId ? 'Be the first to post one!' : '<a href="/login" style="color:var(--accent2);">Sign in</a> to post a challenge.'}</div>`;
+    } else {
+      grid.innerHTML = posts.map(post => {
+        const avatarHtml = post.player_avatar
+          ? `<img class="lfm-avatar" src="https://cdn.discordapp.com/avatars/${post.player_id}/${post.player_avatar}.png" alt="">`
+          : `<div class="lfm-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
+        let actionHtml;
+        if (currentUserId && post.player_id !== currentUserId)
+          actionHtml = `<button class="btn btn-primary" style="flex:1;" onclick="acceptLFM('${post.id}')">⚔ Accept Challenge</button>`;
+        else if (!currentUserId)
+          actionHtml = `<a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>`;
+        else
+          actionHtml = `<button class="btn btn-ghost" style="flex:1;" disabled>Your post</button>`;
+        return `<div class="lfm-card">
+          <div class="lfm-player">${avatarHtml}<div>
+            <div class="lfm-name">${post.player_name}</div>
+            <div class="lfm-pts">${post.player_points} ELO${post.main_char?' · '+post.main_char:''}</div>
+          </div></div>
+          <div class="lfm-details">
+            <span class="lfm-tag format">${post.format}</span>
+            <span class="lfm-tag mode-${post.mode}">${post.mode==='stocks'?'STOCKS':'SETS'}</span>
+          </div>
+          ${post.message ? `<div class="lfm-msg">"${post.message}"</div>` : ''}
+          <div class="lfm-timer">⏱ Expires in ~30 min</div>
+          <div class="lfm-actions">${actionHtml}</div>
+        </div>`;
+      }).join('');
+    }
+    document.querySelectorAll('.hero-stat .n').forEach((el, i) => {
+      if (i === 2) el.textContent = posts.length;
+    });
+    const countEl = document.getElementById('lfm-count');
+    if (countEl) countEl.textContent = posts.length ? `(${posts.length})` : '';
   }
 </script>
 </body>
