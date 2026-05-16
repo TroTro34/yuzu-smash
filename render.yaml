@@ -6,4 +6,4 @@ services:
     startCommand: gunicorn -w 1 --threads 8 --timeout 0 app:app
     envVars:
       - key: SECRET_KEY
-        generateValue: true
+        sync: false
