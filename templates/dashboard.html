@@ -451,7 +451,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script>
 const myId = "{{ user.id }}";
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
@@ -543,25 +542,26 @@ function saveChar(slot, charId, charName) {
     });
 }
 
-// ── WEBSOCKET REAL-TIME ──────────────────────────────────────
-const socket = io({ transports: ['websocket', 'polling'] });
+// ── SSE REAL-TIME ────────────────────────────────────────────
+const evtSource = new EventSource('/sse/dashboard');
 
-socket.on('connect', () => {
+evtSource.onopen = () => {
   document.getElementById('ws-dot').style.background = 'var(--green)';
   document.getElementById('ws-label').style.color = 'var(--green)';
   document.getElementById('ws-label').textContent = 'Live';
-});
+};
 
-socket.on('disconnect', () => {
+evtSource.onerror = () => {
   document.getElementById('ws-dot').style.background = 'var(--red)';
   document.getElementById('ws-label').style.color = 'var(--red)';
-  document.getElementById('ws-label').textContent = 'Offline';
-});
+  document.getElementById('ws-label').textContent = 'Reconnecting…';
+  // EventSource se reconnecte automatiquement — pas besoin de code manuel
+};
 
-socket.on('dashboard_update', (d) => {
+evtSource.onmessage = (e) => {
   if (modalOpen) return; // Ne pas rafraîchir si un modal est ouvert
-  applyDashboardData(d);
-});
+  applyDashboardData(JSON.parse(e.data));
+};
 
 function applyDashboardData(d) {
     document.getElementById('stat-points').textContent = d.player.points;
