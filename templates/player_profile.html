@@ -162,7 +162,7 @@
       {% set opp_main = match.loser_main or '' %}
       <div class="match-card win">
         <span class="match-result">WIN</span>
-        <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+        <span class="match-vs">vs {% if opp_main %}<img class="char-inline" data-char="{{ opp_main }}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;display:none;">{% endif %}<strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
         <span class="match-fmt">{{ match.format }}</span>
         {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
       </div>
@@ -170,7 +170,7 @@
       {% set opp_main = match.winner_main or '' %}
       <div class="match-card loss">
         <span class="match-result">LOSS</span>
-        <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+        <span class="match-vs">vs {% if opp_main %}<img class="char-inline" data-char="{{ opp_main }}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;display:none;">{% endif %}<strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
         <span class="match-fmt">{{ match.format }}</span>
         {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
       </div>
@@ -295,6 +295,10 @@ const CHAR_ICONS = {
   const secEl  = document.getElementById('sec-char-img');
   if (mainEl && CHAR_ICONS[mainId]) mainEl.src = CHAR_ICONS[mainId];
   if (secEl  && CHAR_ICONS[secId])  secEl.src  = CHAR_ICONS[secId];
+  document.querySelectorAll('img.char-inline[data-char]').forEach(img => {
+    const url = CHAR_ICONS[img.dataset.char];
+    if (url) { img.src = url; img.style.display = ''; }
+  });
 })();
 </script>
 </body>
