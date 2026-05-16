@@ -225,7 +225,7 @@
       <div class="chars-row">
         <div class="char-slot" onclick="openCharPicker('main')">
           {% if player.main_char %}
-            <img src="https://raw.githubusercontent.com/BrandonCookeDev/smashgg-gatsby/master/static/images/characters/smashUltimate/{{ player.main_char }}/default/0.png" onerror="this.src=''" alt="">
+            <img id="main-char-img" src="" onerror="this.style.display='none'" alt="">
             <span class="char-label">Main</span>
             <span class="char-name">{{ player.main_char }}</span>
           {% else %}
@@ -236,7 +236,7 @@
         </div>
         <div class="char-slot" onclick="openCharPicker('secondary')">
           {% if player.secondary_char %}
-            <img src="https://raw.githubusercontent.com/BrandonCookeDev/smashgg-gatsby/master/static/images/characters/smashUltimate/{{ player.secondary_char }}/default/0.png" onerror="this.src=''" alt="">
+            <img id="sec-char-img" src="" onerror="this.style.display='none'" alt="">
             <span class="char-label">Secondary</span>
             <span class="char-name">{{ player.secondary_char }}</span>
           {% else %}
@@ -458,18 +458,96 @@ let currentCharSlot = null, selectedChar = null;
 
 
 // ── IMAGES PERSONNAGES ───────────────────────────────────────
-// Nintendo a changé leur CDN. On utilise un proxy GitHub fiable
-// avec fallback vers l'ancien URL Nintendo si jamais ça redevient dispo.
-function charImg(id) {
-  // Mapping des quelques IDs dont le slug diffère entre les sources
-  const SLUG_MAP = {
-    'dedede': 'king_dedede',
-    'rosalina_and_luma': 'rosalina',
-    'pyra_mythra': 'pyra',
-  };
-  const slug = SLUG_MAP[id] || id;
-  return `https://raw.githubusercontent.com/BrandonCookeDev/smashgg-gatsby/master/static/images/characters/smashUltimate/${slug}/default/0.png`;
-}
+// Mapping complet id → URL SmashWiki (stable depuis 2019, pas de CDN Nintendo cassé)
+const CHAR_ICONS = {
+  mario:              "https://www.ssbwiki.com/images/0/0e/MarioHeadSSBUWebsite.png",
+  donkey_kong:        "https://www.ssbwiki.com/images/a/a5/DonkeyKongHeadSSBUWebsite.png",
+  link:               "https://www.ssbwiki.com/images/b/b9/LinkHeadSSBUWebsite.png",
+  samus:              "https://www.ssbwiki.com/images/f/f9/SamusHeadSSBUWebsite.png",
+  dark_samus:         "https://www.ssbwiki.com/images/2/21/DarkSamusHeadSSBUWebsite.png",
+  yoshi:              "https://www.ssbwiki.com/images/3/30/YoshiHeadSSBUWebsite.png",
+  kirby:              "https://www.ssbwiki.com/images/b/b3/KirbyHeadSSBUWebsite.png",
+  fox:                "https://www.ssbwiki.com/images/c/c7/FoxHeadSSBUWebsite.png",
+  pikachu:            "https://www.ssbwiki.com/images/7/77/PikachuHeadSSBUWebsite.png",
+  luigi:              "https://www.ssbwiki.com/images/e/eb/LuigiHeadSSBUWebsite.png",
+  ness:               "https://www.ssbwiki.com/images/0/09/NessHeadSSBUWebsite.png",
+  captain_falcon:     "https://www.ssbwiki.com/images/d/d3/CaptainFalconHeadSSBUWebsite.png",
+  jigglypuff:         "https://www.ssbwiki.com/images/1/1e/JigglypuffHeadSSBUWebsite.png",
+  peach:              "https://www.ssbwiki.com/images/c/ce/PeachHeadSSBUWebsite.png",
+  daisy:              "https://www.ssbwiki.com/images/8/8f/DaisyHeadSSBUWebsite.png",
+  bowser:             "https://www.ssbwiki.com/images/7/7a/BowserHeadSSBUWebsite.png",
+  ice_climbers:       "https://www.ssbwiki.com/images/c/c8/IceClimbersHeadSSBUWebsite.png",
+  sheik:              "https://www.ssbwiki.com/images/c/c8/SheikHeadSSBUWebsite.png",
+  zelda:              "https://www.ssbwiki.com/images/c/ca/ZeldaHeadSSBUWebsite.png",
+  dr_mario:           "https://www.ssbwiki.com/images/c/c8/DrMarioHeadSSBUWebsite.png",
+  pichu:              "https://www.ssbwiki.com/images/3/3c/PichuHeadSSBUWebsite.png",
+  falco:              "https://www.ssbwiki.com/images/9/97/FalcoHeadSSBUWebsite.png",
+  marth:              "https://www.ssbwiki.com/images/8/80/MarthHeadSSBUWebsite.png",
+  lucina:             "https://www.ssbwiki.com/images/8/81/LucinaHeadSSBUWebsite.png",
+  young_link:         "https://www.ssbwiki.com/images/c/c0/YoungLinkHeadSSBUWebsite.png",
+  ganondorf:          "https://www.ssbwiki.com/images/a/a3/GanondorfHeadSSBUWebsite.png",
+  mewtwo:             "https://www.ssbwiki.com/images/d/d9/MewtwoHeadSSBUWebsite.png",
+  roy:                "https://www.ssbwiki.com/images/2/2e/RoyHeadSSBUWebsite.png",
+  chrom:              "https://www.ssbwiki.com/images/5/53/ChromHeadSSBUWebsite.png",
+  mr_game_and_watch:  "https://www.ssbwiki.com/images/9/9b/MrGame%26WatchHeadSSBUWebsite.png",
+  meta_knight:        "https://www.ssbwiki.com/images/b/be/MetaKnightHeadSSBUWebsite.png",
+  pit:                "https://www.ssbwiki.com/images/d/d4/PitHeadSSBUWebsite.png",
+  dark_pit:           "https://www.ssbwiki.com/images/a/ae/DarkPitHeadSSBUWebsite.png",
+  zero_suit_samus:    "https://www.ssbwiki.com/images/2/26/ZeroSuitSamusHeadSSBUWebsite.png",
+  wario:              "https://www.ssbwiki.com/images/e/e3/WarioHeadSSBUWebsite.png",
+  snake:              "https://www.ssbwiki.com/images/a/a5/SnakeHeadSSBUWebsite.png",
+  ike:                "https://www.ssbwiki.com/images/d/d4/IkeHeadSSBUWebsite.png",
+  pokemon_trainer:    "https://www.ssbwiki.com/images/e/e7/PokemonTrainerHeadSSBUWebsite.png",
+  diddy_kong:         "https://www.ssbwiki.com/images/1/17/DiddyKongHeadSSBUWebsite.png",
+  lucas:              "https://www.ssbwiki.com/images/7/79/LucasHeadSSBUWebsite.png",
+  sonic:              "https://www.ssbwiki.com/images/8/82/SonicHeadSSBUWebsite.png",
+  dedede:             "https://www.ssbwiki.com/images/5/54/KingDededeHeadSSBUWebsite.png",
+  olimar:             "https://www.ssbwiki.com/images/c/ce/OlimarHeadSSBUWebsite.png",
+  lucario:            "https://www.ssbwiki.com/images/9/9a/LucarioHeadSSBUWebsite.png",
+  rob:                "https://www.ssbwiki.com/images/4/4d/ROBHeadSSBUWebsite.png",
+  toon_link:          "https://www.ssbwiki.com/images/e/e3/ToonLinkHeadSSBUWebsite.png",
+  wolf:               "https://www.ssbwiki.com/images/c/c6/WolfHeadSSBUWebsite.png",
+  villager:           "https://www.ssbwiki.com/images/9/9b/VillagerHeadSSBUWebsite.png",
+  mega_man:           "https://www.ssbwiki.com/images/4/42/MegaManHeadSSBUWebsite.png",
+  wii_fit_trainer:    "https://www.ssbwiki.com/images/0/08/WiiFitTrainerHeadSSBUWebsite.png",
+  rosalina_and_luma:  "https://www.ssbwiki.com/images/b/ba/RosalinaHeadSSBUWebsite.png",
+  little_mac:         "https://www.ssbwiki.com/images/a/a1/LittleMacHeadSSBUWebsite.png",
+  greninja:           "https://www.ssbwiki.com/images/5/5f/GreninjaHeadSSBUWebsite.png",
+  mii_brawler:        "https://www.ssbwiki.com/images/a/a2/MiiBrawlerHeadSSBUWebsite.png",
+  mii_swordfighter:   "https://www.ssbwiki.com/images/2/28/MiiSwordfighterHeadSSBUWebsite.png",
+  mii_gunner:         "https://www.ssbwiki.com/images/9/90/MiiGunnerHeadSSBUWebsite.png",
+  palutena:           "https://www.ssbwiki.com/images/5/58/PalutenaHeadSSBUWebsite.png",
+  pac_man:            "https://www.ssbwiki.com/images/3/3c/Pac-ManHeadSSBUWebsite.png",
+  robin:              "https://www.ssbwiki.com/images/2/2d/RobinHeadSSBUWebsite.png",
+  shulk:              "https://www.ssbwiki.com/images/c/c2/ShulkHeadSSBUWebsite.png",
+  bowser_jr:          "https://www.ssbwiki.com/images/2/28/BowserJrHeadSSBUWebsite.png",
+  duck_hunt:          "https://www.ssbwiki.com/images/b/b7/DuckHuntHeadSSBUWebsite.png",
+  ryu:                "https://www.ssbwiki.com/images/a/a8/RyuHeadSSBUWebsite.png",
+  ken:                "https://www.ssbwiki.com/images/f/f1/KenHeadSSBUWebsite.png",
+  cloud:              "https://www.ssbwiki.com/images/3/3a/CloudHeadSSBUWebsite.png",
+  corrin:             "https://www.ssbwiki.com/images/e/e1/CorrinHeadSSBUWebsite.png",
+  bayonetta:          "https://www.ssbwiki.com/images/4/41/BayonettaHeadSSBUWebsite.png",
+  inkling:            "https://www.ssbwiki.com/images/c/c3/InklingHeadSSBUWebsite.png",
+  ridley:             "https://www.ssbwiki.com/images/d/da/RidleyHeadSSBUWebsite.png",
+  simon:              "https://www.ssbwiki.com/images/0/07/SimonHeadSSBUWebsite.png",
+  richter:            "https://www.ssbwiki.com/images/8/8a/RichterHeadSSBUWebsite.png",
+  king_k_rool:        "https://www.ssbwiki.com/images/3/38/KingKRoolHeadSSBUWebsite.png",
+  isabelle:           "https://www.ssbwiki.com/images/e/e5/IsabelleHeadSSBUWebsite.png",
+  incineroar:         "https://www.ssbwiki.com/images/3/30/IncineroarHeadSSBUWebsite.png",
+  piranha_plant:      "https://www.ssbwiki.com/images/5/51/PiranhaPlantHeadSSBUWebsite.png",
+  joker:              "https://www.ssbwiki.com/images/c/c9/JokerHeadSSBUWebsite.png",
+  hero:               "https://www.ssbwiki.com/images/6/60/HeroHeadSSBUWebsite.png",
+  banjo_and_kazooie:  "https://www.ssbwiki.com/images/6/62/BanjoKazooieHeadSSBUWebsite.png",
+  terry:              "https://www.ssbwiki.com/images/b/b4/TerryHeadSSBUWebsite.png",
+  byleth:             "https://www.ssbwiki.com/images/6/6b/BylethHeadSSBUWebsite.png",
+  min_min:            "https://www.ssbwiki.com/images/2/23/MinMinHeadSSBUWebsite.png",
+  steve:              "https://www.ssbwiki.com/images/0/04/SteveHeadSSBUWebsite.png",
+  sephiroth:          "https://www.ssbwiki.com/images/2/25/SephirothHeadSSBUWebsite.png",
+  pyra_mythra:        "https://www.ssbwiki.com/images/1/1f/PyraHeadSSBUWebsite.png",
+  kazuya:             "https://www.ssbwiki.com/images/e/e7/KazuyaHeadSSBUWebsite.png",
+  sora:               "https://www.ssbwiki.com/images/5/5f/SoraHeadSSBUWebsite.png",
+};
+function charImg(id) { return CHAR_ICONS[id] || ""; }
 
 // All Smash Ultimate characters with their icon IDs
 const SMASH_CHARS = [
@@ -535,7 +613,7 @@ function openCharPicker(slot) {
   SMASH_CHARS.forEach(c => {
     const div = document.createElement('div');
     div.className = 'char-option';
-    div.innerHTML = `<img src="${charImg(c.id)}" onerror="this.src=''" alt="${c.name}"><span>${c.name}</span>`;
+    div.innerHTML = `<img src="${charImg(c.id)}" onerror="this.style.display='none'" alt="${c.name}"><span>${c.name}</span>`;
     div.onclick = () => {
       document.querySelectorAll('.char-option').forEach(o => o.classList.remove('selected'));
       div.classList.add('selected');
@@ -557,17 +635,13 @@ function saveChar(slot, charId, charName) {
 }
 
 // ── POLLING ADAPTATIF ────────────────────────────────────────
-// Intervalle : 3s si activité récente, 8s sinon → 85% moins de requêtes vs 1s
+// 3s si actif, 10s si idle >60s, 304 si rien n'a changé → ~90% moins de requêtes
 let polling = true;
 let lastEtag = null;
 let lastActivityAt = Date.now();
-let pollInterval = 3000;
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    lastActivityAt = Date.now();
-    pollInterval = 3000;
-  }
+  if (document.visibilityState === 'visible') lastActivityAt = Date.now();
 });
 
 function startPolling() {
@@ -577,7 +651,7 @@ function startPolling() {
   async function tick() {
     if (!polling) return;
     const idle = Date.now() - lastActivityAt > 60_000;
-    pollInterval = idle ? 10000 : 3000;
+    const delay = idle ? 10000 : 3000;
     try {
       const headers = {};
       if (lastEtag) headers['If-None-Match'] = lastEtag;
@@ -586,8 +660,7 @@ function startPolling() {
       dot.style.background = 'var(--green)';
       label.style.color    = 'var(--green)';
       label.textContent    = 'Live';
-      if (r.status === 304) { /* rien n'a changé */ }
-      else if (r.ok) {
+      if (r.status !== 304 && r.ok) {
         lastEtag = r.headers.get('ETag');
         const d = await r.json();
         if (!modalOpen) applyDashboardData(d);
@@ -597,13 +670,23 @@ function startPolling() {
       label.style.color    = 'var(--red)';
       label.textContent    = 'Reconnecting…';
     }
-    setTimeout(tick, pollInterval);
+    setTimeout(tick, delay);
   }
 
   tick();
 }
 
 startPolling();
+
+// Init character images from server-rendered IDs
+(function() {
+  const mainId = "{{ player.main_char or '' }}";
+  const secId  = "{{ player.secondary_char or '' }}";
+  const mainEl = document.getElementById('main-char-img');
+  const secEl  = document.getElementById('sec-char-img');
+  if (mainEl && mainId && CHAR_ICONS[mainId]) mainEl.src = CHAR_ICONS[mainId];
+  if (secEl  && secId  && CHAR_ICONS[secId])  secEl.src  = CHAR_ICONS[secId];
+})();
 
 function applyDashboardData(d) {
     document.getElementById('stat-points').textContent = d.player.points;
