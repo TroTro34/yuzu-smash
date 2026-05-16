@@ -84,12 +84,14 @@ def _dashboard_data(user_id):
     rank   = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
 
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
+    challenges_sent     = {c["id"]: c for c in all_challenges if c["challenger_id"] == user_id and c["status"] == "pending"}
     active_matches      = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
     awaiting            = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
 
     return {
         "player": player, "players": players, "rank": rank,
         "challenges_received": challenges_received,
+        "challenges_sent": challenges_sent,
         "active_matches": active_matches,
         "awaiting_confirmation": awaiting,
         "my_matches": my_matches
@@ -190,12 +192,14 @@ def dashboard():
     player = next((p for p in players if p["id"] == user_id), None)
     rank   = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
+    challenges_sent     = {c["id"]: c for c in all_challenges if c["challenger_id"] == user_id and c["status"] == "pending"}
     active_matches      = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
     awaiting            = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
 
     return render_template("dashboard.html",
         user=session["user"], player=player, players=players, rank=rank,
-        challenges_received=challenges_received, active_matches=active_matches,
+        challenges_received=challenges_received, challenges_sent=challenges_sent,
+        active_matches=active_matches,
         awaiting_confirmation=awaiting, my_matches=my_matches)
 
 @app.route("/player/<player_id>")
@@ -272,6 +276,18 @@ def accept_challenge(challenge_id):
 def decline_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     sb_patch("challenges", {"id": challenge_id}, {"status": "declined"})
+    return jsonify({"success": True})
+
+@app.route("/challenge/<challenge_id>/cancel", methods=["POST"])
+def cancel_challenge(challenge_id):
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    user_id = session["user"]["id"]
+    challenges = sb_get("challenges", f"id=eq.{challenge_id}")
+    if not challenges: return jsonify({"error": "Challenge not found"}), 404
+    c = challenges[0]
+    if c["challenger_id"] != user_id: return jsonify({"error": "Only the challenger can cancel"}), 403
+    if c["status"] != "pending": return jsonify({"error": "Can only cancel pending challenges"}), 400
+    sb_delete("challenges", {"id": challenge_id})
     return jsonify({"success": True})
 
 @app.route("/lfm", methods=["POST"])
@@ -371,7 +387,9 @@ def submit_result(challenge_id):
                 sb_post("matches", {
                     "challenge_id": challenge_id,
                     "winner_id": winner_id, "winner_name": winner[0]["username"],
+                    "winner_main": winner[0].get("main_char", ""),
                     "loser_id": loser_id,  "loser_name":  loser[0]["username"],
+                    "loser_main": loser[0].get("main_char", ""),
                     "score": report.get("score", score), "format": c["format"],
                     "elo_change": elo_gain, "date": datetime.now().isoformat()
                 })
