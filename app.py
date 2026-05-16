@@ -359,6 +359,35 @@ def cancel_lfm(post_id):
     sb_delete("lfm_posts", {"id": post_id})
     return jsonify({"success": True})
 
+@app.route("/match/<challenge_id>")
+def match_page(challenge_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
+    user_id = session["user"]["id"]
+    challenges = sb_get("challenges", f"id=eq.{challenge_id}")
+    if not challenges:
+        return redirect(url_for("dashboard"))
+    c = challenges[0]
+    # Only participants can access the match page
+    if user_id not in [c["challenger_id"], c["challenged_id"]]:
+        return redirect(url_for("dashboard"))
+    if c["status"] not in ["accepted", "reported"]:
+        return redirect(url_for("dashboard"))
+    # Fetch both players in parallel
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_challenger = ex.submit(sb_get, "players", f"id=eq.{c['challenger_id']}")
+        f_challenged = ex.submit(sb_get, "players", f"id=eq.{c['challenged_id']}")
+    challenger = f_challenger.result()
+    challenged = f_challenged.result()
+    if not challenger or not challenged:
+        return redirect(url_for("dashboard"))
+    return render_template("match.html",
+        user=session["user"],
+        challenge=c,
+        challenger=challenger[0],
+        challenged=challenged[0]
+    )
+
 @app.route("/result/<challenge_id>", methods=["POST"])
 def submit_result(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
