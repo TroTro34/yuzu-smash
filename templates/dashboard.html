@@ -688,15 +688,15 @@ function startPolling() {
       if (r.status !== 304 && r.ok) {
         lastEtag = r.headers.get('ETag');
         const d = await r.json();
-        // Auto-redirect challenger to match page as soon as challenge is accepted
+        // Auto-redirect to match page as soon as a new active match appears (works for both players)
         if (d.active_matches) {
           for (const [cid, c] of Object.entries(d.active_matches)) {
-            if (c.challenger_id === myId && !seenActiveMatches.has(cid)) {
+            if (!seenActiveMatches.has(cid)) {
               window.location.href = '/match/' + cid;
               return;
             }
-            seenActiveMatches.add(cid);
           }
+          Object.keys(d.active_matches).forEach(cid => seenActiveMatches.add(cid));
         }
         if (!modalOpen) applyDashboardData(d);
       }
