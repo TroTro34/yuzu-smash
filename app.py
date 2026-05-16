@@ -331,7 +331,15 @@ def accept_lfm(post_id):
     sb_delete("lfm_posts", {"id": post_id})
     return jsonify({"success": True})
 
-@app.route("/result/<challenge_id>", methods=["POST"])
+@app.route("/lfm/<post_id>/cancel", methods=["POST"])
+def cancel_lfm(post_id):
+    if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    user_id = session["user"]["id"]
+    posts = sb_get("lfm_posts", f"id=eq.{post_id}")
+    if not posts: return jsonify({"error": "Post not found"}), 404
+    if posts[0]["player_id"] != user_id: return jsonify({"error": "Not your post"}), 403
+    sb_delete("lfm_posts", {"id": post_id})
+    return jsonify({"success": True})
 def submit_result(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     user_id = session["user"]["id"]
