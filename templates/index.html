@@ -334,7 +334,6 @@
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script>
   function showTab(name, el) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -379,14 +378,16 @@
     setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; }, 3500);
   }
 
-  // ── WEBSOCKET LEADERBOARD LIVE ─────────────────────────────
-  const socket = io({ transports: ['websocket', 'polling'] });
+  // ── SSE LEADERBOARD LIVE ──────────────────────────────────
+  const evtSource = new EventSource('/sse/leaderboard');
 
-  socket.on('leaderboard_update', (d) => {
-    if (d.players) renderLeaderboard(d.players);
+  evtSource.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.players)        renderLeaderboard(d.players);
     if (d.recent_matches) renderMatches(d.recent_matches);
-    if (d.lfm_posts) renderLFM(d.lfm_posts);
-  });
+    if (d.lfm_posts)      renderLFM(d.lfm_posts);
+  };
+  // EventSource se reconnecte automatiquement en cas de coupure
 
   const currentUserId = "{{ user.id if user else '' }}";
 
