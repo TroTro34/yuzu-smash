@@ -1027,35 +1027,35 @@ async function contestRecap() {
 }
 
 // ── Polling : attente de confirmation ──
+let _pollInterval = null;
+
 function startMatchPolling() {
+  if (_pollInterval) return; // déjà en cours, pas de doublon
   let tries = 0;
-  const interval = setInterval(async () => {
+  _pollInterval = setInterval(async () => {
     tries++;
-    if (tries > 120) { clearInterval(interval); return; } // stop after 6 min
+    if (tries > 240) { clearInterval(_pollInterval); _pollInterval = null; return; } // 12 min max
     try {
       const r = await fetch(`/api/match_status/${CHALLENGE_ID}`);
       if (!r.ok) return;
       const d = await r.json();
       if (d.status === 'completed') {
-        clearInterval(interval);
+        clearInterval(_pollInterval); _pollInterval = null;
         document.getElementById('stocks-recap').classList.remove('show');
-        const scoreLabel = d.score || '';
-        showWinner(d.winner_id, scoreLabel);
+        showWinner(d.winner_id, d.score || '');
         setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
       } else if (d.status === 'disputed') {
-        clearInterval(interval);
+        clearInterval(_pollInterval); _pollInterval = null;
         showToast('Résultat contesté — contacte un admin.', false);
         setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
       } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
-        // Adversaire a soumis — me montrer le recap pour confirmer/contester
-        clearInterval(interval);
-        if (pendingResult) {
-          // Je suis le soumetteur qui attendait → l'adversaire vient de confirmer
-          // (cas rare, le polling devrait passer à 'completed')
+        // L'adversaire a soumis — afficher le recap si pas déjà visible
+        clearInterval(_pollInterval); _pollInterval = null;
+        if (!document.getElementById('stocks-recap').classList.contains('show')) {
+          showOpponentRecap(d);
         }
-        // Sinon : j'arrive et l'adversaire a déjà soumis
-        showOpponentRecap(d);
       }
+      // statut 'accepted' ou 'reported' (par moi) → on continue de poller
     } catch(e) {}
   }, 3000);
 }
@@ -1134,7 +1134,8 @@ function showWinner(winnerId, score) {
 }
 
 init();
-checkInitialState(); // vérifie au chargement pour tous les modes
+checkInitialState(); // vérifie l'état immédiat au chargement
+startMatchPolling(); // poll en continu pour les deux joueurs — le joueur 2 détecte la soumission de l'adversaire en temps réel
 </script>
 </body>
 </html>
