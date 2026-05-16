@@ -1,9 +1,7 @@
-from flask import Flask, redirect, request, session, url_for, render_template, jsonify, Response, stream_with_context
+from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 import requests
 import os
-import json
-import queue
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
@@ -28,44 +26,7 @@ DISCORD_AUTH_URL = (
 
 ELO_K = 32
 
-# ── SSE QUEUES ───────────────────────────────────────────────────────────────
-# Chaque client SSE connecté reçoit sa propre queue.
-# push_dashboard / push_leaderboard déposent les données dedans.
-
-_dashboard_queues: dict = {}    # user_id -> [Queue, ...]
-_leaderboard_queues: list = []  # [Queue, ...]
-_lock = threading.Lock()
-
-def _add_queue(store, key=None):
-    q = queue.Queue(maxsize=5)
-    with _lock:
-        if key is not None:
-            store.setdefault(key, []).append(q)
-        else:
-            store.append(q)
-    return q
-
-def _remove_queue(store, q, key=None):
-    with _lock:
-        if key is not None:
-            lst = store.get(key, [])
-            try: lst.remove(q)
-            except ValueError: pass
-            if not lst:
-                store.pop(key, None)
-        else:
-            try: store.remove(q)
-            except ValueError: pass
-
-def _broadcast(store, data, key=None):
-    msg = f"data: {json.dumps(data)}\n\n"
-    with _lock:
-        targets = list(store.get(key, [])) if key else list(store)
-    for q in targets:
-        try: q.put_nowait(msg)
-        except queue.Full: pass
-
-# ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
+# ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
 
 def sb_headers():
     return {
@@ -93,7 +54,7 @@ def sb_delete(table, match):
     r = requests.delete(f"{SUPABASE_URL}/rest/v1/{table}?{params}", headers=sb_headers())
     return r.ok
 
-# ── ELO ──────────────────────────────────────────────────────────────────────
+# ── ELO ───────────────────────────────────────────────────────────────────────
 
 def calc_elo(winner_pts, loser_pts):
     expected = 1 / (1 + 10 ** ((loser_pts - winner_pts) / 400))
@@ -106,17 +67,25 @@ def calc_elo_stocks(winner_pts, loser_pts, winner_stocks_taken, loser_stocks_tak
     diff_ratio = (winner_stocks_taken - loser_stocks_taken) / total if total > 0 else 0
     return max(round(base * (1.0 + diff_ratio * 0.5)), 1)
 
-# ── DATA HELPERS ─────────────────────────────────────────────────────────────
+# ── DATA (requêtes Supabase parallèles) ───────────────────────────────────────
 
 def _dashboard_data(user_id):
-    players        = sb_get("players", "order=points.desc")
-    all_challenges = sb_get("challenges", "status=neq.completed&status=neq.declined&status=neq.disputed")
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_players    = ex.submit(sb_get, "players", "order=points.desc")
+        f_challenges = ex.submit(sb_get, "challenges", "status=in.(pending,accepted,reported)")
+        f_matches    = ex.submit(sb_get, "matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
+
+    players        = f_players.result()
+    all_challenges = f_challenges.result()
+    my_matches     = f_matches.result()
+
     player = next((p for p in players if p["id"] == user_id), None)
     rank   = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
+
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
     active_matches      = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
     awaiting            = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
-    my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
+
     return {
         "player": player, "players": players, "rank": rank,
         "challenges_received": challenges_received,
@@ -127,65 +96,29 @@ def _dashboard_data(user_id):
 
 def _leaderboard_data():
     now = datetime.utcnow().isoformat()
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_players = ex.submit(sb_get, "players", "order=points.desc")
+        f_matches = ex.submit(sb_get, "matches", "order=id.desc&limit=10")
+        f_lfm     = ex.submit(sb_get, "lfm_posts", f"expires_at=gt.{now}&order=created_at.desc")
     return {
-        "players":        sb_get("players", "order=points.desc"),
-        "recent_matches": sb_get("matches", "order=id.desc&limit=10"),
-        "lfm_posts":      sb_get("lfm_posts", f"expires_at=gt.{now}&order=created_at.desc")
+        "players":        f_players.result(),
+        "recent_matches": f_matches.result(),
+        "lfm_posts":      f_lfm.result(),
     }
 
-def push_dashboard(user_id):
-    _broadcast(_dashboard_queues, _dashboard_data(user_id), key=user_id)
+# ── POLLING API ───────────────────────────────────────────────────────────────
 
-def push_leaderboard():
-    _broadcast(_leaderboard_queues, _leaderboard_data())
-
-# ── SSE ENDPOINTS ─────────────────────────────────────────────────────────────
-
-SSE_HEADERS = {
-    "Cache-Control": "no-cache",
-    "X-Accel-Buffering": "no",   # Désactive le buffer nginx/Render — CRITIQUE
-    "Connection": "keep-alive",
-}
-
-@app.route("/sse/dashboard")
-def sse_dashboard():
+@app.route("/api/dashboard")
+def api_dashboard():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    user_id = session["user"]["id"]   # capturé avant d'entrer dans le générateur
-    q = _add_queue(_dashboard_queues, user_id)
+    return jsonify(_dashboard_data(session["user"]["id"]))
 
-    def generate():
-        try:
-            # Données initiales immédiatement au chargement
-            yield f"data: {json.dumps(_dashboard_data(user_id))}\n\n"
-            while True:
-                try:
-                    yield q.get(timeout=25)   # bloque jusqu'à une mise à jour
-                except queue.Empty:
-                    yield ": heartbeat\n\n"   # garde la connexion vivante
-        finally:
-            _remove_queue(_dashboard_queues, q, user_id)
+@app.route("/api/leaderboard")
+def api_leaderboard():
+    return jsonify(_leaderboard_data())
 
-    return Response(stream_with_context(generate()), content_type="text/event-stream", headers=SSE_HEADERS)
-
-@app.route("/sse/leaderboard")
-def sse_leaderboard():
-    q = _add_queue(_leaderboard_queues)
-
-    def generate():
-        try:
-            yield f"data: {json.dumps(_leaderboard_data())}\n\n"
-            while True:
-                try:
-                    yield q.get(timeout=25)
-                except queue.Empty:
-                    yield ": heartbeat\n\n"
-        finally:
-            _remove_queue(_leaderboard_queues, q)
-
-    return Response(stream_with_context(generate()), content_type="text/event-stream", headers=SSE_HEADERS)
-
-# ── ROUTES ───────────────────────────────────────────────────────────────────
+# ── ROUTES ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -228,7 +161,6 @@ def callback():
         sb_post("players", {"id": uid, "username": user_data["username"], "avatar": user_data.get("avatar"),
                             "points": 1000, "wins": 0, "losses": 0, "matches_played": 0,
                             "main_char": "", "secondary_char": "", "stocks_taken": 0, "stocks_lost": 0})
-        push_leaderboard()
     else:
         sb_patch("players", {"id": uid}, {"username": user_data["username"], "avatar": user_data.get("avatar")})
     return redirect(url_for("dashboard"))
@@ -238,14 +170,21 @@ def dashboard():
     if "user" not in session:
         return redirect(url_for("index"))
     user_id = session["user"]["id"]
-    players        = sb_get("players", "order=points.desc")
-    all_challenges = sb_get("challenges", "status=neq.completed&status=neq.declined&status=neq.disputed")
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_players    = ex.submit(sb_get, "players", "order=points.desc")
+        f_challenges = ex.submit(sb_get, "challenges", "status=in.(pending,accepted,reported)")
+        f_matches    = ex.submit(sb_get, "matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
+
+    players        = f_players.result()
+    all_challenges = f_challenges.result()
+    my_matches     = f_matches.result()
+
     player = next((p for p in players if p["id"] == user_id), None)
     rank   = next((i + 1 for i, p in enumerate(players) if p["id"] == user_id), None)
     challenges_received = {c["id"]: c for c in all_challenges if c["challenged_id"] == user_id and c["status"] == "pending"}
     active_matches      = {c["id"]: c for c in all_challenges if c["status"] == "accepted" and user_id in [c["challenger_id"], c["challenged_id"]]}
     awaiting            = {c["id"]: c for c in all_challenges if c["status"] == "reported" and c.get("reported_by") != user_id and user_id in [c["challenger_id"], c["challenged_id"]]}
-    my_matches = sb_get("matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
+
     return render_template("dashboard.html",
         user=session["user"], player=player, players=players, rank=rank,
         challenges_received=challenges_received, active_matches=active_matches,
@@ -266,7 +205,6 @@ def update_profile():
         "main_char": data.get("main_char", ""),
         "secondary_char": data.get("secondary_char", "")
     })
-    push_leaderboard()
     return jsonify({"success": True})
 
 @app.route("/api/lfm")
@@ -295,7 +233,6 @@ def challenge(opponent_id):
     cid = f"ch_{int(datetime.now().timestamp())}_{user_id}"
     sb_post("challenges", {"id": cid, "challenger_id": user_id, "challenger_name": session["user"]["username"],
         "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": None})
-    push_dashboard(opponent_id)
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/accept", methods=["POST"])
@@ -303,21 +240,13 @@ def accept_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     fmt = request.json.get("format", "BO3")
     if fmt not in ["BO1", "BO3", "BO5", "STOCKS"]: return jsonify({"error": "Invalid format"}), 400
-    challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     sb_patch("challenges", {"id": challenge_id}, {"status": "accepted", "format": fmt})
-    if challenges:
-        c = challenges[0]
-        push_dashboard(c["challenger_id"])
-        push_dashboard(c["challenged_id"])
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/decline", methods=["POST"])
 def decline_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
-    challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     sb_patch("challenges", {"id": challenge_id}, {"status": "declined"})
-    if challenges:
-        push_dashboard(challenges[0]["challenger_id"])
     return jsonify({"success": True})
 
 @app.route("/lfm", methods=["POST"])
@@ -340,7 +269,6 @@ def create_lfm():
         "message": data.get("message", ""),
         "created_at": datetime.utcnow().isoformat(), "expires_at": expires
     })
-    push_leaderboard()
     return jsonify({"success": True})
 
 @app.route("/lfm/<post_id>/accept", methods=["POST"])
@@ -360,8 +288,6 @@ def accept_lfm(post_id):
         "status": "accepted", "format": post["format"]
     })
     sb_delete("lfm_posts", {"id": post_id})
-    push_dashboard(post["player_id"])
-    push_leaderboard()
     return jsonify({"success": True})
 
 @app.route("/result/<challenge_id>", methods=["POST"])
@@ -391,16 +317,16 @@ def submit_result(challenge_id):
                        "loser_stocks_taken": loser_stocks_taken,
                        "is_stocks_mode": is_stocks_mode}
         })
-        other_id = c["challenged_id"] if user_id == c["challenger_id"] else c["challenger_id"]
-        push_dashboard(other_id)
-        push_dashboard(user_id)
         return jsonify({"success": True, "message": "Result submitted! Waiting for opponent confirmation."})
 
     if c["status"] == "reported" and c.get("reported_by") != user_id:
         report = c.get("report") or {}
         if winner_id == report.get("winner_id"):
-            winner = sb_get("players", f"id=eq.{winner_id}")
-            loser  = sb_get("players", f"id=eq.{loser_id}")
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                f_winner = ex.submit(sb_get, "players", f"id=eq.{winner_id}")
+                f_loser  = ex.submit(sb_get, "players", f"id=eq.{loser_id}")
+            winner = f_winner.result()
+            loser  = f_loser.result()
             if winner and loser:
                 wp, lp = winner[0]["points"], loser[0]["points"]
                 if report.get("is_stocks_mode"):
@@ -425,14 +351,9 @@ def submit_result(challenge_id):
                     "elo_change": elo_gain, "date": datetime.now().isoformat()
                 })
                 sb_patch("challenges", {"id": challenge_id}, {"status": "completed"})
-                push_dashboard(winner_id)
-                push_dashboard(loser_id)
-                push_leaderboard()
                 return jsonify({"success": True, "message": f"Match validated! +{elo_gain} ELO for the winner."})
         else:
             sb_patch("challenges", {"id": challenge_id}, {"status": "disputed"})
-            push_dashboard(c["challenger_id"])
-            push_dashboard(c["challenged_id"])
             return jsonify({"success": True, "message": "Conflict detected! Contact an admin."})
 
     return jsonify({"error": "Invalid action"}), 400
