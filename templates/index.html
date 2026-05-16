@@ -402,6 +402,11 @@
   }
 
   // ── POLLING LEADERBOARD 1s ────────────────────────────────
+  const currentUserId = "{{ user.id if user else '' }}";
+  // Track active matches known at page load to avoid false redirect
+  const knownActiveMatches = new Set();
+  let matchCheckReady = false; // wait one cycle before redirecting
+
   async function pollLeaderboard() {
     try {
       const r = await fetch('/api/leaderboard');
@@ -412,11 +417,32 @@
         if (d.lfm_posts)      renderLFM(d.lfm_posts);
       }
     } catch(e) {}
+
+    // If user is logged in, also check for new active matches (e.g. someone accepted their LFM post)
+    if (currentUserId) {
+      try {
+        const r2 = await fetch('/api/dashboard');
+        if (r2.ok) {
+          const d2 = await r2.json();
+          if (d2.active_matches) {
+            for (const cid of Object.keys(d2.active_matches)) {
+              if (!knownActiveMatches.has(cid)) {
+                if (matchCheckReady) {
+                  window.location.href = '/match/' + cid;
+                  return;
+                }
+                knownActiveMatches.add(cid);
+              }
+            }
+          }
+          matchCheckReady = true;
+        }
+      } catch(e) {}
+    }
+
     setTimeout(pollLeaderboard, 1000);
   }
   pollLeaderboard();
-
-  const currentUserId = "{{ user.id if user else '' }}";
 
   function renderLeaderboard(players) {
     const el = document.querySelector('#panel-leaderboard .leaderboard');
