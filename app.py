@@ -347,7 +347,7 @@ def accept_lfm(post_id):
         "status": "accepted", "format": post["format"]
     })
     sb_delete("lfm_posts", {"id": post_id})
-    return jsonify({"success": True})
+    return jsonify({"success": True, "challenge_id": cid})
 
 @app.route("/lfm/<post_id>/cancel", methods=["POST"])
 def cancel_lfm(post_id):
