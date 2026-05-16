@@ -1,4 +1,5 @@
 import hashlib
+import json
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 import requests
 import os
@@ -51,16 +52,20 @@ def get_player_matches(user_id, limit=10):
         if m["id"] not in seen:
             seen.add(m["id"])
             merged.append(m)
-    merged.sort(key=lambda x: x.get("id", 0), reverse=True)
+    merged.sort(key=lambda x: x.get("date", ""), reverse=True)
     return merged[:limit]
 
 def sb_post(table, data):
     r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=sb_headers(), json=data)
+    if not r.ok:
+        print(f"[sb_post ERROR] {table}: {r.status_code} {r.text}")
     return r.json() if r.ok else None
 
 def sb_patch(table, match, data):
     params = "&".join([f"{k}=eq.{v}" for k, v in match.items()])
     r = requests.patch(f"{SUPABASE_URL}/rest/v1/{table}?{params}", headers=sb_headers(), json=data)
+    if not r.ok:
+        print(f"[sb_patch ERROR] {table}: {r.status_code} {r.text}")
     return r.ok
 
 def sb_delete(table, match):
@@ -376,15 +381,23 @@ def submit_result(challenge_id):
     if c["status"] == "accepted":
         sb_patch("challenges", {"id": challenge_id}, {
             "status": "reported", "reported_by": user_id,
-            "report": {"winner_id": winner_id, "score": score,
+            "report": json.dumps({"winner_id": winner_id, "score": score,
                        "winner_stocks_taken": winner_stocks_taken,
                        "loser_stocks_taken": loser_stocks_taken,
-                       "is_stocks_mode": is_stocks_mode}
+                       "is_stocks_mode": is_stocks_mode})
         })
         return jsonify({"success": True, "message": "Result submitted! Waiting for opponent confirmation."})
 
     if c["status"] == "reported" and c.get("reported_by") != user_id:
-        report = c.get("report") or {}
+        raw_report = c.get("report") or {}
+        # Désérialiser si c'est une string (colonne text dans Supabase)
+        if isinstance(raw_report, str):
+            try:
+                report = json.loads(raw_report)
+            except Exception:
+                report = {}
+        else:
+            report = raw_report
         if winner_id == report.get("winner_id"):
             with ThreadPoolExecutor(max_workers=2) as ex:
                 f_winner = ex.submit(sb_get, "players", f"id=eq.{winner_id}")
