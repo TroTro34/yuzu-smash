@@ -542,26 +542,36 @@ function saveChar(slot, charId, charName) {
     });
 }
 
-// ── SSE REAL-TIME ────────────────────────────────────────────
-const evtSource = new EventSource('/sse/dashboard');
+// ── POLLING 1s ───────────────────────────────────────────────
+let polling = true;
 
-evtSource.onopen = () => {
-  document.getElementById('ws-dot').style.background = 'var(--green)';
-  document.getElementById('ws-label').style.color = 'var(--green)';
-  document.getElementById('ws-label').textContent = 'Live';
-};
+function startPolling() {
+  const dot   = document.getElementById('ws-dot');
+  const label = document.getElementById('ws-label');
 
-evtSource.onerror = () => {
-  document.getElementById('ws-dot').style.background = 'var(--red)';
-  document.getElementById('ws-label').style.color = 'var(--red)';
-  document.getElementById('ws-label').textContent = 'Reconnecting…';
-  // EventSource se reconnecte automatiquement — pas besoin de code manuel
-};
+  async function tick() {
+    if (!polling) return;
+    try {
+      const r = await fetch('/api/dashboard');
+      if (r.status === 401) { polling = false; return; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      dot.style.background   = 'var(--green)';
+      label.style.color      = 'var(--green)';
+      label.textContent      = 'Live';
+      if (!modalOpen) applyDashboardData(d);
+    } catch(e) {
+      dot.style.background   = 'var(--red)';
+      label.style.color      = 'var(--red)';
+      label.textContent      = 'Reconnecting…';
+    }
+    setTimeout(tick, 1000);
+  }
 
-evtSource.onmessage = (e) => {
-  if (modalOpen) return; // Ne pas rafraîchir si un modal est ouvert
-  applyDashboardData(JSON.parse(e.data));
-};
+  tick();
+}
+
+startPolling();
 
 function applyDashboardData(d) {
     document.getElementById('stat-points').textContent = d.player.points;
