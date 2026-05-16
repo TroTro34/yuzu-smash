@@ -359,6 +359,22 @@ def cancel_lfm(post_id):
     sb_delete("lfm_posts", {"id": post_id})
     return jsonify({"success": True})
 
+@app.route("/api/match_status/<challenge_id>")
+def api_match_status(challenge_id):
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    challenges = sb_get("challenges", f"id=eq.{challenge_id}")
+    if not challenges:
+        return jsonify({"error": "Not found"}), 404
+    c = challenges[0]
+    return jsonify({
+        "status": c["status"],
+        "reported_by": c.get("reported_by"),
+        "report": c.get("report"),
+        "winner_id": (c.get("report") or {}).get("winner_id") if isinstance(c.get("report"), dict) else None,
+        "score": (c.get("report") or {}).get("score") if isinstance(c.get("report"), dict) else None,
+    })
+
 @app.route("/match/<challenge_id>")
 def match_page(challenge_id):
     if "user" not in session:
