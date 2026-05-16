@@ -41,6 +41,19 @@ def sb_get(table, params=""):
     r = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?{params}", headers=sb_headers())
     return r.json() if r.ok else []
 
+def get_player_matches(user_id, limit=10):
+    """Fetch matches for a player, using two queries as fallback for OR filter issues."""
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_w = ex.submit(sb_get, "matches", f"winner_id=eq.{user_id}&order=id.desc&limit={limit}")
+        f_l = ex.submit(sb_get, "matches", f"loser_id=eq.{user_id}&order=id.desc&limit={limit}")
+    seen, merged = set(), []
+    for m in (f_w.result() or []) + (f_l.result() or []):
+        if m["id"] not in seen:
+            seen.add(m["id"])
+            merged.append(m)
+    merged.sort(key=lambda x: x.get("id", 0), reverse=True)
+    return merged[:limit]
+
 def sb_post(table, data):
     r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=sb_headers(), json=data)
     return r.json() if r.ok else None
@@ -74,7 +87,7 @@ def _dashboard_data(user_id):
     with ThreadPoolExecutor(max_workers=3) as ex:
         f_players    = ex.submit(sb_get, "players", "order=points.desc")
         f_challenges = ex.submit(sb_get, "challenges", "status=in.(pending,accepted,reported)")
-        f_matches    = ex.submit(sb_get, "matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
+        f_matches    = ex.submit(get_player_matches, user_id, 10)
 
     players        = f_players.result()
     all_challenges = f_challenges.result()
@@ -178,12 +191,12 @@ def callback():
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
-        return redirect(url_for("index"))
+        return redirect(url_for("login"))
     user_id = session["user"]["id"]
     with ThreadPoolExecutor(max_workers=3) as ex:
         f_players    = ex.submit(sb_get, "players", "order=points.desc")
         f_challenges = ex.submit(sb_get, "challenges", "status=in.(pending,accepted,reported)")
-        f_matches    = ex.submit(sb_get, "matches", f"or=(winner_id.eq.{user_id},loser_id.eq.{user_id})&order=id.desc&limit=10")
+        f_matches    = ex.submit(get_player_matches, user_id, 10)
 
     players        = f_players.result()
     all_challenges = f_challenges.result()
@@ -209,7 +222,7 @@ def player_profile(player_id):
         return redirect(url_for("dashboard"))
     with ThreadPoolExecutor(max_workers=2) as ex:
         f_players = ex.submit(sb_get, "players", "order=points.desc")
-        f_matches = ex.submit(sb_get, "matches", f"or=(winner_id.eq.{player_id},loser_id.eq.{player_id})&order=id.desc&limit=10")
+        f_matches = ex.submit(get_player_matches, player_id, 10)
     players   = f_players.result()
     my_matches = f_matches.result()
     player = next((p for p in players if p["id"] == player_id), None)
