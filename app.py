@@ -23,7 +23,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 DISCORD_AUTH_URL = (
     f"https://discord.com/oauth2/authorize"
     f"?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
-    f"&response_type=code&scope=identify guilds"
+    f"&response_type=code&scope=identify guilds guilds.members.read"
 )
 
 ELO_K = 32
@@ -181,16 +181,20 @@ def callback():
     guilds    = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
     if GUILD_ID not in [g["id"] for g in guilds]:
         return render_template("not_member.html")
-    session["user"] = {"id": user_data["id"], "username": user_data["username"], "avatar": user_data.get("avatar")}
+    # Récupère le nickname du serveur via guilds.members.read (sans bot token)
+    member_data = requests.get(f"https://discord.com/api/users/@me/guilds/{GUILD_ID}/member", headers=headers).json()
+    display_name = member_data.get("nick") or user_data.get("global_name") or user_data["username"]
+    avatar = user_data.get("avatar")
+    session["user"] = {"id": user_data["id"], "username": display_name, "avatar": avatar}
     session.permanent = True
     uid = user_data["id"]
     existing = sb_get("players", f"id=eq.{uid}")
     if not existing:
-        sb_post("players", {"id": uid, "username": user_data["username"], "avatar": user_data.get("avatar"),
+        sb_post("players", {"id": uid, "username": display_name, "avatar": avatar,
                             "points": 1000, "wins": 0, "losses": 0, "matches_played": 0,
                             "main_char": "", "secondary_char": "", "stocks_taken": 0, "stocks_lost": 0})
     else:
-        sb_patch("players", {"id": uid}, {"username": user_data["username"], "avatar": user_data.get("avatar")})
+        sb_patch("players", {"id": uid}, {"username": display_name, "avatar": avatar})
     return redirect(url_for("dashboard"))
 
 @app.route("/dashboard")
