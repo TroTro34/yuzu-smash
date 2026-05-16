@@ -44,8 +44,8 @@ def sb_get(table, params=""):
 def get_player_matches(user_id, limit=10):
     """Fetch matches for a player, using two queries as fallback for OR filter issues."""
     with ThreadPoolExecutor(max_workers=2) as ex:
-        f_w = ex.submit(sb_get, "matches", f"winner_id=eq.{user_id}&order=id.desc&limit={limit}")
-        f_l = ex.submit(sb_get, "matches", f"loser_id=eq.{user_id}&order=id.desc&limit={limit}")
+        f_w = ex.submit(sb_get, "matches", f"winner_id=eq.{user_id}&order=date.desc&limit={limit}")
+        f_l = ex.submit(sb_get, "matches", f"loser_id=eq.{user_id}&order=date.desc&limit={limit}")
     seen, merged = set(), []
     for m in (f_w.result() or []) + (f_l.result() or []):
         if m["id"] not in seen:
@@ -114,7 +114,7 @@ def _leaderboard_data():
     now = datetime.utcnow().isoformat()
     with ThreadPoolExecutor(max_workers=3) as ex:
         f_players = ex.submit(sb_get, "players", "order=points.desc")
-        f_matches = ex.submit(sb_get, "matches", "order=id.desc&limit=10")
+        f_matches = ex.submit(sb_get, "matches", "order=date.desc&limit=10")
         f_lfm     = ex.submit(sb_get, "lfm_posts", f"expires_at=gt.{now}&order=created_at.desc")
     return {
         "players":        f_players.result(),
@@ -149,7 +149,7 @@ def index():
     now = datetime.utcnow().isoformat()
     sb_delete("lfm_posts", {"expires_at": f"lt.{now}"})
     players = sb_get("players", "order=points.desc")
-    matches = sb_get("matches", "order=id.desc&limit=10")
+    matches = sb_get("matches", "order=date.desc&limit=10")
     lfm     = sb_get("lfm_posts", "order=created_at.desc")
     return render_template("index.html", user=user, players=players, recent_matches=matches, lfm_posts=lfm)
 
