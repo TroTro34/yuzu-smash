@@ -499,7 +499,7 @@
         </div>
       </div>
 
-      <button class="end-match-btn" id="end-match-btn" onclick="endMatch()">
+      <button class="end-match-btn" id="end-match-btn" onclick="confirmEndMatch()">
         🏆 END MATCH & SUBMIT
       </button>
       <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
@@ -514,8 +514,8 @@
 <div class="winner-announcement" id="stocks-recap" style="flex-direction:column;gap:0;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem;max-width:480px;width:90%;position:relative;overflow:hidden;">
     <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;color:var(--accent2);text-align:center;margin-bottom:0.3rem;">RÉSUMÉ DU MATCH</div>
-    <div id="recap-subtitle" style="text-align:center;color:var(--muted);font-size:0.8rem;letter-spacing:2px;margin-bottom:2rem;">SOUMIS PAR TON ADVERSAIRE</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;color:var(--accent2);text-align:center;margin-bottom:0.3rem;">MATCH SUMMARY</div>
+    <div id="recap-subtitle" style="text-align:center;color:var(--muted);font-size:0.8rem;letter-spacing:2px;margin-bottom:2rem;">SUBMITTED BY YOUR OPPONENT</div>
 
     <!-- Games breakdown -->
     <div id="recap-games" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem;"></div>
@@ -534,24 +534,24 @@
         </div>
       </div>
       <div style="text-align:center;margin-top:0.8rem;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;">VAINQUEUR : </span>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;">WINNER: </span>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--green);" id="recap-winner-name">—</span>
       </div>
     </div>
 
     <!-- Buttons -->
     <div id="recap-my-actions" style="display:none;flex-direction:column;gap:0.8rem;">
-      <div style="font-size:0.85rem;color:var(--muted);text-align:center;margin-bottom:0.3rem;">Ce résultat est-il correct ?</div>
+      <div style="font-size:0.85rem;color:var(--muted);text-align:center;margin-bottom:0.3rem;">Is this result correct?</div>
       <button class="btn btn-success" style="width:100%;padding:1rem;font-size:1.1rem;letter-spacing:2px;" onclick="confirmRecap()">
-        ✅ OUI — CONFIRMER
+        ✅ YES — CONFIRM
       </button>
       <button class="btn btn-danger" style="width:100%;padding:1rem;font-size:1.1rem;letter-spacing:2px;" onclick="contestRecap()">
-        ⚠ NON — CONTESTER
+        ⚠ NO — CONTEST
       </button>
     </div>
     <div id="recap-waiting" style="display:none;text-align:center;color:var(--muted);padding:1rem;">
       <div style="font-size:1.5rem;margin-bottom:0.5rem;">⏳</div>
-      Résultat soumis — en attente de confirmation de l'adversaire…
+      Result submitted — waiting for opponent confirmation…
       <div style="margin-top:1rem;">
         <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
       </div>
@@ -571,6 +571,46 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+
+<!-- ── STOCKS END MATCH CONFIRMATION DIALOG ── -->
+<div id="confirm-end-overlay" style="
+  display:none; position:fixed; inset:0; z-index:600;
+  background:rgba(0,0,0,0.85); align-items:center; justify-content:center;">
+  <div style="
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:2.5rem; max-width:400px; width:90%; position:relative; overflow:hidden;
+    text-align:center;">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;
+      background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:16px 16px 0 0;"></div>
+    <div style="font-size:3rem;margin-bottom:1rem;">🏆</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;
+      color:var(--accent2);margin-bottom:0.8rem;">END MATCH?</div>
+    <div style="color:var(--muted);font-size:0.95rem;line-height:1.5;margin-bottom:2rem;">
+      Are you sure you want to end the match and submit the result?<br>
+      <span style="color:var(--text);font-weight:700;">Your opponent will need to confirm.</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.8rem;">
+      <button onclick="doEndMatch()" style="
+        padding:1rem; border-radius:8px; border:2px solid var(--green);
+        background:rgba(61,220,132,0.15); color:var(--green);
+        font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:3px;
+        cursor:pointer; transition:all 0.2s;"
+        onmouseover="this.style.background='var(--green)';this.style.color='#07070f'"
+        onmouseout="this.style.background='rgba(61,220,132,0.15)';this.style.color='var(--green)'">
+        ✅ YES, END MATCH
+      </button>
+      <button onclick="document.getElementById('confirm-end-overlay').style.display='none'" style="
+        padding:0.8rem; border-radius:8px; border:1px solid var(--border);
+        background:transparent; color:var(--muted);
+        font-family:'Rajdhani',sans-serif; font-size:1rem; font-weight:700;
+        cursor:pointer; transition:all 0.2s; letter-spacing:1px;"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        ← Keep Playing
+      </button>
+    </div>
+  </div>
+</div>
 <script>
 // ── CONFIG (injected by Flask) ──
 const CHALLENGE_ID = "{{ challenge.id }}";
@@ -866,7 +906,7 @@ async function submitBO() {
         // First player submitted — wait for opponent confirmation
         pendingResult = selectedResult;
         showBORecap(selectedResult, 'waiting');
-        showToast("Résultat soumis \u2713 En attente de confirmation de l'adversaire\u2026", true);
+        showToast("Result submitted \u2713 Waiting for opponent confirmation\u2026", true);
         startMatchPolling();
       }
     } else {
@@ -880,7 +920,7 @@ async function submitBO() {
 }
 
 // ─────────────────────────────────────────────
-// RECAP & CONFIRM — tous modes (BO + STOCKS)
+// RECAP & CONFIRM — all modes (BO + STOCKS)
 // ─────────────────────────────────────────────
 let pendingResult = null; // { winner_id, score, [stocks fields] }
 
@@ -891,7 +931,7 @@ function endMatch() {
 
   let totalP1 = 0, totalP2 = 0;
   lockedGames.forEach(g => { totalP1 += g.p1; totalP2 += g.p2; });
-  if (totalP1 === totalP2) { showToast('Stocks totaux égaux — il faut un vainqueur!', false); return; }
+  if (totalP1 === totalP2) { showToast('Total stocks are equal — there must be a winner!', false); return; }
 
   const winnerId     = totalP1 > totalP2 ? P1_ID : P2_ID;
   const winnerName   = totalP1 > totalP2 ? P1_NAME : P2_NAME;
@@ -924,7 +964,7 @@ function endMatch() {
       </div>`;
   });
   populateRecapTotals(totalP1, totalP2, winnerId);
-  document.getElementById('recap-subtitle').textContent = 'MODE STOCKS — EN ATTENTE DE CONFIRMATION';
+  document.getElementById('recap-subtitle').textContent = 'STOCKS MODE — WAITING FOR CONFIRMATION';
 
   // Submitter sees waiting state
   document.getElementById('recap-my-actions').style.display = 'none';
@@ -949,7 +989,7 @@ function showBORecap(result, state) {
       <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);">${t2}</span>
     </div>`;
   populateRecapTotals(t1, t2, result.winner_id);
-  document.getElementById('recap-subtitle').textContent = FORMAT + ' — EN ATTENTE DE CONFIRMATION';
+  document.getElementById('recap-subtitle').textContent = FORMAT + ' — WAITING FOR CONFIRMATION';
 
   if (state === 'waiting') {
     document.getElementById('recap-my-actions').style.display = 'none';
@@ -989,7 +1029,7 @@ async function submitResult(result, isConfirm) {
         showWinner(result.winner_id, scoreLabel);
         setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
       } else {
-        showToast("Résultat soumis \u2713 En attente de confirmation\u2026", true);
+        showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
         startMatchPolling();
       }
     } else {
@@ -1002,7 +1042,7 @@ async function submitResult(result, isConfirm) {
   }
 }
 
-// ── Joueur 2 : Confirmer ──
+// ── Player 2: Confirm ──
 async function confirmRecap() {
   if (!pendingResult) return;
   document.getElementById('recap-my-actions').style.display = 'none';
@@ -1010,7 +1050,7 @@ async function confirmRecap() {
   await submitResult(pendingResult, true);
 }
 
-// ── Joueur 2 : Contester ──
+// ── Player 2: Contest ──
 async function contestRecap() {
   if (!pendingResult) return;
   const oppositeWinner = pendingResult.winner_id === P1_ID ? P2_ID : P1_ID;
@@ -1021,16 +1061,16 @@ async function contestRecap() {
       body: JSON.stringify(disputed)
     });
   } catch(e) {}
-  showToast('Résultat contesté — un admin va arbitrer.', false);
+  showToast('Result contested — an admin will review.', false);
   document.getElementById('stocks-recap').classList.remove('show');
   setTimeout(() => { window.location.href = '/dashboard'; }, 2500);
 }
 
-// ── Polling : attente de confirmation ──
+// ── Polling: waiting for confirmation ──
 let _pollInterval = null;
 
 function startMatchPolling() {
-  if (_pollInterval) return; // déjà en cours, pas de doublon
+  if (_pollInterval) return; // already running, prevent duplicate
   let tries = 0;
   _pollInterval = setInterval(async () => {
     tries++;
@@ -1046,16 +1086,16 @@ function startMatchPolling() {
         setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
       } else if (d.status === 'disputed') {
         clearInterval(_pollInterval); _pollInterval = null;
-        showToast('Résultat contesté — contacte un admin.', false);
+        showToast('Result contested — contact an admin.', false);
         setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
       } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
-        // L'adversaire a soumis — afficher le recap si pas déjà visible
+        // Opponent submitted — show recap if not already visible
         clearInterval(_pollInterval); _pollInterval = null;
         if (!document.getElementById('stocks-recap').classList.contains('show')) {
           showOpponentRecap(d);
         }
       }
-      // statut 'accepted' ou 'reported' (par moi) → on continue de poller
+      // status 'accepted' or 'reported' (by me) → keep polling
     } catch(e) {}
   }, 3000);
 }
@@ -1069,13 +1109,13 @@ function checkInitialState() {
   }).catch(() => {});
 }
 
-// ── Afficher le recap soumis par l'adversaire ──
+// ── Show recap submitted by opponent ──
 function showOpponentRecap(d) {
   const report = d.report || d;
   if (!report || !report.winner_id) return;
 
   if (report.is_stocks_mode || FORMAT === 'STOCKS') {
-    // Mode stocks
+    // Stocks mode
     pendingResult = {
       winner_id: report.winner_id,
       score: report.score,
@@ -1084,13 +1124,13 @@ function showOpponentRecap(d) {
     };
     const gamesDiv = document.getElementById('recap-games');
     gamesDiv.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:0.5rem;">
-      Détail jeu par jeu non disponible (soumis par l'adversaire)</div>`;
+      Game-by-game detail not available (submitted by opponent)</div>`;
     const t1 = report.winner_id === P1_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
     const t2 = report.winner_id === P2_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
     populateRecapTotals(t1, t2, report.winner_id);
-    document.getElementById('recap-subtitle').textContent = 'MODE STOCKS — SOUMIS PAR TON ADVERSAIRE';
+    document.getElementById('recap-subtitle').textContent = 'STOCKS MODE — SUBMITTED BY OPPONENT';
   } else {
-    // Mode BO
+    // BO mode
     pendingResult = { winner_id: report.winner_id, score: report.score || '' };
     const parts = (report.score || '0-0').split('-');
     const t1 = parseInt(parts[0]) || 0;
@@ -1104,7 +1144,7 @@ function showOpponentRecap(d) {
         <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);">${t2}</span>
       </div>`;
     populateRecapTotals(t1, t2, report.winner_id);
-    document.getElementById('recap-subtitle').textContent = FORMAT + ' — SOUMIS PAR TON ADVERSAIRE';
+    document.getElementById('recap-subtitle').textContent = FORMAT + ' — SUBMITTED BY YOUR OPPONENT';
   }
 
   document.getElementById('recap-my-actions').style.display = 'flex';
@@ -1133,9 +1173,23 @@ function showWinner(winnerId, score) {
   document.getElementById('winner-announcement').classList.add('show');
 }
 
+// ── Stocks end match confirmation ──
+function confirmEndMatch() {
+  const lockedGames = stockGames.filter(g => g.locked);
+  if (!lockedGames.length) { showToast('No games confirmed yet!', false); return; }
+  const overlay = document.getElementById('confirm-end-overlay');
+  overlay.style.display = 'flex';
+}
+
+function doEndMatch() {
+  document.getElementById('confirm-end-overlay').style.display = 'none';
+  endMatch();
+}
+
+
 init();
-checkInitialState(); // vérifie l'état immédiat au chargement
-startMatchPolling(); // poll en continu pour les deux joueurs — le joueur 2 détecte la soumission de l'adversaire en temps réel
+checkInitialState(); // check current state on page load
+startMatchPolling(); // poll continuously for both players — player 2 detects opponent submission in real time
 </script>
 </body>
 </html>
