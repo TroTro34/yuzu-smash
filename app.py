@@ -190,8 +190,24 @@ def dashboard():
         challenges_received=challenges_received, active_matches=active_matches,
         awaiting_confirmation=awaiting, my_matches=my_matches)
 
-@app.route("/logout")
-def logout():
+@app.route("/player/<player_id>")
+def player_profile(player_id):
+    # Si c'est le joueur connecté, on le redirige vers son dashboard
+    if session.get("user", {}).get("id") == player_id:
+        return redirect(url_for("dashboard"))
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_players = ex.submit(sb_get, "players", "order=points.desc")
+        f_matches = ex.submit(sb_get, "matches", f"or=(winner_id.eq.{player_id},loser_id.eq.{player_id})&order=id.desc&limit=10")
+    players   = f_players.result()
+    my_matches = f_matches.result()
+    player = next((p for p in players if p["id"] == player_id), None)
+    if not player:
+        return redirect(url_for("index"))
+    rank = next((i + 1 for i, p in enumerate(players) if p["id"] == player_id), None)
+    return render_template("player_profile.html",
+        user=session.get("user"), player=player, rank=rank, my_matches=my_matches)
+
+
     session.clear()
     return redirect(url_for("index"))
 
