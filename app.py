@@ -381,24 +381,29 @@ def submit_result(challenge_id):
     if c["status"] == "accepted":
         sb_patch("challenges", {"id": challenge_id}, {
             "status": "reported", "reported_by": user_id,
-            "report": json.dumps({"winner_id": winner_id, "score": score,
+            "report": {"winner_id": winner_id, "score": score,
                        "winner_stocks_taken": winner_stocks_taken,
                        "loser_stocks_taken": loser_stocks_taken,
-                       "is_stocks_mode": is_stocks_mode})
+                       "is_stocks_mode": is_stocks_mode}
         })
         return jsonify({"success": True, "message": "Result submitted! Waiting for opponent confirmation."})
 
     if c["status"] == "reported" and c.get("reported_by") != user_id:
         raw_report = c.get("report") or {}
-        # Désérialiser si c'est une string (colonne text dans Supabase)
+        # jsonb retourne un dict directement, mais gérer les cas edge (string échappée)
         if isinstance(raw_report, str):
             try:
-                report = json.loads(raw_report)
+                # Peut être doublement échappé si ancien bug
+                cleaned = raw_report.strip('"').replace('\"', '"')
+                report = json.loads(cleaned)
             except Exception:
                 report = {}
-        else:
+        elif isinstance(raw_report, dict):
             report = raw_report
-        if winner_id == report.get("winner_id"):
+        else:
+            report = {}
+        print(f"[DEBUG report] type={type(raw_report)} val={raw_report} -> winner_id={report.get('winner_id')}")
+        if str(winner_id) == str(report.get("winner_id", "")):
             with ThreadPoolExecutor(max_workers=2) as ex:
                 f_winner = ex.submit(sb_get, "players", f"id=eq.{winner_id}")
                 f_loser  = ex.submit(sb_get, "players", f"id=eq.{loser_id}")
