@@ -286,7 +286,7 @@
               <div class="lfm-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>
             {% endif %}
             <div>
-              <div class="lfm-name">{% if post.main_char %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ post.main_char }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;">{% endif %}{{ post.player_name }}</div>
+              <div class="lfm-name"><img class="char-inline" data-char="{{ post.main_char }}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;display:none;">{{ post.player_name }}</div>
               <div class="lfm-pts">{{ post.player_points }} ELO{% if post.main_char %} · {{ post.main_char }}{% endif %}</div>
             </div>
           </div>
@@ -302,7 +302,7 @@
             {% elif not user %}
               <a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>
             {% else %}
-              <button class="btn btn-ghost" style="flex:1;" disabled>Your post</button>
+              <button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('{{ post.id }}')">✖ Retirer mon annonce</button>
             {% endif %}
           </div>
         </div>
@@ -335,6 +335,20 @@
 </div>
 
 <script>
+  const CHAR_ICONS = {
+    mario:"https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png",donkey_kong:"https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png",link:"https://www.smashbros.com/assets_v2/img/fighter/pict/link.png",samus:"https://www.smashbros.com/assets_v2/img/fighter/pict/samus.png",dark_samus:"https://www.smashbros.com/assets_v2/img/fighter/pict/dark_samus.png",yoshi:"https://www.smashbros.com/assets_v2/img/fighter/pict/yoshi.png",kirby:"https://www.smashbros.com/assets_v2/img/fighter/pict/kirby.png",fox:"https://www.smashbros.com/assets_v2/img/fighter/pict/fox.png",pikachu:"https://www.smashbros.com/assets_v2/img/fighter/pict/pikachu.png",luigi:"https://www.smashbros.com/assets_v2/img/fighter/pict/luigi.png",ness:"https://www.smashbros.com/assets_v2/img/fighter/pict/ness.png",captain_falcon:"https://www.smashbros.com/assets_v2/img/fighter/pict/captain_falcon.png",jigglypuff:"https://www.smashbros.com/assets_v2/img/fighter/pict/purin.png",peach:"https://www.smashbros.com/assets_v2/img/fighter/pict/peach.png",daisy:"https://www.smashbros.com/assets_v2/img/fighter/pict/daisy.png",bowser:"https://www.smashbros.com/assets_v2/img/fighter/pict/koopa.png",ice_climbers:"https://www.smashbros.com/assets_v2/img/fighter/pict/ice_climber.png",sheik:"https://www.smashbros.com/assets_v2/img/fighter/pict/sheik.png",zelda:"https://www.smashbros.com/assets_v2/img/fighter/pict/zelda.png",dr_mario:"https://www.smashbros.com/assets_v2/img/fighter/pict/mariod.png",pichu:"https://www.smashbros.com/assets_v2/img/fighter/pict/pichu.png",falco:"https://www.smashbros.com/assets_v2/img/fighter/pict/falco.png",marth:"https://www.smashbros.com/assets_v2/img/fighter/pict/marth.png",lucina:"https://www.smashbros.com/assets_v2/img/fighter/pict/lucina.png",young_link:"https://www.smashbros.com/assets_v2/img/fighter/pict/young_link.png",ganondorf:"https://www.smashbros.com/assets_v2/img/fighter/pict/ganondorf.png",mewtwo:"https://www.smashbros.com/assets_v2/img/fighter/pict/mewtwo.png",roy:"https://www.smashbros.com/assets_v2/img/fighter/pict/roy.png",chrom:"https://www.smashbros.com/assets_v2/img/fighter/pict/chrom.png",mr_game_and_watch:"https://www.smashbros.com/assets_v2/img/fighter/pict/gamewatch.png",meta_knight:"https://www.smashbros.com/assets_v2/img/fighter/pict/metaknight.png",pit:"https://www.smashbros.com/assets_v2/img/fighter/pict/pit.png",dark_pit:"https://www.smashbros.com/assets_v2/img/fighter/pict/pit_b.png",zero_suit_samus:"https://www.smashbros.com/assets_v2/img/fighter/pict/szerosuit.png",wario:"https://www.smashbros.com/assets_v2/img/fighter/pict/wario.png",snake:"https://www.smashbros.com/assets_v2/img/fighter/pict/snake.png",ike:"https://www.smashbros.com/assets_v2/img/fighter/pict/ike.png",pokemon_trainer:"https://www.smashbros.com/assets_v2/img/fighter/pict/pokemon_trainer.png",diddy_kong:"https://www.smashbros.com/assets_v2/img/fighter/pict/diddy_kong.png",lucas:"https://www.smashbros.com/assets_v2/img/fighter/pict/lucas.png",sonic:"https://www.smashbros.com/assets_v2/img/fighter/pict/sonic.png",dedede:"https://www.smashbros.com/assets_v2/img/fighter/pict/dedede.png",olimar:"https://www.smashbros.com/assets_v2/img/fighter/pict/pikmin.png",lucario:"https://www.smashbros.com/assets_v2/img/fighter/pict/lucario.png",rob:"https://www.smashbros.com/assets_v2/img/fighter/pict/robot.png",toon_link:"https://www.smashbros.com/assets_v2/img/fighter/pict/toonlink.png",wolf:"https://www.smashbros.com/assets_v2/img/fighter/pict/wolf.png",villager:"https://www.smashbros.com/assets_v2/img/fighter/pict/murabito.png",mega_man:"https://www.smashbros.com/assets_v2/img/fighter/pict/rockman.png",wii_fit_trainer:"https://www.smashbros.com/assets_v2/img/fighter/pict/wiifit.png",rosalina_and_luma:"https://www.smashbros.com/assets_v2/img/fighter/pict/rosetta.png",little_mac:"https://www.smashbros.com/assets_v2/img/fighter/pict/littlemac.png",greninja:"https://www.smashbros.com/assets_v2/img/fighter/pict/gekkouga.png",mii_brawler:"https://www.smashbros.com/assets_v2/img/fighter/pict/miifighter.png",mii_swordfighter:"https://www.smashbros.com/assets_v2/img/fighter/pict/miiswordsman.png",mii_gunner:"https://www.smashbros.com/assets_v2/img/fighter/pict/miigunner.png",palutena:"https://www.smashbros.com/assets_v2/img/fighter/pict/palutena.png",pac_man:"https://www.smashbros.com/assets_v2/img/fighter/pict/pacman.png",robin:"https://www.smashbros.com/assets_v2/img/fighter/pict/reflet.png",shulk:"https://www.smashbros.com/assets_v2/img/fighter/pict/shulk.png",bowser_jr:"https://www.smashbros.com/assets_v2/img/fighter/pict/koopajr.png",duck_hunt:"https://www.smashbros.com/assets_v2/img/fighter/pict/duckhunt.png",ryu:"https://www.smashbros.com/assets_v2/img/fighter/pict/ryu.png",ken:"https://www.smashbros.com/assets_v2/img/fighter/pict/ken.png",cloud:"https://www.smashbros.com/assets_v2/img/fighter/pict/cloud.png",corrin:"https://www.smashbros.com/assets_v2/img/fighter/pict/kamui.png",bayonetta:"https://www.smashbros.com/assets_v2/img/fighter/pict/bayonetta.png",inkling:"https://www.smashbros.com/assets_v2/img/fighter/pict/inkling.png",ridley:"https://www.smashbros.com/assets_v2/img/fighter/pict/ridley.png",simon:"https://www.smashbros.com/assets_v2/img/fighter/pict/simon.png",richter:"https://www.smashbros.com/assets_v2/img/fighter/pict/richter.png",king_k_rool:"https://www.smashbros.com/assets_v2/img/fighter/pict/krool.png",isabelle:"https://www.smashbros.com/assets_v2/img/fighter/pict/shizue.png",incineroar:"https://www.smashbros.com/assets_v2/img/fighter/pict/gaogaen.png",piranha_plant:"https://www.smashbros.com/assets_v2/img/fighter/pict/packun.png",joker:"https://www.smashbros.com/assets_v2/img/fighter/pict/jack.png",hero:"https://www.smashbros.com/assets_v2/img/fighter/pict/brave.png",banjo_and_kazooie:"https://www.smashbros.com/assets_v2/img/fighter/pict/buddy.png",terry:"https://www.smashbros.com/assets_v2/img/fighter/pict/dolly.png",byleth:"https://www.smashbros.com/assets_v2/img/fighter/pict/master.png",min_min:"https://www.smashbros.com/assets_v2/img/fighter/pict/tantan.png",steve:"https://www.smashbros.com/assets_v2/img/fighter/pict/pickel.png",sephiroth:"https://www.smashbros.com/assets_v2/img/fighter/pict/edge.png",pyra_mythra:"https://www.smashbros.com/assets_v2/img/fighter/pict/eflame.png",kazuya:"https://www.smashbros.com/assets_v2/img/fighter/pict/demon.png",sora:"https://www.smashbros.com/assets_v2/img/fighter/pict/trail.png"
+  };
+  function charImg(id, size=16) {
+    const url = CHAR_ICONS[id];
+    return url ? `<img src="${url}" onerror="this.style.display='none'" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;margin-right:4px;">` : '';
+  }
+
+  // Résout les icônes perso du rendu Jinja statique
+  document.querySelectorAll('img.char-inline[data-char]').forEach(img => {
+    const url = CHAR_ICONS[img.dataset.char];
+    if (url) { img.src = url; img.style.display = ''; }
+  });
+
   function showTab(name, el) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -360,6 +374,14 @@
       .then(r => r.json()).then(d => {
         if (d.success) { window.location.href = '/dashboard'; }
         else alert(d.error);
+      });
+  }
+
+  function cancelLFM(postId) {
+    fetch('/lfm/' + postId + '/cancel', { method: 'POST' })
+      .then(r => r.json()).then(d => {
+        if (d.success) showToast('Annonce retirée.');
+        else showToast(d.error, false);
       });
   }
 
@@ -406,8 +428,8 @@
       const avatarHtml = p.avatar
         ? `<img class="player-avatar" src="https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png" alt="">`
         : `<div class="player-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
-      const charHtml = p.main_char
-        ? `<img class="char-icon" src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${p.main_char}.png" onerror="this.style.display='none'" alt="">` : '';
+      const charUrl = p.main_char ? CHAR_ICONS[p.main_char] : null;
+      const charHtml = charUrl ? `<img class="char-icon" src="${charUrl}" onerror="this.style.display='none'" alt="">` : '';
       const charLine = p.main_char ? `<div class="player-char">Main: ${p.main_char}${p.secondary_char?' · 2nd: '+p.secondary_char:''}</div>` : '';
       return `<div class="player-row ${rankClass}" onclick="${currentUserId ? `window.location='/player/${p.id}'` : ''}">
         <div class="rank-num">${rankNum}</div>
@@ -432,8 +454,8 @@
     if (!el) return;
     if (!matches.length) { el.innerHTML = '<div class="empty">No matches played yet.</div>'; return; }
     el.innerHTML = matches.map(m => {
-      const wIcon = m.winner_main ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${m.winner_main}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">` : '';
-      const lIcon = m.loser_main  ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${m.loser_main}.png"  onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">` : '';
+      const wIcon = m.winner_main ? charImg(m.winner_main) : '';
+      const lIcon = m.loser_main  ? charImg(m.loser_main)  : '';
       return `<div class="match-row">
         <span class="match-winner">🏆 ${wIcon}${m.winner_name}</span>
         <span class="match-score">${m.score || 'VS'}</span>
@@ -463,10 +485,10 @@
         else if (!currentUserId)
           actionHtml = `<a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>`;
         else
-          actionHtml = `<button class="btn btn-ghost" style="flex:1;" disabled>Your post</button>`;
+          actionHtml = `<button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('${post.id}')">✖ Retirer mon annonce</button>`;
         return `<div class="lfm-card">
           <div class="lfm-player">${avatarHtml}<div>
-            <div class="lfm-name">${post.main_char?`<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${post.main_char}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;">`:''}${post.player_name}</div>
+            <div class="lfm-name">${post.main_char ? charImg(post.main_char) : ''}${post.player_name}</div>
             <div class="lfm-pts">${post.player_points} ELO${post.main_char?' · '+post.main_char:''}</div>
           </div></div>
           <div class="lfm-details">
