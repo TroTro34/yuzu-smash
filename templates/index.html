@@ -302,7 +302,7 @@
             {% elif not user %}
               <a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>
             {% else %}
-              <button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('{{ post.id }}')">✖ Retirer mon annonce</button>
+              <button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('{{ post.id }}')">✖ Remove my post</button>
             {% endif %}
           </div>
         </div>
@@ -380,7 +380,7 @@
   function cancelLFM(postId) {
     fetch('/lfm/' + postId + '/cancel', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.success) showToast('Annonce retirée.');
+        if (d.success) showToast('Post removed.');
         else showToast(d.error, false);
       });
   }
@@ -485,7 +485,7 @@
         else if (!currentUserId)
           actionHtml = `<a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>`;
         else
-          actionHtml = `<button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('${post.id}')">✖ Retirer mon annonce</button>`;
+          actionHtml = `<button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('${post.id}')">✖ Remove my post</button>`;
         return `<div class="lfm-card">
           <div class="lfm-player">${avatarHtml}<div>
             <div class="lfm-name">${post.main_char ? charImg(post.main_char) : ''}${post.player_name}</div>
