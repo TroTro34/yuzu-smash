@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚔ MATCH — Smash YUZU</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+      --blue: #4f8ef7; --blue-glow: rgba(79,142,247,0.4);
+      --red-glow: rgba(232,64,10,0.4);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Rajdhani', sans-serif; min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.4); }
+    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .btn-danger:hover { background: var(--red); color: white; }
+
+    /* ── ARENA BACKGROUND ── */
+    .arena {
+      min-height: calc(100vh - 65px);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 2rem 1rem 4rem;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 50%, rgba(79,142,247,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 50%, rgba(232,64,10,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 0%, rgba(255,128,0,0.04) 0%, transparent 50%);
+      position: relative; overflow: hidden;
+    }
+
+    /* Sparks background (pure CSS) */
+    .arena::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 15% 30%, rgba(255,200,100,0.6) 0%, transparent 100%),
+        radial-gradient(1px 1px at 85% 25%, rgba(100,160,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 25% 60%, rgba(255,150,50,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 75% 65%, rgba(80,130,255,0.4) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 40% 20%, rgba(255,180,80,0.5) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 60% 80%, rgba(120,170,255,0.5) 0%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* ── FORMAT BADGE ── */
+    .format-badge {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.9rem; letter-spacing: 3px;
+      color: var(--accent2); border: 1px solid var(--accent2);
+      padding: 0.25rem 1rem; border-radius: 3px;
+      background: rgba(255,128,0,0.08);
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── VS ARENA ── */
+    .vs-arena {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      gap: 0; align-items: center;
+      width: 100%; max-width: 860px;
+      margin-bottom: 2.5rem; position: relative;
+    }
+
+    .fighter-side {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 1rem; padding: 2rem 1.5rem;
+      position: relative;
+    }
+
+    .fighter-side.blue-side {
+      background: linear-gradient(135deg, rgba(79,142,247,0.08) 0%, transparent 70%);
+      border: 1px solid rgba(79,142,247,0.2); border-right: none;
+      border-radius: 12px 0 0 12px;
+    }
+    .fighter-side.red-side {
+      background: linear-gradient(225deg, rgba(232,64,10,0.08) 0%, transparent 70%);
+      border: 1px solid rgba(232,64,10,0.2); border-left: none;
+      border-radius: 0 12px 12px 0;
+    }
+
+    /* Corner accent lines like the image */
+    .fighter-side.blue-side::before {
+      content: '';
+      position: absolute; left: 0; top: 0;
+      width: 3px; height: 60px;
+      background: linear-gradient(to bottom, var(--blue), transparent);
+    }
+    .fighter-side.blue-side::after {
+      content: '';
+      position: absolute; left: 0; top: 0;
+      height: 3px; width: 60px;
+      background: linear-gradient(to right, var(--blue), transparent);
+    }
+    .fighter-side.red-side::before {
+      content: '';
+      position: absolute; right: 0; bottom: 0;
+      width: 3px; height: 60px;
+      background: linear-gradient(to top, var(--accent), transparent);
+    }
+    .fighter-side.red-side::after {
+      content: '';
+      position: absolute; right: 0; bottom: 0;
+      height: 3px; width: 60px;
+      background: linear-gradient(to left, var(--accent), transparent);
+    }
+
+    .fighter-avatar {
+      width: 80px; height: 80px; border-radius: 50%;
+      border: 3px solid rgba(79,142,247,0.5);
+      box-shadow: 0 0 20px var(--blue-glow);
+    }
+    .red-side .fighter-avatar {
+      border-color: rgba(232,64,10,0.5);
+      box-shadow: 0 0 20px var(--red-glow);
+    }
+
+    .fighter-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem; letter-spacing: 3px; text-align: center;
+      color: #fff;
+    }
+    .fighter-elo {
+      font-size: 0.85rem; color: var(--muted); letter-spacing: 1px;
+    }
+    .fighter-char img {
+      width: 52px; height: 52px; object-fit: contain;
+    }
+
+    /* Score display on fighter side */
+    .fighter-score {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 4rem; line-height: 1;
+      color: var(--blue);
+      text-shadow: 0 0 30px var(--blue-glow);
+    }
+    .red-side .fighter-score {
+      color: var(--accent);
+      text-shadow: 0 0 30px var(--red-glow);
+    }
+
+    /* ── VS CENTER ── */
+    .vs-center {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 0.5rem; padding: 1.5rem 1rem;
+      background: var(--surface); border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); z-index: 2;
+      min-width: 100px;
+    }
+    .vs-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3.5rem; letter-spacing: 6px;
+      background: linear-gradient(135deg, var(--blue) 0%, #fff 40%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-shadow: none; filter: drop-shadow(0 0 12px rgba(255,255,255,0.3));
+      animation: vs-pulse 3s ease-in-out infinite;
+    }
+    @keyframes vs-pulse {
+      0%,100% { filter: drop-shadow(0 0 8px rgba(255,255,255,0.2)); }
+      50% { filter: drop-shadow(0 0 20px rgba(255,255,255,0.5)); }
+    }
+    .game-counter {
+      font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
+    }
+    .game-dots { display: flex; gap: 5px; margin-top: 0.3rem; }
+    .game-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--surface3); border: 1px solid var(--border);
+      transition: all 0.3s;
+    }
+    .game-dot.p1 { background: var(--blue); box-shadow: 0 0 8px var(--blue-glow); }
+    .game-dot.p2 { background: var(--accent); box-shadow: 0 0 8px var(--red-glow); }
+
+    /* ── SCORE SECTION ── */
+    .score-section {
+      width: 100%; max-width: 860px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 2rem;
+      position: relative; overflow: hidden;
+    }
+    .score-section::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      border-radius: 12px 12px 0 0;
+      background: linear-gradient(90deg, var(--blue), var(--accent));
+    }
+
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
+      letter-spacing: 3px; color: var(--accent2); margin-bottom: 1.5rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── BO SCORE BUTTONS ── */
+    .score-options {
+      display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .score-option {
+      flex: 1; min-width: 140px; max-width: 220px;
+      padding: 1.2rem; border-radius: 10px;
+      background: var(--surface2); border: 2px solid var(--border);
+      cursor: pointer; transition: all 0.2s; text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .score-option:hover { border-color: var(--accent2); transform: translateY(-2px); }
+    .score-option.selected-p1 {
+      border-color: var(--blue); background: rgba(79,142,247,0.1);
+      box-shadow: 0 0 20px rgba(79,142,247,0.2);
+    }
+    .score-option.selected-p2 {
+      border-color: var(--accent); background: rgba(232,64,10,0.1);
+      box-shadow: 0 0 20px rgba(232,64,10,0.2);
+    }
+    .score-option .winner-name { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 0.3rem; }
+    .score-option .score-display {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; line-height: 1; letter-spacing: 2px;
+    }
+    .score-option.selected-p1 .score-display { color: var(--blue); }
+    .score-option.selected-p2 .score-display { color: var(--accent); }
+    .score-option .score-label { font-size: 0.7rem; color: var(--muted); margin-top: 0.3rem; }
+
+    /* ── STOCKS MODE ── */
+    .stocks-section { display: flex; flex-direction: column; gap: 1.5rem; }
+
+    .game-round {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.2rem;
+      transition: all 0.3s; position: relative; overflow: hidden;
+    }
+    .game-round.locked {
+      opacity: 0.6;
+      background: rgba(7,7,15,0.8);
+    }
+    .game-round.current { border-color: var(--accent2); }
+    .game-round.completed {
+      border-color: rgba(61,220,132,0.3);
+      background: rgba(61,220,132,0.03);
+    }
+    .game-round-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1rem;
+    }
+    .game-round-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+    }
+    .game-round.completed .game-round-title { color: var(--green); }
+    .game-round.current .game-round-title { color: var(--accent2); }
+    .game-round-result {
+      font-size: 0.85rem; color: var(--green); font-weight: 700;
+    }
+
+    .stocks-inputs {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    }
+    .stock-input-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .stock-input-label {
+      font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
+    }
+    .stock-input-label.blue-label { color: rgba(79,142,247,0.8); }
+    .stock-input-label.red-label { color: rgba(232,64,10,0.8); }
+
+    .stock-counter {
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .stock-btn {
+      width: 36px; height: 36px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface3);
+      color: var(--text); font-size: 1.2rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; font-weight: 700;
+    }
+    .stock-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .stock-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .stock-value {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; width: 50px;
+      text-align: center; color: var(--text); background: transparent;
+      border: none; outline: none;
+    }
+    .stock-pips { display: flex; gap: 4px; margin-top: 0.3rem; }
+    .stock-pip {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--surface3); border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .stock-pip.filled.blue { background: var(--blue); box-shadow: 0 0 6px var(--blue-glow); }
+    .stock-pip.filled.red { background: var(--accent); box-shadow: 0 0 6px var(--red-glow); }
+
+    .game-confirm-btn {
+      margin-top: 1rem; width: 100%;
+      padding: 0.8rem; border-radius: 8px;
+      border: 1px solid var(--accent2); background: rgba(255,128,0,0.1);
+      color: var(--accent2); font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem; font-weight: 700; letter-spacing: 1px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .game-confirm-btn:hover { background: var(--accent2); color: #0a0a0f; }
+    .game-confirm-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ── STOCKS TOTALS ── */
+    .stocks-totals {
+      background: var(--surface2); border: 1px solid rgba(61,220,132,0.3);
+      border-radius: 10px; padding: 1.2rem;
+      display: none;
+    }
+    .stocks-totals.visible { display: block; }
+    .totals-row { display: flex; justify-content: space-around; align-items: center; gap: 1rem; }
+    .total-box { text-align: center; }
+    .total-box .t-val {
+      font-family: 'Bebas Neue', sans-serif; font-size: 3rem;
+      display: block; line-height: 1;
+    }
+    .total-box .t-lbl { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; margin-top: 0.2rem; }
+    .total-box.winner .t-val { color: var(--green); }
+    .total-box.loser .t-val { color: var(--red); }
+
+    /* ── END MATCH BUTTON ── */
+    .end-match-btn {
+      display: none; width: 100%; margin-top: 1.5rem;
+      padding: 1.2rem; border-radius: 10px;
+      background: linear-gradient(135deg, rgba(61,220,132,0.15), rgba(61,220,132,0.05));
+      border: 2px solid var(--green); color: var(--green);
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 4px;
+      cursor: pointer; transition: all 0.3s;
+      text-align: center;
+    }
+    .end-match-btn.visible { display: block; }
+    .end-match-btn:hover { background: var(--green); color: #07070f; }
+
+    /* ── SUBMIT ── */
+    .submit-area { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+    .submit-btn {
+      padding: 1.1rem 3rem; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; color: white; font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem; letter-spacing: 3px; cursor: pointer;
+      transition: all 0.2s; min-width: 240px;
+    }
+    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(232,64,10,0.4); }
+    .submit-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+    .submit-hint { font-size: 0.85rem; color: var(--muted); text-align: center; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 2rem; right: 2rem;
+      background: var(--surface2); border: 1px solid var(--accent);
+      color: var(--text); padding: 1rem 1.5rem; border-radius: 8px;
+      z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-color: var(--green); }
+    .toast.error { border-color: var(--red); }
+
+    /* ── WINNER ANNOUNCEMENT ── */
+    .winner-announcement {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.9); align-items: center; justify-content: center;
+      flex-direction: column; gap: 1.5rem;
+    }
+    .winner-announcement.show { display: flex; }
+    .winner-crown { font-size: 5rem; animation: crown-bounce 0.6s ease-out; }
+    @keyframes crown-bounce { 0%{transform:scale(0) rotate(-20deg)} 70%{transform:scale(1.2) rotate(5deg)} 100%{transform:scale(1) rotate(0)} }
+    .winner-label { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 4px; color: var(--muted); }
+    .winner-name-big { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 6px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .winner-score-big { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--green); letter-spacing: 4px; }
+
+    @media (max-width: 640px) {
+      .vs-arena { grid-template-columns: 1fr; }
+      .vs-center { border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; }
+      .fighter-side.blue-side, .fighter-side.red-side { border-radius: 12px; border: 1px solid rgba(79,142,247,0.2); }
+      .red-side { border-color: rgba(232,64,10,0.2) !important; }
+      .fighter-score { font-size: 3rem; }
+      .vs-text { font-size: 2.5rem; }
+      .score-option { min-width: 120px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">⚔ YUZU</a>
+  <div class="nav-links">
+    <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
+  </div>
+</nav>
+
+<div class="arena">
+  <div class="format-badge" id="format-badge">{{ challenge.format }} — MATCH</div>
+
+  <!-- ── VS ARENA ── -->
+  <div class="vs-arena">
+    <!-- Blue Side (Challenger) -->
+    <div class="fighter-side blue-side">
+      {% if challenger.avatar %}
+        <img class="fighter-avatar"
+          src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png" alt="">
+      {% else %}
+        <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
+      {% endif %}
+      <div class="fighter-name">{{ challenger.username }}</div>
+      <div class="fighter-elo">{{ challenger.points }} ELO</div>
+      {% if challenger.main_char %}
+      <div class="fighter-char">
+        <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ challenger.main_char }}.png"
+          onerror="this.style.display='none'" alt="{{ challenger.main_char }}">
+      </div>
+      {% endif %}
+      <div class="fighter-score" id="score-p1">0</div>
+    </div>
+
+    <!-- Center VS -->
+    <div class="vs-center">
+      <div class="vs-text">VS</div>
+      <div class="game-counter" id="game-counter">GAME 1</div>
+      <div class="game-dots" id="game-dots"></div>
+    </div>
+
+    <!-- Red Side (Challenged) -->
+    <div class="fighter-side red-side">
+      {% if challenged.avatar %}
+        <img class="fighter-avatar"
+          src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png" alt="">
+      {% else %}
+        <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
+      {% endif %}
+      <div class="fighter-name">{{ challenged.username }}</div>
+      <div class="fighter-elo">{{ challenged.points }} ELO</div>
+      {% if challenged.main_char %}
+      <div class="fighter-char">
+        <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ challenged.main_char }}.png"
+          onerror="this.style.display='none'" alt="{{ challenged.main_char }}">
+      </div>
+      {% endif %}
+      <div class="fighter-score" id="score-p2">0</div>
+    </div>
+  </div>
+
+  <!-- ── SCORE INPUT SECTION ── -->
+  <div class="score-section" id="score-section">
+
+    <!-- BO MODES -->
+    <div id="bo-section" style="display:none;">
+      <div class="section-title">SELECT THE RESULT</div>
+      <div class="score-options" id="score-options"></div>
+      <div class="submit-area">
+        <button class="submit-btn" id="submit-bo" onclick="submitBO()" disabled>
+          ⚔ SUBMIT RESULT
+        </button>
+        <div class="submit-hint">Both players must confirm the result</div>
+      </div>
+    </div>
+
+    <!-- STOCKS MODE -->
+    <div id="stocks-section" style="display:none;">
+      <div class="section-title">STOCKS MODE — GAME BY GAME</div>
+      <div class="stocks-section" id="games-container"></div>
+
+      <!-- Running totals -->
+      <div class="stocks-totals" id="stocks-totals">
+        <div class="section-title" style="margin-bottom:1rem;">TOTALS</div>
+        <div class="totals-row">
+          <div class="total-box">
+            <span class="t-val" id="total-p1" style="color:var(--blue);">0</span>
+            <div class="t-lbl" id="total-p1-name">Player 1</div>
+          </div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--muted);">VS</div>
+          <div class="total-box">
+            <span class="t-val" id="total-p2" style="color:var(--accent);">0</span>
+            <div class="t-lbl" id="total-p2-name">Player 2</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="end-match-btn" id="end-match-btn" onclick="endMatch()">
+        🏆 END MATCH & SUBMIT
+      </button>
+      <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
+        Results are saved after each game — safe if app crashes
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── WINNER ANNOUNCEMENT ── -->
+<div class="winner-announcement" id="winner-announcement">
+  <div class="winner-crown">🏆</div>
+  <div class="winner-label">WINNER</div>
+  <div class="winner-name-big" id="winner-name-big">—</div>
+  <div class="winner-score-big" id="winner-score-big">—</div>
+  <button class="btn btn-primary" style="margin-top:1rem;" onclick="document.getElementById('winner-announcement').classList.remove('show')">Continue →</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG (injected by Flask) ──
+const CHALLENGE_ID = "{{ challenge.id }}";
+const FORMAT       = "{{ challenge.format }}";
+const P1_ID        = "{{ challenge.challenger_id }}";
+const P1_NAME      = "{{ challenger.username }}";
+const P2_ID        = "{{ challenge.challenged_id }}";
+const P2_NAME      = "{{ challenged.username }}";
+const MY_ID        = "{{ user.id }}";
+
+// ── STATE ──
+let p1Score = 0, p2Score = 0;
+let selectedResult = null; // { winner_id, score, p1wins, p2wins }
+let stockGames = []; // [{p1: stocks_taken, p2: stocks_taken, locked: bool}]
+let totalGames = 0;
+
+// ── INIT ──
+function init() {
+  document.getElementById('format-badge').textContent = FORMAT + ' — MATCH';
+
+  if (FORMAT === 'STOCKS') {
+    document.getElementById('stocks-section').style.display = 'block';
+    initStocksMode();
+  } else {
+    document.getElementById('bo-section').style.display = 'block';
+    initBOMode();
+  }
+  updateScoreDisplay();
+}
+
+// ─────────────────────────────────────────────
+// BO MODE
+// ─────────────────────────────────────────────
+function initBOMode() {
+  const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
+  totalGames = maxWins * 2 - 1;
+  updateDots([]);
+
+  const opts = document.getElementById('score-options');
+  opts.innerHTML = '';
+
+  // Generate all possible scores
+  const results = [];
+  for (let w = maxWins; w >= maxWins; w--) { // winner always hits maxWins
+    for (let l = 0; l < maxWins; l++) {
+      results.push({ p1w: w, p1l: l, winner: 'p1' }); // P1 wins
+      results.push({ p1w: l, p1l: w, winner: 'p2' }); // P2 wins
+    }
+  }
+
+  // Build clean result list: p1wins-p2wins pairs
+  const combos = [];
+  for (let l = 0; l < maxWins; l++) {
+    combos.push({ winsA: maxWins, winsB: l }); // P1 wins
+  }
+
+  // P1 wins options
+  for (let l = 0; l < maxWins; l++) {
+    const el = buildScoreOption(maxWins, l, 'p1');
+    opts.appendChild(el);
+  }
+  // P2 wins options
+  for (let l = 0; l < maxWins; l++) {
+    const el = buildScoreOption(maxWins, l, 'p2');
+    opts.appendChild(el);
+  }
+}
+
+function buildScoreOption(wWins, lLoses, winnerKey) {
+  const winnerId   = winnerKey === 'p1' ? P1_ID : P2_ID;
+  const winnerName = winnerKey === 'p1' ? P1_NAME : P2_NAME;
+  const loserName  = winnerKey === 'p1' ? P2_NAME : P1_NAME;
+  const scoreStr   = winnerKey === 'p1' ? `${wWins}-${lLoses}` : `${lLoses}-${wWins}`;
+  // Display: winner score shown first
+  const displayScore = `${wWins} — ${lLoses}`;
+
+  const div = document.createElement('div');
+  div.className = 'score-option';
+  div.innerHTML = `
+    <div class="winner-name">${winnerName} wins</div>
+    <div class="score-display">${displayScore}</div>
+    <div class="score-label">${loserName}: ${lLoses} game${lLoses !== 1 ? 's' : ''}</div>
+  `;
+  div.addEventListener('click', () => {
+    document.querySelectorAll('.score-option').forEach(o => {
+      o.classList.remove('selected-p1','selected-p2');
+    });
+    div.classList.add(winnerKey === 'p1' ? 'selected-p1' : 'selected-p2');
+    selectedResult = { winner_id: winnerId, score: scoreStr };
+    // Update live scores
+    if (winnerKey === 'p1') { p1Score = wWins; p2Score = lLoses; }
+    else { p1Score = lLoses; p2Score = wWins; }
+    updateScoreDisplay();
+    // Update dots
+    const dots = [];
+    for (let i = 0; i < wWins; i++) dots.push(winnerKey === 'p1' ? 'p1' : 'p2');
+    for (let i = 0; i < lLoses; i++) dots.push(winnerKey === 'p1' ? 'p2' : 'p1');
+    updateDots(dots);
+    document.getElementById('submit-bo').disabled = false;
+  });
+  return div;
+}
+
+// ─────────────────────────────────────────────
+// STOCKS MODE
+// ─────────────────────────────────────────────
+function initStocksMode() {
+  // Start with 1 game, add more after confirming each
+  stockGames = [{ p1: 0, p2: 0, locked: false }];
+  totalGames = 1;
+  renderStockGames();
+  updateDots([]);
+}
+
+function renderStockGames() {
+  const container = document.getElementById('games-container');
+  container.innerHTML = '';
+
+  stockGames.forEach((game, idx) => {
+    const div = document.createElement('div');
+    div.className = 'game-round' + (game.locked ? ' completed' : ' current');
+    div.id = `game-${idx}`;
+
+    const maxStocks = 4;
+    const isLocked = game.locked;
+
+    div.innerHTML = `
+      <div class="game-round-header">
+        <div class="game-round-title">GAME ${idx + 1}</div>
+        ${isLocked ? `<div class="game-round-result">✓ ${getGameWinner(game)} — ${game.p1} vs ${game.p2}</div>` : '<div style="font-size:0.75rem;color:var(--muted);">Enter stocks taken</div>'}
+      </div>
+      ${isLocked ? '' : `
+      <div class="stocks-inputs">
+        <div class="stock-input-group">
+          <div class="stock-input-label blue-label">${P1_NAME} stocks taken</div>
+          <div class="stock-counter">
+            <button class="stock-btn" onclick="changeStock(${idx},'p1',-1)" id="btn-dec-p1-${idx}">−</button>
+            <input type="text" class="stock-value" id="sv-p1-${idx}" value="${game.p1}" readonly>
+            <button class="stock-btn" onclick="changeStock(${idx},'p1',1)" id="btn-inc-p1-${idx}">+</button>
+          </div>
+          <div class="stock-pips" id="pips-p1-${idx}">
+            ${buildPips(game.p1, maxStocks, 'blue')}
+          </div>
+        </div>
+        <div class="stock-input-group">
+          <div class="stock-input-label red-label">${P2_NAME} stocks taken</div>
+          <div class="stock-counter">
+            <button class="stock-btn" onclick="changeStock(${idx},'p2',-1)" id="btn-dec-p2-${idx}">−</button>
+            <input type="text" class="stock-value" id="sv-p2-${idx}" value="${game.p2}" readonly>
+            <button class="stock-btn" onclick="changeStock(${idx},'p2',1)" id="btn-inc-p2-${idx}">+</button>
+          </div>
+          <div class="stock-pips" id="pips-p2-${idx}">
+            ${buildPips(game.p2, maxStocks, 'red')}
+          </div>
+        </div>
+      </div>
+      <button class="game-confirm-btn" id="confirm-game-${idx}" onclick="confirmGame(${idx})">
+        ✓ CONFIRM GAME ${idx + 1}
+      </button>
+      `}
+    `;
+    container.appendChild(div);
+  });
+
+  updateStockTotals();
+}
+
+function buildPips(filled, total, color) {
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    html += `<div class="stock-pip ${i < filled ? 'filled ' + color : ''}"></div>`;
+  }
+  return html;
+}
+
+function getGameWinner(game) {
+  if (game.p1 > game.p2) return P1_NAME + ' wins';
+  if (game.p2 > game.p1) return P2_NAME + ' wins';
+  return 'Tie (check manually)';
+}
+
+function changeStock(gameIdx, player, delta) {
+  const maxStocks = 4;
+  const game = stockGames[gameIdx];
+  const newVal = Math.max(0, Math.min(maxStocks, game[player] + delta));
+  game[player] = newVal;
+
+  const svEl = document.getElementById(`sv-${player}-${gameIdx}`);
+  if (svEl) svEl.value = newVal;
+  const pipsEl = document.getElementById(`pips-${player}-${gameIdx}`);
+  if (pipsEl) pipsEl.innerHTML = buildPips(newVal, maxStocks, player === 'p1' ? 'blue' : 'red');
+
+  updateStockTotals();
+}
+
+function confirmGame(gameIdx) {
+  const game = stockGames[gameIdx];
+  if (game.p1 === 0 && game.p2 === 0) {
+    showToast('Enter at least 1 stock taken per player!', false); return;
+  }
+  if (game.p1 === game.p2) {
+    showToast('Stocks taken cannot be equal — one player must have taken more!', false); return;
+  }
+
+  game.locked = true;
+
+  // Update dot for this game
+  const dotWinner = game.p1 > game.p2 ? 'p1' : 'p2';
+  const currentDots = Array.from(document.querySelectorAll('#game-dots .game-dot')).map(d =>
+    d.classList.contains('p1') ? 'p1' : d.classList.contains('p2') ? 'p2' : null
+  ).filter(Boolean);
+  currentDots.push(dotWinner);
+  updateDots(currentDots);
+
+  // Update live scores
+  let t1 = 0, t2 = 0;
+  stockGames.forEach(g => { if (g.locked) { t1 += g.p1; t2 += g.p2; } });
+  p1Score = t1; p2Score = t2;
+  updateScoreDisplay();
+
+  // Add next game
+  stockGames.push({ p1: 0, p2: 0, locked: false });
+  renderStockGames();
+
+  // Show end match button
+  document.getElementById('end-match-btn').classList.add('visible');
+  document.getElementById('stocks-totals').classList.add('visible');
+
+  showToast(`Game ${gameIdx + 1} saved ✓`, true);
+
+  // Scroll to new game
+  setTimeout(() => {
+    const newGame = document.getElementById(`game-${gameIdx + 1}`);
+    if (newGame) newGame.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 200);
+}
+
+function updateStockTotals() {
+  let t1 = 0, t2 = 0;
+  stockGames.forEach(g => { if (g.locked) { t1 += g.p1; t2 += g.p2; } });
+  document.getElementById('total-p1').textContent = t1;
+  document.getElementById('total-p2').textContent = t2;
+  document.getElementById('total-p1-name').textContent = P1_NAME;
+  document.getElementById('total-p2-name').textContent = P2_NAME;
+}
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function updateScoreDisplay() {
+  document.getElementById('score-p1').textContent = p1Score;
+  document.getElementById('score-p2').textContent = p2Score;
+}
+
+function updateDots(dots) {
+  const maxDots = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 3 : FORMAT === 'BO5' ? 5 : dots.length + 1;
+  const container = document.getElementById('game-dots');
+  container.innerHTML = '';
+  for (let i = 0; i < Math.max(maxDots, dots.length); i++) {
+    const d = document.createElement('div');
+    d.className = 'game-dot' + (dots[i] ? ' ' + dots[i] : '');
+    container.appendChild(d);
+  }
+  // Update game counter
+  const lockedCount = FORMAT === 'STOCKS'
+    ? stockGames.filter(g => g.locked).length
+    : dots.length;
+  document.getElementById('game-counter').textContent = `GAME ${lockedCount + 1}`;
+}
+
+// ─────────────────────────────────────────────
+// SUBMIT
+// ─────────────────────────────────────────────
+async function submitBO() {
+  if (!selectedResult) { showToast('Select a result first!', false); return; }
+  const btn = document.getElementById('submit-bo');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  try {
+    const res = await fetch(`/result/${CHALLENGE_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(selectedResult)
+    });
+    const data = await res.json();
+    if (data.success) {
+      showWinner(selectedResult.winner_id, selectedResult.score);
+      showToast(data.message, true);
+      setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
+    } else {
+      showToast(data.error || 'Error', false);
+      btn.disabled = false; btn.textContent = '⚔ SUBMIT RESULT';
+    }
+  } catch(e) {
+    showToast('Network error', false);
+    btn.disabled = false; btn.textContent = '⚔ SUBMIT RESULT';
+  }
+}
+
+async function endMatch() {
+  const lockedGames = stockGames.filter(g => g.locked);
+  if (!lockedGames.length) { showToast('No games confirmed yet!', false); return; }
+
+  let totalP1 = 0, totalP2 = 0;
+  lockedGames.forEach(g => { totalP1 += g.p1; totalP2 += g.p2; });
+
+  if (totalP1 === totalP2) { showToast('Total stocks are equal — there must be a winner!', false); return; }
+
+  const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
+  const winnerName = totalP1 > totalP2 ? P1_NAME : P2_NAME;
+  const winnerStocks = Math.max(totalP1, totalP2);
+  const loserStocks  = Math.min(totalP1, totalP2);
+
+  const btn = document.getElementById('end-match-btn');
+  btn.textContent = '⏳ Submitting…';
+
+  try {
+    const res = await fetch(`/result/${CHALLENGE_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        winner_id: winnerId,
+        score: `${winnerStocks}-${loserStocks}`,
+        winner_stocks_taken: winnerStocks,
+        loser_stocks_taken: loserStocks
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showWinner(winnerId, `${winnerStocks} - ${loserStocks} stocks`);
+      showToast(data.message, true);
+      setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
+    } else {
+      showToast(data.error || 'Error', false);
+      btn.textContent = '🏆 END MATCH & SUBMIT';
+    }
+  } catch(e) {
+    showToast('Network error', false);
+    btn.textContent = '🏆 END MATCH & SUBMIT';
+  }
+}
+
+function showWinner(winnerId, score) {
+  const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
+  document.getElementById('winner-name-big').textContent = name;
+  document.getElementById('winner-score-big').textContent = score;
+  document.getElementById('winner-announcement').classList.add('show');
+}
+
+// ─────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, success = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (success ? 'success' : 'error');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+init();
+</script>
+</body>
+</html>
