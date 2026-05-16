@@ -159,16 +159,18 @@
   {% if my_matches %}
     {% for match in my_matches %}
       {% if match.winner_id == player.id %}
+      {% set opp_main = match.loser_main or '' %}
       <div class="match-card win">
         <span class="match-result">WIN</span>
-        <span class="match-vs">vs <strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+        <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
         <span class="match-fmt">{{ match.format }}</span>
         {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
       </div>
       {% else %}
+      {% set opp_main = match.winner_main or '' %}
       <div class="match-card loss">
         <span class="match-result">LOSS</span>
-        <span class="match-vs">vs <strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+        <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
         <span class="match-fmt">{{ match.format }}</span>
         {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
       </div>
