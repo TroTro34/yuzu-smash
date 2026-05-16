@@ -290,6 +290,24 @@
       {% endif %}
     </div>
 
+    <!-- SENT CHALLENGES -->
+    <div id="zone-envoyes">
+      {% if challenges_sent %}
+      <div class="section-title">CHALLENGES SENT</div>
+      {% for cid, c in challenges_sent.items() %}
+      <div class="challenge-card pending" style="border-left-color:var(--muted);">
+        <div class="challenge-top">
+          <div>
+            <div class="challenge-title">⏳ Waiting for <strong>{{ c.challenged_name }}</strong></div>
+            <div class="challenge-sub">You sent this challenge — they haven't accepted yet</div>
+          </div>
+          <button class="btn btn-danger" onclick="cancelChallenge('{{ cid }}')">✖ Cancel</button>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
     <!-- ACTIVE MATCHES -->
     <div id="zone-matchs">
       {% if active_matches %}
@@ -356,7 +374,9 @@
               <div class="mini-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>
             {% endif %}
             <div>
-              <div class="player-card-name">{{ p.username }}</div>
+              <div class="player-card-name">
+                {% if p.main_char %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ p.main_char }}.png" onerror="this.style.display='none'" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;" alt="">{% endif %}{{ p.username }}
+              </div>
               <div class="player-card-sub">{{ p.wins }}W {{ p.losses }}L · {{ pwr }}% WR{% if p.main_char %} · {{ p.main_char }}{% endif %}</div>
             </div>
           </div>
@@ -379,16 +399,18 @@
       {% if my_matches %}
         {% for match in my_matches %}
           {% if match.winner_id == user.id %}
+          {% set opp_main = match.loser_main or '' %}
           <div class="match-card win">
             <span class="match-result">WIN</span>
-            <span class="match-vs">vs <strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+            <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
             <span class="match-fmt">{{ match.format }}</span>
             {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
           </div>
           {% else %}
+          {% set opp_main = match.winner_main or '' %}
           <div class="match-card loss">
             <span class="match-result">LOSS</span>
-            <span class="match-vs">vs <strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+            <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
             <span class="match-fmt">{{ match.format }}</span>
             {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
           </div>
@@ -697,6 +719,7 @@ function applyDashboardData(d) {
     document.getElementById('wr-fill').style.width = wr + '%';
     document.getElementById('wr-val').textContent = wr + '%';
     renderDefis(d.challenges_received);
+    renderEnvoyes(d.challenges_sent);
     renderMatchs(d.active_matches);
     renderAttente(d.awaiting_confirmation);
     renderHistory(d.my_matches);
@@ -707,7 +730,20 @@ function renderDefis(defis) {
   if (!defis || !Object.keys(defis).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">INCOMING CHALLENGES</div>';
   for (const [cid, c] of Object.entries(defis)) {
-    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${c.challenger_name} is challenging you!</div><div class="challenge-sub">Pick a mode and accept</div></div></div><div class="challenge-actions"><select class="form-select" id="fmt-${cid}" style="padding:0.35rem 0.8rem;font-size:0.9rem;width:auto;"><option value="BO1">BO1 — Best of 1</option><option value="BO3" selected>BO3 — Best of 3</option><option value="BO5">BO5 — Best of 5</option><option value="STOCKS">STOCKS — Stocks Taken</option></select><button class="btn btn-success" onclick="acceptChallenge('${cid}', document.getElementById('fmt-${cid}').value)">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
+    const icon = c.challenger_main ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c.challenger_main}.png" onerror="this.style.display='none'" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">` : '';
+    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${icon}${c.challenger_name} is challenging you!</div><div class="challenge-sub">Pick a mode and accept</div></div></div><div class="challenge-actions"><select class="form-select" id="fmt-${cid}" style="padding:0.35rem 0.8rem;font-size:0.9rem;width:auto;"><option value="BO1">BO1 — Best of 1</option><option value="BO3" selected>BO3 — Best of 3</option><option value="BO5">BO5 — Best of 5</option><option value="STOCKS">STOCKS — Stocks Taken</option></select><button class="btn btn-success" onclick="acceptChallenge('${cid}', document.getElementById('fmt-${cid}').value)">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
+  }
+  z.innerHTML = h;
+}
+
+function renderEnvoyes(envois) {
+  const z = document.getElementById('zone-envoyes');
+  if (!z) return;
+  if (!envois || !Object.keys(envois).length) { z.innerHTML = ''; return; }
+  let h = '<div class="section-title">CHALLENGES SENT</div>';
+  for (const [cid, c] of Object.entries(envois)) {
+    const icon = c.challenged_main ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c.challenged_main}.png" onerror="this.style.display='none'" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">` : '';
+    h += `<div class="challenge-card pending" style="border-left-color:var(--muted);"><div class="challenge-top"><div><div class="challenge-title">⏳ Waiting for ${icon}<strong>${c.challenged_name}</strong></div><div class="challenge-sub">You sent this challenge — they haven't accepted yet</div></div><button class="btn btn-danger" onclick="cancelChallenge('${cid}')">✖ Cancel</button></div></div>`;
   }
   z.innerHTML = h;
 }
@@ -737,8 +773,10 @@ function renderHistory(matches) {
   if (!matches || !matches.length) { z.innerHTML = '<div class="empty">No matches yet.</div>'; return; }
   let h = '';
   for (const m of matches) {
-    if (m.winner_id === myId) h += `<div class="match-card win"><span class="match-result">WIN</span><span class="match-vs">vs <strong>${m.loser_name}</strong>${m.score?' — '+m.score:''}</span><span class="match-fmt">${m.format}</span>${m.elo_change?'<span class="match-elo">+'+m.elo_change+' ELO</span>':''}</div>`;
-    else h += `<div class="match-card loss"><span class="match-result">LOSS</span><span class="match-vs">vs <strong>${m.winner_name}</strong>${m.score?' — '+m.score:''}</span><span class="match-fmt">${m.format}</span>${m.elo_change?'<span class="match-elo">-'+m.elo_change+' ELO</span>':''}</div>`;
+    const oppMain = m.winner_id === myId ? m.loser_main : m.winner_main;
+    const oppIcon = oppMain ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${oppMain}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">` : '';
+    if (m.winner_id === myId) h += `<div class="match-card win"><span class="match-result">WIN</span><span class="match-vs">vs ${oppIcon}<strong>${m.loser_name}</strong>${m.score?' — '+m.score:''}</span><span class="match-fmt">${m.format}</span>${m.elo_change?'<span class="match-elo">+'+m.elo_change+' ELO</span>':''}</div>`;
+    else h += `<div class="match-card loss"><span class="match-result">LOSS</span><span class="match-vs">vs ${oppIcon}<strong>${m.winner_name}</strong>${m.score?' — '+m.score:''}</span><span class="match-fmt">${m.format}</span>${m.elo_change?'<span class="match-elo">-'+m.elo_change+' ELO</span>':''}</div>`;
   }
   z.innerHTML = h;
 }
@@ -754,12 +792,18 @@ function sendChallenge(id, name) {
 
 function acceptChallenge(cid, fmt) {
   fetch('/challenge/'+cid+'/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
-    .then(r=>r.json()).then(d=>{ if(d.success) showToast('Challenge accepted in '+fmt+'!'); else showToast(d.error,false); });
+    .then(r=>r.json()).then(d=>{ if(d.success) window.location.href='/dashboard'; else showToast(d.error,false); });
 }
 
 function declineChallenge(cid) {
   fetch('/challenge/'+cid+'/decline',{method:'POST'}).then(r=>r.json()).then(d=>{
     if(d.success) showToast('Challenge declined.'); else showToast(d.error,false);
+  });
+}
+
+function cancelChallenge(cid) {
+  fetch('/challenge/'+cid+'/cancel',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.success) showToast('Challenge cancelled.'); else showToast(d.error,false);
   });
 }
 
