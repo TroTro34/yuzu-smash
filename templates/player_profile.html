@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ player.username }} — Smash YUZU</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --gold: #ffd700; --silver: #c0c0c0; --bronze: #cd7f32;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555; --purple: #9b59b6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
+      background-image: radial-gradient(ellipse at 10% 0%, rgba(232,64,10,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 100%, rgba(155,89,182,0.06) 0%, transparent 50%); }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .nav-links { display: flex; gap: 0.8rem; align-items: center; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .container { max-width: 800px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    .profile-card { display: grid; grid-template-columns: auto 1fr; gap: 2rem;
+      padding: 2rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
+    .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2)); }
+    .profile-left { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; min-width: 120px; }
+    .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); }
+    .profile-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--muted); letter-spacing: 2px; }
+    .profile-right { display: flex; flex-direction: column; gap: 1rem; }
+    .profile-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 3px; line-height: 1; }
+    .profile-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1.2rem; text-align: center; min-width: 80px; }
+    .stat-box .val { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; display: block; }
+    .stat-box .lbl { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .stat-box.pts .val { color: var(--accent2); }
+    .stat-box.wins .val { color: var(--green); }
+    .stat-box.losses .val { color: var(--red); }
+    .wr-section { margin-top: 0.5rem; }
+    .wr-row { display: flex; align-items: center; gap: 1rem; }
+    .wr-bar { flex: 1; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+    .wr-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--accent2)); border-radius: 3px; }
+    .wr-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+    .chars-row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+    .char-slot { display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem; min-width: 80px; }
+    .char-slot img { width: 48px; height: 48px; object-fit: contain; }
+    .char-slot .char-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .char-slot .char-name { font-size: 0.85rem; font-weight: 700; text-align: center; }
+
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 3px;
+      color: var(--accent); margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .match-card { padding: 0.8rem 1.2rem; border-radius: 8px; margin-bottom: 0.5rem;
+      border: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .match-card.win { border-left: 3px solid var(--green); background: rgba(61,220,132,0.04); }
+    .match-card.loss { border-left: 3px solid var(--red); background: rgba(255,85,85,0.04); }
+    .match-result { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 1px; min-width: 40px; }
+    .win .match-result { color: var(--green); }
+    .loss .match-result { color: var(--red); }
+    .match-vs { font-size: 0.95rem; flex: 1; }
+    .match-elo { font-size: 0.85rem; font-weight: 700; }
+    .win .match-elo { color: var(--green); }
+    .loss .match-elo { color: var(--red); }
+    .match-fmt { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
+    .empty { color: var(--muted); text-align: center; padding: 2rem; font-size: 0.95rem; }
+
+    .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
+      border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
+      border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">⚔ YUZU</a>
+  <div class="nav-links">
+    {% if user %}
+      <a href="/dashboard" class="btn btn-ghost">My Dashboard</a>
+      <a href="/logout" class="btn btn-ghost">Log Out</a>
+    {% else %}
+      <a href="/login" class="btn btn-primary">Sign In</a>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="container">
+  {% set wr = (player.wins / player.matches_played * 100)|round(1) if player.matches_played > 0 else 0 %}
+
+  <div class="profile-card">
+    <div class="profile-left">
+      {% if player.avatar %}
+        <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ player.id }}/{{ player.avatar }}.png" alt="">
+      {% else %}
+        <div class="profile-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">👤</div>
+      {% endif %}
+      <div class="profile-rank">RANK #{{ rank }}</div>
+    </div>
+    <div class="profile-right">
+      <div class="profile-name">{{ player.username }}</div>
+      <div class="profile-stats">
+        <div class="stat-box pts"><span class="val">{{ player.points }}</span><span class="lbl">ELO</span></div>
+        <div class="stat-box wins"><span class="val">{{ player.wins }}</span><span class="lbl">Wins</span></div>
+        <div class="stat-box losses"><span class="val">{{ player.losses }}</span><span class="lbl">Losses</span></div>
+        <div class="stat-box"><span class="val">{{ player.matches_played }}</span><span class="lbl">Sets</span></div>
+        <div class="stat-box"><span class="val">{{ player.stocks_taken or 0 }}</span><span class="lbl">Stocks taken</span></div>
+      </div>
+      <div class="wr-section">
+        <div class="wr-row">
+          <span class="wr-label">Win Rate</span>
+          <div class="wr-bar"><div class="wr-fill" style="width:{{ wr }}%"></div></div>
+          <span class="wr-label">{{ wr }}%</span>
+        </div>
+      </div>
+      {% if player.main_char or player.secondary_char %}
+      <div class="chars-row">
+        {% if player.main_char %}
+        <div class="char-slot">
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.main_char }}.png" onerror="this.src=''" alt="">
+          <span class="char-label">Main</span>
+          <span class="char-name">{{ player.main_char }}</span>
+        </div>
+        {% endif %}
+        {% if player.secondary_char %}
+        <div class="char-slot">
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.secondary_char }}.png" onerror="this.src=''" alt="">
+          <span class="char-label">Secondary</span>
+          <span class="char-name">{{ player.secondary_char }}</span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if user and user.id != player.id %}
+      <div>
+        <button class="btn btn-primary" onclick="sendChallenge()">⚔ Challenge {{ player.username }}</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- MATCH HISTORY -->
+  <div class="section-title">MATCH HISTORY</div>
+  {% if my_matches %}
+    {% for match in my_matches %}
+      {% if match.winner_id == player.id %}
+      <div class="match-card win">
+        <span class="match-result">WIN</span>
+        <span class="match-vs">vs <strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+        <span class="match-fmt">{{ match.format }}</span>
+        {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
+      </div>
+      {% else %}
+      <div class="match-card loss">
+        <span class="match-result">LOSS</span>
+        <span class="match-vs">vs <strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+        <span class="match-fmt">{{ match.format }}</span>
+        {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <div class="empty">No matches played yet.</div>
+  {% endif %}
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? 'var(--green)' : 'var(--red)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function sendChallenge() {
+  fetch('/challenge/{{ player.id }}', {method:'POST'})
+    .then(r => r.json()).then(d => {
+      if (d.success) showToast('Challenge sent to {{ player.username }}!');
+      else showToast(d.error, false);
+    });
+}
+</script>
+</body>
+</html>
