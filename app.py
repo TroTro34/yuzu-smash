@@ -1,3 +1,4 @@
+import hashlib
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 import requests
 import os
@@ -112,7 +113,14 @@ def _leaderboard_data():
 def api_dashboard():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    return jsonify(_dashboard_data(session["user"]["id"]))
+    data = _dashboard_data(session["user"]["id"])
+    import json
+    etag = hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    if request.headers.get("If-None-Match") == etag:
+        return "", 304
+    resp = jsonify(data)
+    resp.headers["ETag"] = etag
+    return resp
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
@@ -207,7 +215,8 @@ def player_profile(player_id):
     return render_template("player_profile.html",
         user=session.get("user"), player=player, rank=rank, my_matches=my_matches)
 
-
+@app.route("/logout")
+def logout():
     session.clear()
     return redirect(url_for("index"))
 
