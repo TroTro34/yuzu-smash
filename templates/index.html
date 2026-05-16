@@ -216,7 +216,7 @@
         {% for player in players %}
         {% set wr = (player.wins / player.matches_played * 100)|round(0)|int if player.matches_played > 0 else 0 %}
         <div class="player-row {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}"
-             onclick="{% if user %}window.location='/dashboard'{% endif %}">
+             onclick="{% if user %}window.location='/player/{{ player.id }}'{% endif %}">
           <div class="rank-num">
             {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
           </div>
@@ -378,16 +378,20 @@
     setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; }, 3500);
   }
 
-  // ── SSE LEADERBOARD LIVE ──────────────────────────────────
-  const evtSource = new EventSource('/sse/leaderboard');
-
-  evtSource.onmessage = (e) => {
-    const d = JSON.parse(e.data);
-    if (d.players)        renderLeaderboard(d.players);
-    if (d.recent_matches) renderMatches(d.recent_matches);
-    if (d.lfm_posts)      renderLFM(d.lfm_posts);
-  };
-  // EventSource se reconnecte automatiquement en cas de coupure
+  // ── POLLING LEADERBOARD 1s ────────────────────────────────
+  async function pollLeaderboard() {
+    try {
+      const r = await fetch('/api/leaderboard');
+      if (r.ok) {
+        const d = await r.json();
+        if (d.players)        renderLeaderboard(d.players);
+        if (d.recent_matches) renderMatches(d.recent_matches);
+        if (d.lfm_posts)      renderLFM(d.lfm_posts);
+      }
+    } catch(e) {}
+    setTimeout(pollLeaderboard, 1000);
+  }
+  pollLeaderboard();
 
   const currentUserId = "{{ user.id if user else '' }}";
 
@@ -405,7 +409,7 @@
       const charHtml = p.main_char
         ? `<img class="char-icon" src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${p.main_char}.png" onerror="this.style.display='none'" alt="">` : '';
       const charLine = p.main_char ? `<div class="player-char">Main: ${p.main_char}${p.secondary_char?' · 2nd: '+p.secondary_char:''}</div>` : '';
-      return `<div class="player-row ${rankClass}" onclick="${currentUserId ? "window.location='/dashboard'" : ''}">
+      return `<div class="player-row ${rankClass}" onclick="${currentUserId ? `window.location='/player/${p.id}'` : ''}">
         <div class="rank-num">${rankNum}</div>
         <div class="player-avatar-wrap">${avatarHtml}${charHtml}</div>
         <div class="player-info">
