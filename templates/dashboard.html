@@ -666,6 +666,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') lastActivityAt = Date.now();
 });
 
+// Track which active matches we've already seen (to avoid redirecting on first load)
+const seenActiveMatches = new Set({{ active_matches.keys()|list|tojson }});
+
 function startPolling() {
   const dot   = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
@@ -685,6 +688,16 @@ function startPolling() {
       if (r.status !== 304 && r.ok) {
         lastEtag = r.headers.get('ETag');
         const d = await r.json();
+        // Auto-redirect challenger to match page as soon as challenge is accepted
+        if (d.active_matches) {
+          for (const [cid, c] of Object.entries(d.active_matches)) {
+            if (c.challenger_id === myId && !seenActiveMatches.has(cid)) {
+              window.location.href = '/match/' + cid;
+              return;
+            }
+            seenActiveMatches.add(cid);
+          }
+        }
         if (!modalOpen) applyDashboardData(d);
       }
     } catch(e) {
