@@ -372,7 +372,8 @@
   function acceptLFM(postId) {
     fetch('/lfm/' + postId + '/accept', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.success) { window.location.href = '/dashboard'; }
+        if (d.success && d.challenge_id) { window.location.href = '/match/' + d.challenge_id; }
+        else if (d.success) { window.location.href = '/dashboard'; }
         else alert(d.error);
       });
   }
