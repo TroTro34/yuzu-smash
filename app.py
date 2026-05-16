@@ -340,6 +340,8 @@ def cancel_lfm(post_id):
     if posts[0]["player_id"] != user_id: return jsonify({"error": "Not your post"}), 403
     sb_delete("lfm_posts", {"id": post_id})
     return jsonify({"success": True})
+
+@app.route("/result/<challenge_id>", methods=["POST"])
 def submit_result(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     user_id = session["user"]["id"]
