@@ -515,7 +515,7 @@
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem;max-width:480px;width:90%;position:relative;overflow:hidden;">
     <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;color:var(--accent2);text-align:center;margin-bottom:0.3rem;">RÉSUMÉ DU MATCH</div>
-    <div style="text-align:center;color:var(--muted);font-size:0.8rem;letter-spacing:2px;margin-bottom:2rem;">MODE STOCKS — SOUMIS PAR TON ADVERSAIRE</div>
+    <div id="recap-subtitle" style="text-align:center;color:var(--muted);font-size:0.8rem;letter-spacing:2px;margin-bottom:2rem;">SOUMIS PAR TON ADVERSAIRE</div>
 
     <!-- Games breakdown -->
     <div id="recap-games" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem;"></div>
@@ -857,9 +857,18 @@ async function submitBO() {
     });
     const data = await res.json();
     if (data.success) {
-      showWinner(selectedResult.winner_id, selectedResult.score);
-      showToast(data.message, true);
-      setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
+      if (data.message && data.message.includes('ELO')) {
+        // Second player confirming — match validated
+        showWinner(selectedResult.winner_id, selectedResult.score);
+        showToast(data.message, true);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
+      } else {
+        // First player submitted — wait for opponent confirmation
+        pendingResult = selectedResult;
+        showBORecap(selectedResult, 'waiting');
+        showToast("Résultat soumis \u2713 En attente de confirmation de l'adversaire\u2026", true);
+        startMatchPolling();
+      }
     } else {
       showToast(data.error || 'Error', false);
       btn.disabled = false; btn.textContent = '⚔ SUBMIT RESULT';
@@ -871,10 +880,11 @@ async function submitBO() {
 }
 
 // ─────────────────────────────────────────────
-// STOCKS RECAP & CONFIRM
+// RECAP & CONFIRM — tous modes (BO + STOCKS)
 // ─────────────────────────────────────────────
-let pendingStocksResult = null; // stored for when player 2 confirms
+let pendingResult = null; // { winner_id, score, [stocks fields] }
 
+// ── STOCKS : bouton END MATCH ──
 function endMatch() {
   const lockedGames = stockGames.filter(g => g.locked);
   if (!lockedGames.length) { showToast('No games confirmed yet!', false); return; }
@@ -883,12 +893,12 @@ function endMatch() {
   lockedGames.forEach(g => { totalP1 += g.p1; totalP2 += g.p2; });
   if (totalP1 === totalP2) { showToast('Stocks totaux égaux — il faut un vainqueur!', false); return; }
 
-  const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
-  const winnerName = totalP1 > totalP2 ? P1_NAME : P2_NAME;
+  const winnerId     = totalP1 > totalP2 ? P1_ID : P2_ID;
+  const winnerName   = totalP1 > totalP2 ? P1_NAME : P2_NAME;
   const winnerStocks = Math.max(totalP1, totalP2);
   const loserStocks  = Math.min(totalP1, totalP2);
 
-  pendingStocksResult = {
+  pendingResult = {
     winner_id: winnerId,
     score: `${winnerStocks}-${loserStocks}`,
     winner_stocks_taken: winnerStocks,
@@ -896,7 +906,7 @@ function endMatch() {
     games: lockedGames.map(g => ({ p1: g.p1, p2: g.p2 }))
   };
 
-  // Build recap UI
+  // Build game-by-game recap
   const gamesDiv = document.getElementById('recap-games');
   gamesDiv.innerHTML = '';
   lockedGames.forEach((g, i) => {
@@ -913,27 +923,54 @@ function endMatch() {
         <span style="color:${color};font-weight:700;font-size:0.85rem;">${w}</span>
       </div>`;
   });
+  populateRecapTotals(totalP1, totalP2, winnerId);
+  document.getElementById('recap-subtitle').textContent = 'MODE STOCKS — EN ATTENTE DE CONFIRMATION';
 
-  document.getElementById('recap-total-p1').textContent = totalP1;
-  document.getElementById('recap-total-p2').textContent = totalP2;
-  document.getElementById('recap-p1-name').textContent = P1_NAME;
-  document.getElementById('recap-p2-name').textContent = P2_NAME;
-  document.getElementById('recap-winner-name').textContent = winnerName;
-
-  // If I'm P1 (the one who entered scores), show waiting. P2 will see confirm/contest.
-  // Actually both see the recap — P1 already submitted, so show waiting for P1.
-  // We submit on behalf of P1 immediately, P2 needs to confirm.
-  if (MY_ID === P1_ID || MY_ID === P2_ID) {
-    // The person clicking End Match is the one who tracked scores
-    // They submit now, and see "waiting"
-    document.getElementById('recap-my-actions').style.display = 'none';
-    document.getElementById('recap-waiting').style.display = 'block';
-    document.getElementById('stocks-recap').classList.add('show');
-    submitStocksResult(pendingStocksResult, false);
-  }
+  // Submitter sees waiting state
+  document.getElementById('recap-my-actions').style.display = 'none';
+  document.getElementById('recap-waiting').style.display = 'block';
+  document.getElementById('stocks-recap').classList.add('show');
+  submitResult(pendingResult, false);
 }
 
-async function submitStocksResult(result, isConfirm) {
+// ── BO : affiche le recap côté soumetteur ──
+function showBORecap(result, state) {
+  const winnerName = result.winner_id === P1_ID ? P1_NAME : P2_NAME;
+  const parts = result.score.split('-');
+  const t1 = parseInt(parts[0]) || 0;
+  const t2 = parseInt(parts[1]) || 0;
+
+  const gamesDiv = document.getElementById('recap-games');
+  gamesDiv.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+      padding:1rem;text-align:center;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--blue);">${t1}</span>
+      <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);">${t2}</span>
+    </div>`;
+  populateRecapTotals(t1, t2, result.winner_id);
+  document.getElementById('recap-subtitle').textContent = FORMAT + ' — EN ATTENTE DE CONFIRMATION';
+
+  if (state === 'waiting') {
+    document.getElementById('recap-my-actions').style.display = 'none';
+    document.getElementById('recap-waiting').style.display = 'block';
+  } else {
+    document.getElementById('recap-my-actions').style.display = 'flex';
+    document.getElementById('recap-waiting').style.display = 'none';
+  }
+  document.getElementById('stocks-recap').classList.add('show');
+}
+
+function populateRecapTotals(t1, t2, winnerId) {
+  document.getElementById('recap-total-p1').textContent = t1;
+  document.getElementById('recap-total-p2').textContent = t2;
+  document.getElementById('recap-p1-name').textContent = P1_NAME;
+  document.getElementById('recap-p2-name').textContent = P2_NAME;
+  document.getElementById('recap-winner-name').textContent = winnerId === P1_ID ? P1_NAME : P2_NAME;
+}
+
+// ── Soumission unifiée ──
+async function submitResult(result, isConfirm) {
   const btn = document.getElementById('end-match-btn');
   try {
     const res = await fetch(`/result/${CHALLENGE_ID}`, {
@@ -944,43 +981,40 @@ async function submitStocksResult(result, isConfirm) {
     const data = await res.json();
     if (data.success) {
       if (isConfirm) {
-        // Match validated
         showToast(data.message, true);
         document.getElementById('stocks-recap').classList.remove('show');
-        showWinner(result.winner_id, `${result.winner_stocks_taken} - ${result.loser_stocks_taken} stocks`);
+        const scoreLabel = result.winner_stocks_taken != null
+          ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} stocks`
+          : result.score;
+        showWinner(result.winner_id, scoreLabel);
         setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
       } else {
-        showToast('Résultat soumis ✓ En attente de confirmation…', true);
-        // Start polling for confirmation
+        showToast("Résultat soumis \u2713 En attente de confirmation\u2026", true);
         startMatchPolling();
       }
     } else {
-      // status=reported means opponent already submitted — show confirm/contest to us
-      if (data.error && data.error.includes('already')) {
-        showToast(data.error, false);
-      } else if (data.error) {
-        showToast(data.error, false);
-      }
-      if (btn) { btn.classList.add('visible'); btn.textContent = '🏆 END MATCH & SUBMIT'; }
+      showToast(data.error || 'Error', false);
+      if (btn) { btn.classList.add('visible'); btn.textContent = '\uD83C\uDFC6 END MATCH & SUBMIT'; }
     }
   } catch(e) {
     showToast('Network error', false);
-    if (btn) { btn.textContent = '🏆 END MATCH & SUBMIT'; }
+    if (btn) { btn.textContent = '\uD83C\uDFC6 END MATCH & SUBMIT'; }
   }
 }
 
+// ── Joueur 2 : Confirmer ──
 async function confirmRecap() {
-  if (!pendingStocksResult) return;
+  if (!pendingResult) return;
   document.getElementById('recap-my-actions').style.display = 'none';
   document.getElementById('recap-waiting').style.display = 'block';
-  await submitStocksResult(pendingStocksResult, true);
+  await submitResult(pendingResult, true);
 }
 
+// ── Joueur 2 : Contester ──
 async function contestRecap() {
-  // Submit with different winner to trigger dispute
-  if (!pendingStocksResult) return;
-  const oppositeWinner = pendingStocksResult.winner_id === P1_ID ? P2_ID : P1_ID;
-  const disputed = { ...pendingStocksResult, winner_id: oppositeWinner };
+  if (!pendingResult) return;
+  const oppositeWinner = pendingResult.winner_id === P1_ID ? P2_ID : P1_ID;
+  const disputed = { ...pendingResult, winner_id: oppositeWinner };
   try {
     await fetch(`/result/${CHALLENGE_ID}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -992,7 +1026,7 @@ async function contestRecap() {
   setTimeout(() => { window.location.href = '/dashboard'; }, 2500);
 }
 
-// Poll for match status changes (waiting for opponent to confirm)
+// ── Polling : attente de confirmation ──
 function startMatchPolling() {
   let tries = 0;
   const interval = setInterval(async () => {
@@ -1005,52 +1039,74 @@ function startMatchPolling() {
       if (d.status === 'completed') {
         clearInterval(interval);
         document.getElementById('stocks-recap').classList.remove('show');
-        showWinner(d.winner_id, d.score + ' stocks');
+        const scoreLabel = d.score || '';
+        showWinner(d.winner_id, scoreLabel);
         setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
       } else if (d.status === 'disputed') {
         clearInterval(interval);
         showToast('Résultat contesté — contacte un admin.', false);
         setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
       } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
-        // Opponent submitted — show confirm/contest to me
+        // Adversaire a soumis — me montrer le recap pour confirmer/contester
         clearInterval(interval);
-        if (pendingStocksResult) {
-          document.getElementById('recap-waiting').style.display = 'none';
-          document.getElementById('recap-my-actions').style.display = 'flex';
+        if (pendingResult) {
+          // Je suis le soumetteur qui attendait → l'adversaire vient de confirmer
+          // (cas rare, le polling devrait passer à 'completed')
         }
+        // Sinon : j'arrive et l'adversaire a déjà soumis
+        showOpponentRecap(d);
       }
     } catch(e) {}
   }, 3000);
 }
 
-// Check on load if match is already in "reported" state and I haven't submitted yet
+// ── Vérification au chargement ──
 function checkInitialState() {
-  if (FORMAT !== 'STOCKS') return;
   fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
     if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
-      // Opponent already submitted — show their recap to me for confirm/contest
-      showOpponentRecap(d.report);
+      showOpponentRecap(d);
     }
   }).catch(() => {});
 }
 
-function showOpponentRecap(report) {
-  if (!report) return;
-  pendingStocksResult = {
-    winner_id: report.winner_id,
-    score: report.score,
-    winner_stocks_taken: report.winner_stocks_taken,
-    loser_stocks_taken: report.loser_stocks_taken
-  };
-  const gamesDiv = document.getElementById('recap-games');
-  gamesDiv.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:0.5rem;">Détail jeu par jeu non disponible (soumis par l'adversaire)</div>`;
-  const t1 = report.winner_id === P1_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
-  const t2 = report.winner_id === P2_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
-  document.getElementById('recap-total-p1').textContent = t1;
-  document.getElementById('recap-total-p2').textContent = t2;
-  document.getElementById('recap-p1-name').textContent = P1_NAME;
-  document.getElementById('recap-p2-name').textContent = P2_NAME;
-  document.getElementById('recap-winner-name').textContent = report.winner_id === P1_ID ? P1_NAME : P2_NAME;
+// ── Afficher le recap soumis par l'adversaire ──
+function showOpponentRecap(d) {
+  const report = d.report || d;
+  if (!report || !report.winner_id) return;
+
+  if (report.is_stocks_mode || FORMAT === 'STOCKS') {
+    // Mode stocks
+    pendingResult = {
+      winner_id: report.winner_id,
+      score: report.score,
+      winner_stocks_taken: report.winner_stocks_taken,
+      loser_stocks_taken: report.loser_stocks_taken
+    };
+    const gamesDiv = document.getElementById('recap-games');
+    gamesDiv.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:0.5rem;">
+      Détail jeu par jeu non disponible (soumis par l'adversaire)</div>`;
+    const t1 = report.winner_id === P1_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
+    const t2 = report.winner_id === P2_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
+    populateRecapTotals(t1, t2, report.winner_id);
+    document.getElementById('recap-subtitle').textContent = 'MODE STOCKS — SOUMIS PAR TON ADVERSAIRE';
+  } else {
+    // Mode BO
+    pendingResult = { winner_id: report.winner_id, score: report.score || '' };
+    const parts = (report.score || '0-0').split('-');
+    const t1 = parseInt(parts[0]) || 0;
+    const t2 = parseInt(parts[1]) || 0;
+    const gamesDiv = document.getElementById('recap-games');
+    gamesDiv.innerHTML = `
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+        padding:1rem;text-align:center;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--blue);">${t1}</span>
+        <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);">${t2}</span>
+      </div>`;
+    populateRecapTotals(t1, t2, report.winner_id);
+    document.getElementById('recap-subtitle').textContent = FORMAT + ' — SOUMIS PAR TON ADVERSAIRE';
+  }
+
   document.getElementById('recap-my-actions').style.display = 'flex';
   document.getElementById('recap-waiting').style.display = 'none';
   document.getElementById('stocks-recap').classList.add('show');
@@ -1078,7 +1134,7 @@ function showWinner(winnerId, score) {
 }
 
 init();
-if (FORMAT === 'STOCKS') checkInitialState();
+checkInitialState(); // vérifie au chargement pour tous les modes
 </script>
 </body>
 </html>
