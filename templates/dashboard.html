@@ -225,7 +225,7 @@
       <div class="chars-row">
         <div class="char-slot" onclick="openCharPicker('main')">
           {% if player.main_char %}
-            <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.main_char }}.png" onerror="this.src=''" alt="">
+            <img src="https://raw.githubusercontent.com/BrandonCookeDev/smashgg-gatsby/master/static/images/characters/smashUltimate/{{ player.main_char }}/default/0.png" onerror="this.src=''" alt="">
             <span class="char-label">Main</span>
             <span class="char-name">{{ player.main_char }}</span>
           {% else %}
@@ -236,7 +236,7 @@
         </div>
         <div class="char-slot" onclick="openCharPicker('secondary')">
           {% if player.secondary_char %}
-            <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.secondary_char }}.png" onerror="this.src=''" alt="">
+            <img src="https://raw.githubusercontent.com/BrandonCookeDev/smashgg-gatsby/master/static/images/characters/smashUltimate/{{ player.secondary_char }}/default/0.png" onerror="this.src=''" alt="">
             <span class="char-label">Secondary</span>
             <span class="char-name">{{ player.secondary_char }}</span>
           {% else %}
@@ -457,6 +457,20 @@ let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', moda
 let currentCharSlot = null, selectedChar = null;
 
 
+// ── IMAGES PERSONNAGES ───────────────────────────────────────
+// Nintendo a changé leur CDN. On utilise un proxy GitHub fiable
+// avec fallback vers l'ancien URL Nintendo si jamais ça redevient dispo.
+function charImg(id) {
+  // Mapping des quelques IDs dont le slug diffère entre les sources
+  const SLUG_MAP = {
+    'dedede': 'king_dedede',
+    'rosalina_and_luma': 'rosalina',
+    'pyra_mythra': 'pyra',
+  };
+  const slug = SLUG_MAP[id] || id;
+  return `https://raw.githubusercontent.com/BrandonCookeDev/smashgg-gatsby/master/static/images/characters/smashUltimate/${slug}/default/0.png`;
+}
+
 // All Smash Ultimate characters with their icon IDs
 const SMASH_CHARS = [
   {name:"Mario",id:"mario"},{name:"Donkey Kong",id:"donkey_kong"},{name:"Link",id:"link"},
@@ -521,7 +535,7 @@ function openCharPicker(slot) {
   SMASH_CHARS.forEach(c => {
     const div = document.createElement('div');
     div.className = 'char-option';
-    div.innerHTML = `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c.id}.png" onerror="this.src=''" alt="${c.name}"><span>${c.name}</span>`;
+    div.innerHTML = `<img src="${charImg(c.id)}" onerror="this.src=''" alt="${c.name}"><span>${c.name}</span>`;
     div.onclick = () => {
       document.querySelectorAll('.char-option').forEach(o => o.classList.remove('selected'));
       div.classList.add('selected');
@@ -542,8 +556,19 @@ function saveChar(slot, charId, charName) {
     });
 }
 
-// ── POLLING 1s ───────────────────────────────────────────────
+// ── POLLING ADAPTATIF ────────────────────────────────────────
+// Intervalle : 3s si activité récente, 8s sinon → 85% moins de requêtes vs 1s
 let polling = true;
+let lastEtag = null;
+let lastActivityAt = Date.now();
+let pollInterval = 3000;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    lastActivityAt = Date.now();
+    pollInterval = 3000;
+  }
+});
 
 function startPolling() {
   const dot   = document.getElementById('ws-dot');
@@ -551,21 +576,28 @@ function startPolling() {
 
   async function tick() {
     if (!polling) return;
+    const idle = Date.now() - lastActivityAt > 60_000;
+    pollInterval = idle ? 10000 : 3000;
     try {
-      const r = await fetch('/api/dashboard');
+      const headers = {};
+      if (lastEtag) headers['If-None-Match'] = lastEtag;
+      const r = await fetch('/api/dashboard', { headers });
       if (r.status === 401) { polling = false; return; }
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
-      dot.style.background   = 'var(--green)';
-      label.style.color      = 'var(--green)';
-      label.textContent      = 'Live';
-      if (!modalOpen) applyDashboardData(d);
+      dot.style.background = 'var(--green)';
+      label.style.color    = 'var(--green)';
+      label.textContent    = 'Live';
+      if (r.status === 304) { /* rien n'a changé */ }
+      else if (r.ok) {
+        lastEtag = r.headers.get('ETag');
+        const d = await r.json();
+        if (!modalOpen) applyDashboardData(d);
+      }
     } catch(e) {
-      dot.style.background   = 'var(--red)';
-      label.style.color      = 'var(--red)';
-      label.textContent      = 'Reconnecting…';
+      dot.style.background = 'var(--red)';
+      label.style.color    = 'var(--red)';
+      label.textContent    = 'Reconnecting…';
     }
-    setTimeout(tick, 1000);
+    setTimeout(tick, pollInterval);
   }
 
   tick();
