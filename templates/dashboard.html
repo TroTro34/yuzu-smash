@@ -319,8 +319,8 @@
             <div class="challenge-title">🎮 {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
             <div class="challenge-sub">{{ c.format }} — Submit the result when done</div>
           </div>
-          <button class="btn btn-success" onclick="openResult('{{ cid }}','{{ c.challenger_id }}','{{ c.challenger_name }}','{{ c.challenged_id }}','{{ c.challenged_name }}','{{ c.format }}')">
-            🏆 Submit Result
+          <button class="btn btn-success" onclick="window.location.href='/match/{{ cid }}'">
+            🎮 Enter Match
           </button>
         </div>
       </div>
@@ -339,8 +339,8 @@
             <div class="challenge-title">⏳ {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
             <div class="challenge-sub">Your opponent submitted a result — confirm it!</div>
           </div>
-          <button class="btn btn-primary" onclick="openResult('{{ cid }}','{{ c.challenger_id }}','{{ c.challenger_name }}','{{ c.challenged_id }}','{{ c.challenged_name }}','{{ c.format }}')">
-            ✅ Confirm
+          <button class="btn btn-primary" onclick="window.location.href='/match/{{ cid }}'">
+            ✅ Confirm Result
           </button>
         </div>
       </div>
@@ -753,7 +753,7 @@ function renderMatchs(matchs) {
   if (!matchs || !Object.keys(matchs).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">ACTIVE MATCHES</div>';
   for (const [cid, c] of Object.entries(matchs)) {
-    h += `<div class="challenge-card active"><div class="challenge-top"><div><div class="challenge-title">🎮 ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">${c.format} — Submit the result when done</div></div><button class="btn btn-success" onclick="openResult('${cid}','${c.challenger_id}','${c.challenger_name}','${c.challenged_id}','${c.challenged_name}','${c.format}')">🏆 Submit Result</button></div></div>`;
+    h += `<div class="challenge-card active"><div class="challenge-top"><div><div class="challenge-title">🎮 ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">${c.format} — Click to enter the match</div></div><button class="btn btn-success" onclick="window.location.href='/match/${cid}'">🎮 Enter Match</button></div></div>`;
   }
   z.innerHTML = h;
 }
@@ -763,7 +763,7 @@ function renderAttente(att) {
   if (!att || !Object.keys(att).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">AWAITING YOUR CONFIRMATION</div>';
   for (const [cid, c] of Object.entries(att)) {
-    h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="openResult('${cid}','${c.challenger_id}','${c.challenger_name}','${c.challenged_id}','${c.challenged_name}','${c.format}')">✅ Confirm</button></div></div>`;
+    h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="window.location.href='/match/${cid}'">✅ Confirm Result</button></div></div>`;
   }
   z.innerHTML = h;
 }
@@ -792,7 +792,7 @@ function sendChallenge(id, name) {
 
 function acceptChallenge(cid, fmt) {
   fetch('/challenge/'+cid+'/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
-    .then(r=>r.json()).then(d=>{ if(d.success) window.location.href='/dashboard'; else showToast(d.error,false); });
+    .then(r=>r.json()).then(d=>{ if(d.success) window.location.href='/match/'+cid; else showToast(d.error,false); });
 }
 
 function declineChallenge(cid) {
