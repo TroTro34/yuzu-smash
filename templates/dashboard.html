@@ -479,6 +479,17 @@
 <script>
 const myId = "{{ user.id }}";
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
+
+// Pré-remplir sessionStorage avec les challenges déjà visibles au chargement
+// → notifications.js ne re-notifiera pas pour ceux déjà affichés ici
+(function() {
+  try {
+    const key = 'yuzu_seen_challenges';
+    const existing = new Set(JSON.parse(sessionStorage.getItem(key) || '[]'));
+    {% for cid in challenges_received %}existing.add('{{ cid }}');{% endfor %}
+    sessionStorage.setItem(key, JSON.stringify([...existing]));
+  } catch(_) {}
+})();
 let currentCharSlot = null, selectedChar = null;
 
 
@@ -873,5 +884,6 @@ function submitResult() {
     .then(r=>r.json()).then(d=>{ if(d.success){showToast(d.message);closeModal('resultModal');}else showToast(d.error,false); });
 }
 </script>
+<script src="/static/notifications.js"></script>
 </body>
 </html>
