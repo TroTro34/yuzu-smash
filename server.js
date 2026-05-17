@@ -446,7 +446,8 @@ app.get('/api/match_status/:challenge_id', requireAuth, async (req, res) => {
   const c = challenges[0];
   const report = typeof c.report === 'object' ? c.report : {};
   res.json({ status: c.status, reported_by: c.reported_by, report: c.report,
-    winner_id: report?.winner_id || null, score: report?.score || null });
+    winner_id: report?.winner_id || null, score: report?.score || null,
+    elo_change: c.elo_change || null });
 });
 
 app.post('/api/update_profile', requireAuth, async (req, res) => {
