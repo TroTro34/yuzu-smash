@@ -3,4 +3,4 @@ requests
 gunicorn
 Flask-Session
 flask-socketio
-simple-websocket
+eventlet
