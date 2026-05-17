@@ -3,7 +3,7 @@ services:
     name: yuzu-smash-ranking
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 1 --threads 4 --timeout 120 app:app
+    startCommand: gunicorn -w 1 --worker-class eventlet --timeout 120 app:app
     envVars:
       - key: SECRET_KEY
         sync: false
