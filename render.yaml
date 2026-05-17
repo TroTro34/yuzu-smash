@@ -1,9 +1,9 @@
 services:
   - type: web
     name: yuzu-smash-ranking
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 1 --threads 4 --timeout 120 app:app
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
     envVars:
       - key: SECRET_KEY
         sync: false
