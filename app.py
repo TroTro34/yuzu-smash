@@ -166,13 +166,7 @@ def api_dashboard():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
     data = _dashboard_data(session["user"]["id"])
-    import json
-    etag = hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
-    if request.headers.get("If-None-Match") == etag:
-        return "", 304
-    resp = jsonify(data)
-    resp.headers["ETag"] = etag
-    return resp
+    return jsonify(data)
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
