@@ -544,8 +544,8 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
     challenged_name: post.player_name, status: 'accepted', format: post.format });
   await sbDelete('lfm_posts', { id: post_id });
   // Redirect BOTH players to the match page via Socket.IO
-  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid });
-  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid });
+  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
+  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
 });
 
