@@ -95,6 +95,22 @@
     notifSocket.emit('join_user', {});
   });
 
+  // ── Notification immédiate quand quelqu'un t'invite ──────────────────────────
+  notifSocket.on('new_challenge', (data) => {
+    if (!seenChallengeIds.has(data.challenge_id)) {
+      showNotif(data.challenger_name, data.format);
+      seenChallengeIds.add(data.challenge_id);
+    }
+  });
+
+  // ── Redirection automatique vers la page match (les deux joueurs) ─────────────
+  notifSocket.on('match_redirect', (data) => {
+    if (data && data.challenge_id) {
+      window.location.href = `/match/${data.challenge_id}`;
+    }
+  });
+
+  // ── Fallback : détection via dashboard_update (challenges reçus) ──────────────
   notifSocket.on('dashboard_update', (data) => {
     const received = data.challenges_received || {};
     if (!initialized) {
