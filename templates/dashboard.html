@@ -675,10 +675,15 @@ function saveChar(slot, charId, charName) {
 let polling = true;
 let lastEtag = null;
 let lastActivityAt = Date.now();
+// Mode rafale : poll rapide quand on attend une réponse imminente
+let burstUntil = 0;
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') lastActivityAt = Date.now();
 });
+
+// Déclenche 15s de poll rapide (500ms) — appelé après chaque action qui attend une réponse
+function pollBurst() { burstUntil = Date.now() + 15000; }
 
 // Track which active matches we've already seen (to avoid redirecting on first load)
 const seenActiveMatches = new Set({{ active_matches.keys()|list|tojson }});
@@ -689,8 +694,10 @@ function startPolling() {
 
   async function tick() {
     if (!polling) return;
-    const idle = Date.now() - lastActivityAt > 60_000;
-    const delay = idle ? 10000 : 3000;
+    const now = Date.now();
+    const inBurst = now < burstUntil;
+    const idle    = !inBurst && (now - lastActivityAt > 60_000);
+    const delay   = inBurst ? 500 : idle ? 10000 : 3000;
     try {
       const headers = {};
       if (lastEtag) headers['If-None-Match'] = lastEtag;
@@ -698,7 +705,7 @@ function startPolling() {
       if (r.status === 401) { polling = false; return; }
       dot.style.background = 'var(--green)';
       label.style.color    = 'var(--green)';
-      label.textContent    = 'Live';
+      label.textContent    = inBurst ? 'Syncing…' : 'Live';
       if (r.status !== 304 && r.ok) {
         lastEtag = r.headers.get('ETag');
         const d = await r.json();
@@ -712,6 +719,8 @@ function startPolling() {
           }
           Object.keys(d.active_matches).forEach(cid => seenActiveMatches.add(cid));
         }
+        // Quitte le mode rafale si plus de challenges en attente
+        if (inBurst && !Object.keys(d.challenges_sent || {}).length) burstUntil = 0;
         if (!modalOpen) applyDashboardData(d);
       }
     } catch(e) {
@@ -814,14 +823,19 @@ function renderHistory(matches) {
 function sendChallenge(id, name, fmt) {
   fetch('/challenge/' + id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
     .then(r=>r.json()).then(d=>{
-    if(d.success) showToast('Challenge sent to ' + name + ' [' + fmt + ']!');
-    else showToast(d.error, false);
+    if(d.success) {
+      showToast('Challenge sent to ' + name + ' [' + fmt + ']!');
+      pollBurst(); // Poll rapide : détecte l'acceptation en ~500ms
+    } else showToast(d.error, false);
   });
 }
 
 function acceptChallenge(cid) {
   fetch('/challenge/'+cid+'/accept',{method:'POST'})
-    .then(r=>r.json()).then(d=>{ if(d.success) window.location.href='/match/'+cid; else showToast(d.error,false); });
+    .then(r=>r.json()).then(d=>{
+      if(d.success) window.location.href='/match/'+cid; // Redirect direct, pas besoin de polling
+      else showToast(d.error,false);
+    });
 }
 
 function declineChallenge(cid) {
