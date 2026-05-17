@@ -167,7 +167,6 @@
   }
 
   // ── Polling ───────────────────────────────────────────────────────────────
-  let lastEtag = null;
   const POLL_FAST = 4000;   // 4s quand visible
   const POLL_IDLE = 15000;  // 15s quand onglet caché
   let lastVisible = Date.now();
@@ -185,17 +184,11 @@
     const delay = idle ? POLL_IDLE : POLL_FAST;
 
     try {
-      const headers = {};
-      if (lastEtag) headers['If-None-Match'] = lastEtag;
-
-      const r = await fetch('/api/dashboard', { headers });
+      const r = await fetch('/api/dashboard');
 
       if (r.status === 401) return; // Non connecté — on arrête silencieusement
 
-      if (r.ok && r.status !== 304) {
-        const newEtag = r.headers.get('ETag');
-        if (newEtag) lastEtag = newEtag;
-
+      if (r.ok) {
         const data = await r.json();
         const received = data.challenges_received || {};
         const seenIds = getSeenIds();
