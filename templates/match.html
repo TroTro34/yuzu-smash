@@ -396,50 +396,36 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .winner-score-big { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--green); letter-spacing: 4px; }
 
-    /* ── MATCH CHAT ── */
+    /* ── MATCH CHAT — full right column ── */
+    body { display: flex; flex-direction: column; }
+    .page-body {
+      display: flex; flex: 1; min-height: 0;
+      align-items: stretch;
+    }
+    .arena {
+      flex: 1; min-width: 0;
+    }
     #match-chat {
-      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200;
+      width: 300px; flex-shrink: 0;
       display: flex; flex-direction: column;
-      width: 320px; max-width: calc(100vw - 2rem);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      position: sticky; top: 65px;
+      height: calc(100vh - 65px);
+      z-index: 50;
     }
-    #chat-toggle {
-      align-self: flex-end;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 50px; padding: 0.55rem 1.1rem;
-      color: var(--text); font-family: 'Rajdhani', sans-serif;
-      font-size: 0.9rem; font-weight: 700; letter-spacing: 1px;
-      cursor: pointer; display: flex; align-items: center; gap: 0.5rem;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    }
-    #chat-toggle:hover { border-color: var(--accent2); }
-    #chat-toggle.has-unread { border-color: var(--accent2); box-shadow: 0 0 0 2px rgba(255,128,0,0.3); }
-    #chat-unread-badge {
-      background: var(--accent); color: white;
-      border-radius: 50%; width: 18px; height: 18px;
-      font-size: 0.7rem; display: none;
-      align-items: center; justify-content: center; font-weight: 700;
-    }
-    #chat-unread-badge.show { display: flex; }
-    #chat-panel {
-      display: none; flex-direction: column;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; overflow: hidden; margin-bottom: 0.5rem;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-      max-height: 420px;
-    }
-    #chat-panel.open { display: flex; }
     #chat-header {
-      padding: 0.75rem 1rem; background: var(--surface2);
+      padding: 0.85rem 1rem;
+      background: var(--surface2);
       border-bottom: 1px solid var(--border);
       font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem;
       letter-spacing: 3px; color: var(--accent2);
       display: flex; align-items: center; gap: 0.5rem;
+      flex-shrink: 0;
     }
     #chat-messages {
       flex: 1; overflow-y: auto; padding: 0.75rem;
       display: flex; flex-direction: column; gap: 0.5rem;
-      min-height: 200px; max-height: 280px;
       scroll-behavior: smooth;
     }
     #chat-messages::-webkit-scrollbar { width: 4px; }
@@ -447,13 +433,11 @@
     #chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     .chat-msg {
       display: flex; flex-direction: column; gap: 0.15rem;
-      max-width: 85%;
+      max-width: 88%;
     }
     .chat-msg.mine { align-self: flex-end; align-items: flex-end; }
     .chat-msg.theirs { align-self: flex-start; align-items: flex-start; }
-    .chat-msg-name {
-      font-size: 0.68rem; color: var(--muted); letter-spacing: 0.5px;
-    }
+    .chat-msg-name { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.5px; }
     .chat-msg.mine .chat-msg-name { color: rgba(79,142,247,0.7); }
     .chat-msg-bubble {
       padding: 0.45rem 0.75rem; border-radius: 10px;
@@ -461,20 +445,21 @@
     }
     .chat-msg.mine .chat-msg-bubble {
       background: rgba(79,142,247,0.18); border: 1px solid rgba(79,142,247,0.25);
-      border-radius: 10px 10px 2px 10px; color: var(--text);
+      border-radius: 10px 10px 2px 10px;
     }
     .chat-msg.theirs .chat-msg-bubble {
       background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px 10px 10px 2px; color: var(--text);
+      border-radius: 10px 10px 10px 2px;
     }
     .chat-msg-time { font-size: 0.62rem; color: var(--muted); }
     .chat-empty {
       text-align: center; color: var(--muted); font-size: 0.82rem;
-      padding: 2rem 1rem; flex: 1;
+      padding: 2rem 0.75rem;
     }
     #chat-input-row {
       display: flex; gap: 0.4rem; padding: 0.6rem;
-      border-top: 1px solid var(--border); background: var(--surface2);
+      border-top: 1px solid var(--border);
+      background: var(--surface2); flex-shrink: 0;
     }
     #chat-input {
       flex: 1; background: var(--surface3); border: 1px solid var(--border);
@@ -490,8 +475,8 @@
     }
     #chat-send:hover { background: var(--accent2); color: #0a0a0f; }
 
-    @media (max-width: 640px) {
-      #match-chat { right: 0.75rem; bottom: 0.75rem; width: calc(100vw - 1.5rem); }
+    @media (max-width: 860px) {
+      #match-chat { display: none; }
     }
 
     @media (max-width: 640px) {
@@ -515,6 +500,7 @@
   </div>
 </nav>
 
+<div class="page-body">
 <div class="arena">
   <div class="format-badge" id="format-badge">{{ challenge.format }} — MATCH</div>
 
@@ -585,7 +571,24 @@
     <div id="stocks-section" style="display:none;"></div>
 
   </div>
+</div><!-- /arena -->
+
+<!-- ── MATCH CHAT SIDEBAR ── -->
+<div id="match-chat">
+  <div id="chat-header">
+    💬 MATCH CHAT
+    <span style="margin-left:auto;font-size:0.65rem;color:var(--muted);font-family:'Rajdhani',sans-serif;letter-spacing:1px;">only you two</span>
+  </div>
+  <div id="chat-messages">
+    <div class="chat-empty" id="chat-empty">No messages yet — say hi! 👋</div>
+  </div>
+  <div id="chat-input-row">
+    <input id="chat-input" type="text" placeholder="Message…" maxlength="200" autocomplete="off">
+    <button id="chat-send" onclick="chatSend()" title="Send">➤</button>
+  </div>
 </div>
+
+</div><!-- /page-body -->
 
 <!-- ── STOCKS RECAP (shown to player 2 after player 1 submits) ── -->
 <div class="winner-announcement" id="stocks-recap" style="flex-direction:column;gap:0;">
@@ -642,7 +645,8 @@
   <div class="winner-label">WINNER</div>
   <div class="winner-name-big" id="winner-name-big">—</div>
   <div class="winner-score-big" id="winner-score-big">—</div>
-  <button class="btn btn-primary" style="margin-top:1rem;" onclick="document.getElementById('winner-announcement').classList.remove('show')">Continue →</button>
+  <div id="winner-elo-line" style="margin-top:0.75rem;font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;"></div>
+  <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted);letter-spacing:1px;">Redirecting to dashboard…</div>
 </div>
 
 <!-- Toast -->
@@ -706,7 +710,7 @@ let totalGames = 0;
 let matchSocket = null; // socket unique partagé — évite le double socket / reconnecting
 
 // Mode STOCKS : historique des games
-// Chaque entrée : { p1: N, p2: N }  (médailles cumulées à la fin de ce game)
+// Each entry: { p1: N, p2: N }  (cumulative medals at end of this game)
 let stockGameHistory = [];
 let currentGameMinP1 = 0; // minimum imposé = valeur fin du game précédent
 let currentGameMinP2 = 0;
@@ -817,12 +821,12 @@ function initStocksMode() {
 // Construit / met à jour l'affichage de tous les games + game courant
 function renderStocksGames() {
   const section = document.getElementById('stocks-section');
-  section.innerHTML = `<div class="section-title">🏅 MÉDAILLES — GAME PAR GAME</div>
+  section.innerHTML = `<div class="section-title">🏅 MEDALS — GAME BY GAME</div>
     <div id="stocks-games-list" style="display:flex;flex-direction:column;gap:0.8rem;margin-bottom:1.5rem;"></div>
     <div id="current-game-block"></div>
     <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
-      Entre les médailles <strong>cumulées</strong> à la fin de chaque game.<br>
-      Le minimum repart du total du game précédent.
+      Enter the <strong>cumulative</strong> medals at the end of each game.<br>
+      The minimum resets from the previous game total.
     </div>`;
 
   // Historique des games déjà validés
@@ -854,7 +858,7 @@ function renderStocksGames() {
     <div style="background:var(--surface2);border:1px solid var(--accent2);border-radius:10px;padding:1.2rem;position:relative;overflow:hidden;">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--accent2);margin-bottom:1rem;">
-        GAME ${gameNum} — MÉDAILLES CUMULÉES
+        GAME ${gameNum} — CUMULATIVE MEDALS
       </div>
       <div class="stocks-inputs">
         <div class="stock-input-group">
@@ -864,7 +868,7 @@ function renderStocksGames() {
             <input type="text" class="stock-value" id="sg-p1" value="${currentGameMinP1}" readonly>
             <button class="stock-btn" onclick="changeStockGame('p1',1)">+</button>
           </div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min : ${currentGameMinP1}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min: ${currentGameMinP1}</div>
         </div>
         <div class="stock-input-group">
           <div class="stock-input-label red-label">${P2_NAME}</div>
@@ -873,16 +877,16 @@ function renderStocksGames() {
             <input type="text" class="stock-value" id="sg-p2" value="${currentGameMinP2}" readonly>
             <button class="stock-btn" onclick="changeStockGame('p2',1)">+</button>
           </div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min : ${currentGameMinP2}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min: ${currentGameMinP2}</div>
         </div>
       </div>
       <button class="game-confirm-btn" id="confirm-game-btn" onclick="confirmStockGame()" style="margin-top:1rem;">
-        ✅ VALIDER GAME ${gameNum}
+        ✅ CONFIRM GAME ${gameNum}
       </button>
     </div>
     ${stockGameHistory.length > 0 ? `
     <button class="end-match-btn visible" id="end-match-btn" onclick="confirmEndMatch()" style="margin-top:1rem;">
-      🏆 TERMINER LE MATCH & SOUMETTRE
+      🏆 END MATCH & SUBMIT
     </button>` : ''}`;
 
   // Sync valeurs courantes
@@ -920,10 +924,10 @@ function confirmStockGame() {
   const delta1 = medalsP1 - currentGameMinP1;
   const delta2 = medalsP2 - currentGameMinP2;
   if (delta1 === 0 && delta2 === 0) {
-    showToast('Entre au moins une médaille pour ce game !', false); return;
+    showToast('Enter at least one medal for this game!', false); return;
   }
   if (delta1 === delta2) {
-    showToast('Égalité impossible — il faut un vainqueur par game !', false); return;
+    showToast('Tie not allowed — there must be a winner!', false); return;
   }
   // Enregistre le game
   stockGameHistory.push({ p1: medalsP1, p2: medalsP2 });
@@ -983,7 +987,7 @@ async function submitBO() {
     if (data.success) {
       if (data.message && data.message.includes('ELO')) {
         // Second player confirming — match validated
-        showWinner(selectedResult.winner_id, selectedResult.score);
+        showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
         showToast(data.message, true);
         setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
       } else {
@@ -1008,15 +1012,15 @@ async function submitBO() {
 // ─────────────────────────────────────────────
 let pendingResult = null; // { winner_id, score, [stocks fields] }
 
-// ── MÉDAILLES : bouton TERMINER ──
+// ── MEDALS MODE: end match button ──
 function endMatch() {
   if (!stockGameHistory.length) {
-    showToast('Valide au moins un game avant de terminer !', false); return;
+    showToast('Confirm at least one game before finishing!', false); return;
   }
   const totalP1 = currentGameMinP1;
   const totalP2 = currentGameMinP2;
   if (totalP1 === totalP2) {
-    showToast('Égalité impossible — il faut un vainqueur !', false); return;
+    showToast('Tie not allowed — there must be a winner!', false); return;
   }
 
   const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
@@ -1052,7 +1056,7 @@ function endMatch() {
   }).join('');
 
   populateRecapTotals(totalP1, totalP2, winnerId);
-  document.getElementById('recap-subtitle').textContent = 'MÉDAILLES — EN ATTENTE DE CONFIRMATION';
+  document.getElementById('recap-subtitle').textContent = 'MEDALS — WAITING FOR CONFIRMATION';
   document.getElementById('recap-my-actions').style.display = 'none';
   document.getElementById('recap-waiting').style.display = 'block';
   document.getElementById('stocks-recap').classList.add('show');
@@ -1110,9 +1114,9 @@ async function submitResult(result, isConfirm) {
         showToast(data.message, true);
         document.getElementById('stocks-recap').classList.remove('show');
         const scoreLabel = result.winner_stocks_taken != null
-          ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} stocks`
+          ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} medals`
           : result.score;
-        showWinner(result.winner_id, scoreLabel);
+        showWinner(result.winner_id, scoreLabel, data.elo_change);
         setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
       } else {
         showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
@@ -1165,7 +1169,7 @@ function startMatchPolling() {
   matchSocket.on('match_update', (d) => {
     if (d.status === 'completed') {
       document.getElementById('stocks-recap').classList.remove('show');
-      showWinner(d.winner_id, d.score || '');
+      showWinner(d.winner_id, d.score || '', d.elo_change);
       setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
     } else if (d.status === 'disputed') {
       showToast('Result contested — contact an admin.', false);
@@ -1194,7 +1198,7 @@ function showOpponentRecap(d) {
   if (!report || !report.winner_id) return;
 
   if (report.is_stocks_mode || FORMAT === 'STOCKS') {
-    // Médailles mode
+    // Medals mode
     pendingResult = {
       winner_id: report.winner_id,
       score: report.score,
@@ -1207,13 +1211,13 @@ function showOpponentRecap(d) {
     const gamesDiv = document.getElementById('recap-games');
     gamesDiv.innerHTML = `
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
-        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">MÉDAILLES TOTALES</div>
+        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">TOTAL MEDALS</div>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${t1}</span>
         <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${t2}</span>
       </div>`;
     populateRecapTotals(t1, t2, report.winner_id);
-    document.getElementById('recap-subtitle').textContent = 'MÉDAILLES — SOUMIS PAR TON ADVERSAIRE';
+    document.getElementById('recap-subtitle').textContent = 'MEDALS — SUBMITTED BY YOUR OPPONENT';
   } else {
     // BO mode
     pendingResult = { winner_id: report.winner_id, score: report.score || '' };
@@ -1251,16 +1255,27 @@ function showToast(msg, success = true) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-function showWinner(winnerId, score) {
+function showWinner(winnerId, score, eloChange) {
   const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
+  const iWon = winnerId === MY_ID;
   document.getElementById('winner-name-big').textContent = name;
   document.getElementById('winner-score-big').textContent = score;
+  const eloLine = document.getElementById('winner-elo-line');
+  if (eloChange) {
+    if (iWon) {
+      eloLine.innerHTML = `<span style="color:var(--green)">+${eloChange} ELO</span>`;
+    } else {
+      eloLine.innerHTML = `<span style="color:var(--red)">−${eloChange} ELO</span>`;
+    }
+  } else {
+    eloLine.textContent = '';
+  }
   document.getElementById('winner-announcement').classList.add('show');
 }
 
 // ── Stocks end match confirmation ──
 function confirmEndMatch() {
-  if (!stockGameHistory.length) { showToast('Valide au moins un game avant de terminer !', false); return; }
+  if (!stockGameHistory.length) { showToast('Confirm at least one game before finishing!', false); return; }
   const overlay = document.getElementById('confirm-end-overlay');
   overlay.style.display = 'flex';
 }
@@ -1274,31 +1289,12 @@ function doEndMatch() {
 // ─────────────────────────────────────────────
 // MATCH CHAT
 // ─────────────────────────────────────────────
-let chatOpen = false;
-let chatUnread = 0;
-
-function chatToggle() {
-  chatOpen = !chatOpen;
-  document.getElementById('chat-panel').classList.toggle('open', chatOpen);
-  if (chatOpen) {
-    chatUnread = 0;
-    document.getElementById('chat-unread-badge').classList.remove('show');
-    document.getElementById('chat-unread-badge').textContent = '0';
-    document.getElementById('chat-toggle').classList.remove('has-unread');
-    // scroll to bottom
-    const msgs = document.getElementById('chat-messages');
-    msgs.scrollTop = msgs.scrollHeight;
-    document.getElementById('chat-input').focus();
-  }
-}
-
 function chatSend() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text) return;
-  // Le socket est déjà créé par startMatchPolling() — on le réutilise
   if (!matchSocket || !matchSocket.connected) {
-    showToast('Connexion perdue — réessaie dans un instant.', false);
+    showToast('Connection lost — try again in a moment.', false);
     return;
   }
   matchSocket.emit('chat_message', { challenge_id: CHALLENGE_ID, text });
@@ -1326,15 +1322,6 @@ function chatReceive(data) {
 
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
-
-  // Badge si chat fermé et message de l'adversaire
-  if (!chatOpen && !isMine) {
-    chatUnread++;
-    const badge = document.getElementById('chat-unread-badge');
-    badge.textContent = chatUnread > 9 ? '9+' : chatUnread;
-    badge.classList.add('show');
-    document.getElementById('chat-toggle').classList.add('has-unread');
-  }
 }
 
 function escChatHtml(s) {
@@ -1342,7 +1329,6 @@ function escChatHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// Enter pour envoyer
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
@@ -1353,27 +1339,6 @@ init();
 checkInitialState();
 startMatchPolling();
 </script>
-
-<!-- ── MATCH CHAT ── -->
-<div id="match-chat">
-  <div id="chat-panel">
-    <div id="chat-header">
-      💬 MATCH CHAT
-      <span style="margin-left:auto;font-size:0.7rem;color:var(--muted);font-family:'Rajdhani',sans-serif;letter-spacing:1px;">visible des deux joueurs uniquement</span>
-    </div>
-    <div id="chat-messages">
-      <div class="chat-empty" id="chat-empty">Aucun message — dis bonjour ! 👋</div>
-    </div>
-    <div id="chat-input-row">
-      <input id="chat-input" type="text" placeholder="Message…" maxlength="200" autocomplete="off">
-      <button id="chat-send" onclick="chatSend()" title="Envoyer">➤</button>
-    </div>
-  </div>
-  <button id="chat-toggle" onclick="chatToggle()">
-    💬 <span>CHAT</span>
-    <span id="chat-unread-badge">0</span>
-  </button>
-</div>
 
 <script src="/static/notifications.js"></script>
 </body>
