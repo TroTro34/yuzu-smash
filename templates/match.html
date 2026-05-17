@@ -708,6 +708,7 @@ let selectedResult = null;
 let stockGames = [];
 let totalGames = 0;
 let matchSocket = null; // socket unique partagé — évite le double socket / reconnecting
+let matchFinished = false; // guard contre double-traitement HTTP + socket
 
 // Mode STOCKS : historique des games
 // Each entry: { p1: N, p2: N }  (cumulative medals at end of this game)
@@ -987,9 +988,12 @@ async function submitBO() {
     if (data.success) {
       if (data.message && data.message.includes('ELO')) {
         // Second player confirming — match validated
+        if (matchFinished) return;
+        matchFinished = true;
+        stopPolling();
         showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
         showToast(data.message, true);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
       } else {
         // First player submitted — wait for opponent confirmation
         pendingResult = selectedResult;
@@ -1112,13 +1116,16 @@ async function submitResult(result, isConfirm) {
     const data = await res.json();
     if (data.success) {
       if (isConfirm) {
+        if (matchFinished) return; // déjà géré par le socket
+        matchFinished = true;
+        stopPolling();
         showToast(data.message, true);
         document.getElementById('stocks-recap').classList.remove('show');
         const scoreLabel = result.winner_stocks_taken != null
           ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} medals`
           : result.score;
         showWinner(result.winner_id, scoreLabel, data.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
       } else {
         showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
         startMatchPolling();
@@ -1170,10 +1177,12 @@ function startHttpFallback() {
   pollInterval = setInterval(() => {
     fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
       if (d.status === 'completed') {
+        if (matchFinished) { stopPolling(); return; }
+        matchFinished = true;
         stopPolling();
         document.getElementById('stocks-recap').classList.remove('show');
         showWinner(d.winner_id, d.score || '', d.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
       } else if (d.status === 'disputed') {
         stopPolling();
         showToast('Result contested — contact an admin.', false);
@@ -1203,10 +1212,12 @@ function startMatchPolling() {
 
   matchSocket.on('match_update', (d) => {
     if (d.status === 'completed') {
+      if (matchFinished) return; // déjà géré par la réponse HTTP
+      matchFinished = true;
       stopPolling();
       document.getElementById('stocks-recap').classList.remove('show');
       showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+      setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
     } else if (d.status === 'disputed') {
       stopPolling();
       showToast('Result contested — contact an admin.', false);
@@ -1228,9 +1239,11 @@ function startMatchPolling() {
 function checkInitialState() {
   fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
     if (d.status === 'completed') {
+      if (matchFinished) return;
+      matchFinished = true;
       // Match déjà terminé (ex: rechargement après confirmation)
       showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+      setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
     } else if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
       // L'adversaire a soumis — afficher le recap pour confirmer/contester
       showOpponentRecap(d);
@@ -1317,14 +1330,22 @@ function showToast(msg, success = true) {
 function showWinner(winnerId, score, eloChange) {
   const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
   const iWon = winnerId === MY_ID;
+
+  // Fermer le recap s'il est encore ouvert
+  document.getElementById('stocks-recap').classList.remove('show');
+
   document.getElementById('winner-name-big').textContent = name;
   document.getElementById('winner-score-big').textContent = score;
   const eloLine = document.getElementById('winner-elo-line');
   if (eloChange) {
     if (iWon) {
-      eloLine.innerHTML = `<span style="color:var(--green)">+${eloChange} ELO</span>`;
+      eloLine.innerHTML = `
+        <span style="color:var(--green);font-size:2rem;display:block">+${eloChange} ELO 🏆</span>
+        <span style="color:var(--muted);font-size:0.85rem;display:block;margin-top:0.3rem;letter-spacing:2px;">GG — you won!</span>`;
     } else {
-      eloLine.innerHTML = `<span style="color:var(--red)">−${eloChange} ELO</span>`;
+      eloLine.innerHTML = `
+        <span style="color:var(--red);font-size:2rem;display:block">−${eloChange} ELO</span>
+        <span style="color:var(--muted);font-size:0.85rem;display:block;margin-top:0.3rem;letter-spacing:2px;">GG — better luck next time</span>`;
     }
   } else {
     eloLine.textContent = '';
