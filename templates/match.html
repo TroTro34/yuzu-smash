@@ -1070,38 +1070,28 @@ async function contestRecap() {
   setTimeout(() => { window.location.href = '/dashboard'; }, 2500);
 }
 
-// ── Polling: waiting for confirmation ──
-let _pollInterval = null;
+// ── Socket.IO : remplace le polling de match ──
+let _pollInterval = null; // conservé pour compat (non utilisé)
 
 function startMatchPolling() {
-  if (_pollInterval) return; // already running, prevent duplicate
-  let tries = 0;
-  _pollInterval = setInterval(async () => {
-    tries++;
-    if (tries > 240) { clearInterval(_pollInterval); _pollInterval = null; return; } // 12 min max
-    try {
-      const r = await fetch(`/api/match_status/${CHALLENGE_ID}`);
-      if (!r.ok) return;
-      const d = await r.json();
-      if (d.status === 'completed') {
-        clearInterval(_pollInterval); _pollInterval = null;
-        document.getElementById('stocks-recap').classList.remove('show');
-        showWinner(d.winner_id, d.score || '');
-        setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
-      } else if (d.status === 'disputed') {
-        clearInterval(_pollInterval); _pollInterval = null;
-        showToast('Result contested — contact an admin.', false);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
-      } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
-        // Opponent submitted — show recap if not already visible
-        clearInterval(_pollInterval); _pollInterval = null;
-        if (!document.getElementById('stocks-recap').classList.contains('show')) {
-          showOpponentRecap(d);
-        }
+  const socket = io({ transports: ['websocket'], upgrade: false });
+  socket.on('connect', () => {
+    socket.emit('join_match', { challenge_id: CHALLENGE_ID });
+  });
+  socket.on('match_update', (d) => {
+    if (d.status === 'completed') {
+      document.getElementById('stocks-recap').classList.remove('show');
+      showWinner(d.winner_id, d.score || '');
+      setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+    } else if (d.status === 'disputed') {
+      showToast('Result contested — contact an admin.', false);
+      setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
+    } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
+      if (!document.getElementById('stocks-recap').classList.contains('show')) {
+        showOpponentRecap(d);
       }
-      // status 'accepted' or 'reported' (by me) → keep polling
-    } catch(e) {}
-  }, 3000);
+    }
+  });
 }
 
 // ── Vérification au chargement ──
@@ -1195,6 +1185,7 @@ init();
 checkInitialState(); // check current state on page load
 startMatchPolling(); // poll continuously for both players — player 2 detects opponent submission in real time
 </script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="/static/notifications.js"></script>
 </body>
 </html>
