@@ -483,39 +483,8 @@
       </div>
     </div>
 
-    <!-- STOCKS MODE — MÉDAILLES -->
-    <div id="stocks-section" style="display:none;">
-      <div class="section-title">🏅 MÉDAILLES — FIN DE MATCH</div>
-      <div style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem;text-align:center;">
-        Entre le nombre total de médailles de chaque joueur à la fin du match
-      </div>
-
-      <div class="stocks-inputs" style="max-width:500px;margin:0 auto 1.5rem;">
-        <div class="stock-input-group">
-          <div class="stock-input-label blue-label" id="medals-p1-label">Joueur 1 — médailles</div>
-          <div class="stock-counter">
-            <button class="stock-btn" onclick="changeMedals('p1',-1)">−</button>
-            <input type="text" class="stock-value" id="medals-p1" value="0" readonly>
-            <button class="stock-btn" onclick="changeMedals('p1',1)">+</button>
-          </div>
-        </div>
-        <div class="stock-input-group">
-          <div class="stock-input-label red-label" id="medals-p2-label">Joueur 2 — médailles</div>
-          <div class="stock-counter">
-            <button class="stock-btn" onclick="changeMedals('p2',-1)">−</button>
-            <input type="text" class="stock-value" id="medals-p2" value="0" readonly>
-            <button class="stock-btn" onclick="changeMedals('p2',1)">+</button>
-          </div>
-        </div>
-      </div>
-
-      <button class="end-match-btn visible" id="end-match-btn" onclick="confirmEndMatch()">
-        🏆 SOUMETTRE LE RÉSULTAT
-      </button>
-      <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
-        Les deux joueurs devront confirmer le résultat
-      </div>
-    </div>
+    <!-- STOCKS MODE — rendu dynamique par JS (initStocksMode → renderStocksGames) -->
+    <div id="stocks-section" style="display:none;"></div>
 
   </div>
 </div>
@@ -633,9 +602,16 @@ const MY_ID        = "{{ user.id }}";
 
 // ── STATE ──
 let p1Score = 0, p2Score = 0;
-let selectedResult = null; // { winner_id, score, p1wins, p2wins }
-let stockGames = []; // unused in medals mode — kept for compat
+let selectedResult = null;
+let stockGames = [];
 let totalGames = 0;
+let matchSocket = null; // socket unique partagé — évite le double socket / reconnecting
+
+// Mode STOCKS : historique des games
+// Chaque entrée : { p1: N, p2: N }  (médailles cumulées à la fin de ce game)
+let stockGameHistory = [];
+let currentGameMinP1 = 0; // minimum imposé = valeur fin du game précédent
+let currentGameMinP2 = 0;
 
 // ── INIT ──
 function init() {
@@ -725,33 +701,147 @@ function buildScoreOption(wWins, lLoses, winnerKey) {
 }
 
 // ─────────────────────────────────────────────
-// MEDALS MODE (anciennement STOCKS)
+// STOCKS MODE — saisie game par game
 // ─────────────────────────────────────────────
 let medalsP1 = 0, medalsP2 = 0;
 
 function initStocksMode() {
+  stockGameHistory = [];
+  currentGameMinP1 = 0;
+  currentGameMinP2 = 0;
   medalsP1 = 0; medalsP2 = 0;
-  document.getElementById('medals-p1-label').textContent = P1_NAME + ' — médailles';
-  document.getElementById('medals-p2-label').textContent = P2_NAME + ' — médailles';
-  document.getElementById('medals-p1').value = 0;
-  document.getElementById('medals-p2').value = 0;
   p1Score = 0; p2Score = 0;
   updateScoreDisplay();
   updateDots([]);
+  renderStocksGames();
 }
 
-function changeMedals(player, delta) {
+// Construit / met à jour l'affichage de tous les games + game courant
+function renderStocksGames() {
+  const section = document.getElementById('stocks-section');
+  section.innerHTML = `<div class="section-title">🏅 MÉDAILLES — GAME PAR GAME</div>
+    <div id="stocks-games-list" style="display:flex;flex-direction:column;gap:0.8rem;margin-bottom:1.5rem;"></div>
+    <div id="current-game-block"></div>
+    <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
+      Entre les médailles <strong>cumulées</strong> à la fin de chaque game.<br>
+      Le minimum repart du total du game précédent.
+    </div>`;
+
+  // Historique des games déjà validés
+  const list = document.getElementById('stocks-games-list');
+  stockGameHistory.forEach((g, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex;align-items:center;justify-content:space-between;
+      background:var(--surface2);border:1px solid rgba(61,220,132,0.3);
+      border-radius:8px;padding:0.75rem 1.2rem;`;
+    const wName = g.p1 > g.p2 ? P1_NAME : P2_NAME;
+    const delta1 = g.p1 - (i > 0 ? stockGameHistory[i-1].p1 : 0);
+    const delta2 = g.p2 - (i > 0 ? stockGameHistory[i-1].p2 : 0);
+    row.innerHTML = `
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.85rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:2px;">
+        <span style="color:var(--blue)">${g.p1}</span>
+        <span style="color:var(--muted);margin:0 0.4rem;font-size:1rem;">—</span>
+        <span style="color:var(--accent)">${g.p2}</span>
+      </span>
+      <span style="font-size:0.75rem;color:var(--muted);">(+${delta1} / +${delta2})</span>
+      <span style="font-size:0.8rem;color:var(--green);font-weight:700;">${wName} wins</span>`;
+    list.appendChild(row);
+  });
+
+  // Game courant
+  const gameNum = stockGameHistory.length + 1;
+  const block = document.getElementById('current-game-block');
+  block.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--accent2);border-radius:10px;padding:1.2rem;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--accent2);margin-bottom:1rem;">
+        GAME ${gameNum} — MÉDAILLES CUMULÉES
+      </div>
+      <div class="stocks-inputs">
+        <div class="stock-input-group">
+          <div class="stock-input-label blue-label">${P1_NAME}</div>
+          <div class="stock-counter">
+            <button class="stock-btn" id="btn-p1-minus" onclick="changeStockGame('p1',-1)">−</button>
+            <input type="text" class="stock-value" id="sg-p1" value="${currentGameMinP1}" readonly>
+            <button class="stock-btn" onclick="changeStockGame('p1',1)">+</button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min : ${currentGameMinP1}</div>
+        </div>
+        <div class="stock-input-group">
+          <div class="stock-input-label red-label">${P2_NAME}</div>
+          <div class="stock-counter">
+            <button class="stock-btn" id="btn-p2-minus" onclick="changeStockGame('p2',-1)">−</button>
+            <input type="text" class="stock-value" id="sg-p2" value="${currentGameMinP2}" readonly>
+            <button class="stock-btn" onclick="changeStockGame('p2',1)">+</button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min : ${currentGameMinP2}</div>
+        </div>
+      </div>
+      <button class="game-confirm-btn" id="confirm-game-btn" onclick="confirmStockGame()" style="margin-top:1rem;">
+        ✅ VALIDER GAME ${gameNum}
+      </button>
+    </div>
+    ${stockGameHistory.length > 0 ? `
+    <button class="end-match-btn visible" id="end-match-btn" onclick="confirmEndMatch()" style="margin-top:1rem;">
+      🏆 TERMINER LE MATCH & SOUMETTRE
+    </button>` : ''}`;
+
+  // Sync valeurs courantes
+  medalsP1 = currentGameMinP1;
+  medalsP2 = currentGameMinP2;
+  updateMinusButtons();
+}
+
+function changeStockGame(player, delta) {
   if (player === 'p1') {
-    medalsP1 = Math.max(0, medalsP1 + delta);
-    document.getElementById('medals-p1').value = medalsP1;
+    const newVal = medalsP1 + delta;
+    if (newVal < currentGameMinP1) return;
+    medalsP1 = newVal;
+    document.getElementById('sg-p1').value = medalsP1;
     p1Score = medalsP1;
   } else {
-    medalsP2 = Math.max(0, medalsP2 + delta);
-    document.getElementById('medals-p2').value = medalsP2;
+    const newVal = medalsP2 + delta;
+    if (newVal < currentGameMinP2) return;
+    medalsP2 = newVal;
+    document.getElementById('sg-p2').value = medalsP2;
     p2Score = medalsP2;
   }
   updateScoreDisplay();
+  updateMinusButtons();
 }
+
+function updateMinusButtons() {
+  const bm1 = document.getElementById('btn-p1-minus');
+  const bm2 = document.getElementById('btn-p2-minus');
+  if (bm1) bm1.disabled = (medalsP1 <= currentGameMinP1);
+  if (bm2) bm2.disabled = (medalsP2 <= currentGameMinP2);
+}
+
+function confirmStockGame() {
+  const delta1 = medalsP1 - currentGameMinP1;
+  const delta2 = medalsP2 - currentGameMinP2;
+  if (delta1 === 0 && delta2 === 0) {
+    showToast('Entre au moins une médaille pour ce game !', false); return;
+  }
+  if (delta1 === delta2) {
+    showToast('Égalité impossible — il faut un vainqueur par game !', false); return;
+  }
+  // Enregistre le game
+  stockGameHistory.push({ p1: medalsP1, p2: medalsP2 });
+  currentGameMinP1 = medalsP1;
+  currentGameMinP2 = medalsP2;
+  // Met à jour les scores live (delta de ce game)
+  updateDots(stockGameHistory.map(g => {
+    const i = stockGameHistory.indexOf(g);
+    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
+    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
+    return (g.p1 - prev1) > (g.p2 - prev2) ? 'p1' : 'p2';
+  }));
+  renderStocksGames();
+}
+
+function changeMedals(player, delta) { changeStockGame(player, delta); } // alias compat
 
 // ─────────────────────────────────────────────
 // UI HELPERS
@@ -820,18 +910,18 @@ async function submitBO() {
 // ─────────────────────────────────────────────
 let pendingResult = null; // { winner_id, score, [stocks fields] }
 
-// ── MÉDAILLES : bouton SOUMETTRE ──
+// ── MÉDAILLES : bouton TERMINER ──
 function endMatch() {
-  if (medalsP1 === medalsP2) {
-    showToast('Les médailles sont égales — il doit y avoir un vainqueur !', false); return;
+  if (!stockGameHistory.length) {
+    showToast('Valide au moins un game avant de terminer !', false); return;
   }
-  if (medalsP1 === 0 && medalsP2 === 0) {
-    showToast('Entre le nombre de médailles avant de soumettre !', false); return;
+  const totalP1 = currentGameMinP1;
+  const totalP2 = currentGameMinP2;
+  if (totalP1 === totalP2) {
+    showToast('Égalité impossible — il faut un vainqueur !', false); return;
   }
 
-  const winnerId   = medalsP1 > medalsP2 ? P1_ID : P2_ID;
-  const totalP1    = medalsP1;
-  const totalP2    = medalsP2;
+  const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
   const winnerMeds = Math.max(totalP1, totalP2);
   const loserMeds  = Math.min(totalP1, totalP2);
 
@@ -843,18 +933,28 @@ function endMatch() {
     is_stocks_mode: true
   };
 
-  // Recap
+  // Recap : liste chaque game
   const gamesDiv = document.getElementById('recap-games');
-  gamesDiv.innerHTML = `
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
-      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">MÉDAILLES TOTALES</div>
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${totalP1}</span>
-      <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${totalP2}</span>
+  gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
+    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
+    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
+    const d1 = g.p1 - prev1, d2 = g.p2 - prev2;
+    const wName = d1 > d2 ? P1_NAME : P2_NAME;
+    const wColor = d1 > d2 ? 'var(--blue)' : 'var(--accent)';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;
+      background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
+        <span style="color:var(--blue)">${g.p1}</span>
+        <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
+        <span style="color:var(--accent)">${g.p2}</span>
+      </span>
+      <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
     </div>`;
+  }).join('');
+
   populateRecapTotals(totalP1, totalP2, winnerId);
   document.getElementById('recap-subtitle').textContent = 'MÉDAILLES — EN ATTENTE DE CONFIRMATION';
-
   document.getElementById('recap-my-actions').style.display = 'none';
   document.getElementById('recap-waiting').style.display = 'block';
   document.getElementById('stocks-recap').classList.add('show');
@@ -954,15 +1054,17 @@ async function contestRecap() {
   setTimeout(() => { window.location.href = '/dashboard'; }, 2500);
 }
 
-// ── Socket.IO : remplace le polling de match ──
-let _pollInterval = null; // conservé pour compat (non utilisé)
+// ── Socket.IO : socket UNIQUE — évite le bug reconnecting ──
+let _pollInterval = null;
 
 function startMatchPolling() {
-  const socket = io({ transports: ['websocket'], upgrade: false });
-  socket.on('connect', () => {
-    socket.emit('join_match', { challenge_id: CHALLENGE_ID });
+  if (matchSocket) return; // déjà connecté — ne pas créer un second socket
+  matchSocket = io({ transports: ['websocket'], upgrade: false });
+  matchSocket.on('connect', () => {
+    matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
+    matchSocket.emit('join_user', {});
   });
-  socket.on('match_update', (d) => {
+  matchSocket.on('match_update', (d) => {
     if (d.status === 'completed') {
       document.getElementById('stocks-recap').classList.remove('show');
       showWinner(d.winner_id, d.score || '');
@@ -1059,8 +1161,7 @@ function showWinner(winnerId, score) {
 
 // ── Stocks end match confirmation ──
 function confirmEndMatch() {
-  const lockedGames = stockGames.filter(g => g.locked);
-  if (!lockedGames.length) { showToast('No games confirmed yet!', false); return; }
+  if (!stockGameHistory.length) { showToast('Valide au moins un game avant de terminer !', false); return; }
   const overlay = document.getElementById('confirm-end-overlay');
   overlay.style.display = 'flex';
 }
