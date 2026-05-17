@@ -66,6 +66,9 @@ const env = nunjucks.configure(path.join(__dirname, 'templates'), {
 
 // Filtre tojson pour compatibilité Jinja
 env.addFilter('tojson', (val) => JSON.stringify(val));
+env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
+env.addFilter('int', (val) => parseInt(val, 10));
+env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
 
 // ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
 
@@ -344,7 +347,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
     const data   = await dashboardData(userId);
-    res.render('dashboard.html', { user: req.session.user, ...data });
+    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches) });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
