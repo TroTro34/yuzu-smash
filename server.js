@@ -265,6 +265,23 @@ io.on('connection', (socket) => {
     const cid = data?.challenge_id || '';
     if (validateId(cid)) socket.leave(`match_${cid}`);
   });
+
+  // ── MATCH CHAT ──
+  socket.on('chat_message', (data) => {
+    const uid  = req.session?.user?.id;
+    const name = req.session?.user?.username;
+    if (!uid || !name) return;
+    const cid = data?.challenge_id || '';
+    if (!validateId(cid)) return;
+    const text = String(data?.text || '').trim().slice(0, 200);
+    if (!text) return;
+    io.to(`match_${cid}`).emit('chat_message', {
+      uid,
+      name,
+      text,
+      ts: Date.now(),
+    });
+  });
 });
 
 // ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
