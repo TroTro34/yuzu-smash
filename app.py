@@ -295,8 +295,10 @@ def accept_challenge(challenge_id):
     c = challenges[0]
     if c["challenged_id"] != user_id: return jsonify({"error": "Not your challenge to accept"}), 403
     if c["status"] != "pending": return jsonify({"error": "Challenge is no longer pending"}), 400
-    # Le format a déjà été choisi par le challenger à l'envoi — on ne l'écrase plus
-    sb_patch("challenges", {"id": challenge_id}, {"status": "accepted"})
+    # Mise à jour Supabase en arrière-plan pour répondre immédiatement au client
+    def _do_accept():
+        sb_patch("challenges", {"id": challenge_id}, {"status": "accepted"})
+    ThreadPoolExecutor(max_workers=1).submit(_do_accept)
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/decline", methods=["POST"])
@@ -354,14 +356,18 @@ def accept_lfm(post_id):
     post = posts[0]
     if post["player_id"] == user_id: return jsonify({"error": "You can't accept your own post"}), 400
     cid = f"ch_{int(datetime.now().timestamp())}_{user_id}"
-    sb_post("challenges", {
-        "id": cid, "challenger_id": user_id,
-        "challenger_name": session["user"]["username"],
-        "challenged_id": post["player_id"],
-        "challenged_name": post["player_name"],
-        "status": "accepted", "format": post["format"]
-    })
-    sb_delete("lfm_posts", {"id": post_id})
+    challenger_name = session["user"]["username"]
+    # Écriture Supabase en arrière-plan — réponse immédiate au client
+    def _do_accept_lfm():
+        sb_post("challenges", {
+            "id": cid, "challenger_id": user_id,
+            "challenger_name": challenger_name,
+            "challenged_id": post["player_id"],
+            "challenged_name": post["player_name"],
+            "status": "accepted", "format": post["format"]
+        })
+        sb_delete("lfm_posts", {"id": post_id})
+    ThreadPoolExecutor(max_workers=1).submit(_do_accept_lfm)
     return jsonify({"success": True, "challenge_id": cid})
 
 @app.route("/lfm/<post_id>/cancel", methods=["POST"])
