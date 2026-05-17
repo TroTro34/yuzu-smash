@@ -428,10 +428,12 @@ app.get('/api/match_status/:challenge_id', requireAuth, async (req, res) => {
 });
 
 app.post('/api/update_profile', requireAuth, async (req, res) => {
-  const userId        = req.session.user.id;
-  const main_char     = sanitizeStr(req.body.main_char || '', MAX_CHAR_NAME);
-  const secondary_char = sanitizeStr(req.body.secondary_char || '', MAX_CHAR_NAME);
-  await sbPatch('players', { id: userId }, { main_char, secondary_char });
+  const userId = req.session.user.id;
+  const update = {};
+  if (req.body.main_char      !== undefined) update.main_char      = sanitizeStr(req.body.main_char,      MAX_CHAR_NAME);
+  if (req.body.secondary_char !== undefined) update.secondary_char = sanitizeStr(req.body.secondary_char, MAX_CHAR_NAME);
+  if (!Object.keys(update).length) return res.json({ success: true });
+  await sbPatch('players', { id: userId }, update);
   res.json({ success: true });
 });
 
@@ -451,6 +453,12 @@ app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
   await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: req.session.user.username,
     challenged_id: opponent_id, challenged_name: opponent[0].username, status: 'pending', format: fmt });
+  // Notify challenged player with dedicated event for popup
+  io.to(`user_${opponent_id}`).emit('new_challenge', {
+    challenger_name: req.session.user.username,
+    format: fmt,
+    challenge_id: cid,
+  });
   await Promise.all([emitDashboardUpdate(opponent_id), emitDashboardUpdate(userId)]);
   res.json({ success: true });
 });
@@ -535,6 +543,9 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
     challenger_name: req.session.user.username, challenged_id: post.player_id,
     challenged_name: post.player_name, status: 'accepted', format: post.format });
   await sbDelete('lfm_posts', { id: post_id });
+  // Redirect BOTH players to the match page via Socket.IO
+  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid });
+  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
 });
 
@@ -563,10 +574,30 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
 
   const { winner_id, score: rawScore } = req.body;
   const isStocks = c.format === 'STOCKS';
-  const wSt = validateStocks(req.body.winner_stocks_taken ?? 0);
-  const lSt = validateStocks(req.body.loser_stocks_taken  ?? 0);
-  if (wSt === null || lSt === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
-  const score = isStocks ? `${wSt}-${lSt}` : sanitizeStr(rawScore || '', 20);
+
+  // En mode STOCKS : le front envoie les TOTAUX CUMULÉS sur l'ensemble des matchs.
+  // On calcule le delta = total saisi - total précédemment enregistré.
+  let wStRaw = parseInt(req.body.winner_stocks_taken ?? 0, 10);
+  let lStRaw = parseInt(req.body.loser_stocks_taken  ?? 0, 10);
+  if (isNaN(wStRaw) || isNaN(lStRaw) || wStRaw < 0 || lStRaw < 0) {
+    return res.status(400).json({ error: 'Stocks must be >= 0' });
+  }
+
+  let wSt = wStRaw, lSt = lStRaw;
+  let scoreStr;
+
+  if (isStocks) {
+    const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
+    const prevW = prev.winner_stocks_total || 0;
+    const prevL = prev.loser_stocks_total  || 0;
+    wSt = Math.max(0, wStRaw - prevW); // delta pour ce match
+    lSt = Math.max(0, lStRaw - prevL);
+    scoreStr = `${wStRaw}-${lStRaw}`; // score = totaux pour l'affichage
+  } else {
+    const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
+    if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
+    scoreStr = sanitizeStr(rawScore || '', 20);
+  }
 
   if (![c.challenger_id, c.challenged_id].includes(winner_id)) return res.status(400).json({ error: 'Invalid winner' });
   const loser_id = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
@@ -574,7 +605,12 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   if (c.status === 'accepted') {
     await sbPatch('challenges', { id: challenge_id }, {
       status: 'reported', reported_by: userId,
-      report: { winner_id, score, winner_stocks_taken: wSt, loser_stocks_taken: lSt, is_stocks_mode: isStocks }
+      report: {
+        winner_id, score: scoreStr,
+        winner_stocks_taken: wSt, loser_stocks_taken: lSt,
+        winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
+        is_stocks_mode: isStocks
+      }
     });
     await emitMatchUpdate(challenge_id);
     return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
@@ -602,7 +638,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             stocks_lost: (loser.stocks_lost || 0) + (report.loser_stocks_taken || 0) }),
           sbPost('matches', { challenge_id, winner_id, winner_name: winner.username,
             winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
-            loser_main: loser.main_char || '', score: report.score || score,
+            loser_main: loser.main_char || '', score: report.score || scoreStr,
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
