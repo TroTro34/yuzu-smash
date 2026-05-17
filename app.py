@@ -96,7 +96,7 @@ def calc_elo_stocks(winner_pts, loser_pts, winner_stocks_taken, loser_stocks_tak
 import re
 
 VALID_ID_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
-VALID_FORMATS = {"BO3", "BO5", "STOCKS"}
+VALID_FORMATS = {"BO1", "BO3", "BO5", "STOCKS"}
 VALID_MODES   = {"sets", "stocks"}
 MAX_CHAR_NAME = 32    # longueur max d'un nom de perso
 MAX_MESSAGE   = 200   # longueur max du message LFM
@@ -167,42 +167,6 @@ def api_dashboard():
         return jsonify({"error": "Unauthorized"}), 401
     data = _dashboard_data(session["user"]["id"])
     return jsonify(data)
-
-
-# -- SSE push instantane quand un challenge est accepte -----------------------
-import threading
-import queue as _queue
-
-_sse_listeners = {}   # challenge_id -> list of Queue
-_sse_lock = threading.Lock()
-
-def _sse_notify(challenge_id):
-    with _sse_lock:
-        for q in _sse_listeners.get(challenge_id, []):
-            try: q.put_nowait("accepted")
-            except Exception: pass
-
-@app.route("/api/challenge_watch/<challenge_id>")
-def challenge_watch(challenge_id):
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-    if not validate_id(challenge_id):
-        return jsonify({"error": "Invalid ID"}), 400
-    q = _queue.Queue()
-    with _sse_lock:
-        _sse_listeners.setdefault(challenge_id, []).append(q)
-    def stream():
-        try:
-            msg = q.get(timeout=30)
-            yield "data: " + msg + "\n\n"
-        except Exception:
-            yield "data: timeout\n\n"
-        finally:
-            with _sse_lock:
-                lst = _sse_listeners.get(challenge_id, [])
-                if q in lst: lst.remove(q)
-    return app.response_class(stream(), mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
@@ -354,9 +318,13 @@ def challenge(opponent_id):
     if not opponent: return jsonify({"error": "Player not found"}), 404
     existing = sb_get("challenges", f"status=in.(pending,accepted)&or=(and(challenger_id.eq.{user_id},challenged_id.eq.{opponent_id}),and(challenger_id.eq.{opponent_id},challenged_id.eq.{user_id}))")
     if existing: return jsonify({"error": "A challenge is already pending between you"}), 400
+    data = request.json or {}
+    fmt = data.get("format", "BO3")
+    if fmt not in VALID_FORMATS:
+        return jsonify({"error": f"Invalid format"}), 400
     cid = f"ch_{secrets.token_hex(8)}"
     sb_post("challenges", {"id": cid, "challenger_id": user_id, "challenger_name": session["user"]["username"],
-        "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": None})
+        "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": fmt})
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/accept", methods=["POST"])
@@ -372,7 +340,6 @@ def accept_challenge(challenge_id):
     # Mise à jour Supabase en arrière-plan pour répondre immédiatement au client
     def _do_accept():
         sb_patch("challenges", {"id": challenge_id}, {"status": "accepted"})
-        _sse_notify(challenge_id)   # reveille instantanement le challenger
     ThreadPoolExecutor(max_workers=1).submit(_do_accept)
     return jsonify({"success": True})
 
