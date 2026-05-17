@@ -321,11 +321,11 @@ def challenge(opponent_id):
     data = request.json or {}
     fmt = data.get("format", "BO3")
     if fmt not in VALID_FORMATS:
-        return jsonify({"error": "Invalid format"}), 400
+        return jsonify({"error": f"Invalid format. Must be one of: {', '.join(sorted(VALID_FORMATS))}"}), 400
     cid = f"ch_{secrets.token_hex(8)}"
     sb_post("challenges", {"id": cid, "challenger_id": user_id, "challenger_name": session["user"]["username"],
         "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": fmt})
-    return jsonify({"success": True, "challenge_id": cid})
+    return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/accept", methods=["POST"])
 def accept_challenge(challenge_id):
