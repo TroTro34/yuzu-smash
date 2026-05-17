@@ -3,6 +3,7 @@ import json
 import secrets
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 from flask_session import Session
+from flask_socketio import SocketIO, join_room, leave_room, emit
 import requests
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -17,6 +18,8 @@ app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_FILE_DIR"] = "/tmp/flask_sessions"
 app.config["PERMANENT_SESSION_LIFETIME"] = 86400
 Session(app)
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 CLIENT_ID = "1504467669712240861"
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
@@ -325,6 +328,8 @@ def challenge(opponent_id):
     cid = f"ch_{secrets.token_hex(8)}"
     sb_post("challenges", {"id": cid, "challenger_id": user_id, "challenger_name": session["user"]["username"],
         "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": fmt})
+    emit_dashboard_update(opponent_id)
+    emit_dashboard_update(user_id)
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/accept", methods=["POST"])
@@ -340,6 +345,8 @@ def accept_challenge(challenge_id):
     # Mise à jour Supabase en arrière-plan pour répondre immédiatement au client
     def _do_accept():
         sb_patch("challenges", {"id": challenge_id}, {"status": "accepted"})
+        emit_dashboard_update(c["challenger_id"])
+        emit_dashboard_update(c["challenged_id"])
     ThreadPoolExecutor(max_workers=1).submit(_do_accept)
     return jsonify({"success": True})
 
@@ -354,6 +361,8 @@ def decline_challenge(challenge_id):
     if c["challenged_id"] != user_id: return jsonify({"error": "Not your challenge to decline"}), 403
     if c["status"] != "pending": return jsonify({"error": "Challenge is no longer pending"}), 400
     sb_patch("challenges", {"id": challenge_id}, {"status": "declined"})
+    emit_dashboard_update(c["challenger_id"])
+    emit_dashboard_update(c["challenged_id"])
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/cancel", methods=["POST"])
@@ -367,6 +376,8 @@ def cancel_challenge(challenge_id):
     if c["challenger_id"] != user_id: return jsonify({"error": "Only the challenger can cancel"}), 403
     if c["status"] != "pending": return jsonify({"error": "Can only cancel pending challenges"}), 400
     sb_delete("challenges", {"id": challenge_id})
+    emit_dashboard_update(c["challenged_id"])
+    emit_dashboard_update(c["challenger_id"])
     return jsonify({"success": True})
 
 @app.route("/lfm", methods=["POST"])
@@ -421,6 +432,9 @@ def accept_lfm(post_id):
             "status": "accepted", "format": post["format"]
         })
         sb_delete("lfm_posts", {"id": post_id})
+        emit_dashboard_update(user_id)
+        emit_dashboard_update(post["player_id"])
+        emit_leaderboard_update()
     ThreadPoolExecutor(max_workers=1).submit(_do_accept_lfm)
     return jsonify({"success": True, "challenge_id": cid})
 
@@ -517,6 +531,7 @@ def submit_result(challenge_id):
                        "loser_stocks_taken": loser_stocks_taken,
                        "is_stocks_mode": is_stocks_mode}
         })
+        emit_match_update(challenge_id)
         return jsonify({"success": True, "message": "Result submitted! Waiting for opponent confirmation."})
 
     if c["status"] == "reported" and c.get("reported_by") != user_id:
@@ -566,12 +581,74 @@ def submit_result(challenge_id):
                     "elo_change": elo_gain, "date": datetime.now().isoformat()
                 })
                 sb_patch("challenges", {"id": challenge_id}, {"status": "completed"})
+                emit_match_update(challenge_id)
+                emit_leaderboard_update()
                 return jsonify({"success": True, "message": f"Match validated! +{elo_gain} ELO for the winner."})
         else:
             sb_patch("challenges", {"id": challenge_id}, {"status": "disputed"})
+            emit_match_update(challenge_id)
             return jsonify({"success": True, "message": "Conflict detected! Contact an admin."})
 
     return jsonify({"error": "Invalid action"}), 400
 
+# ── SOCKETIO EVENTS ──────────────────────────────────────────────────────────
+
+@socketio.on("join_user")
+def on_join_user(data):
+    """Le client rejoint sa room personnelle (son user_id)."""
+    uid = session.get("user", {}).get("id")
+    if uid:
+        join_room(f"user_{uid}")
+
+@socketio.on("join_match")
+def on_join_match(data):
+    """Le client rejoint la room d'un match spécifique."""
+    challenge_id = data.get("challenge_id", "")
+    if validate_id(challenge_id):
+        join_room(f"match_{challenge_id}")
+
+@socketio.on("leave_match")
+def on_leave_match(data):
+    challenge_id = data.get("challenge_id", "")
+    if validate_id(challenge_id):
+        leave_room(f"match_{challenge_id}")
+
+def emit_dashboard_update(user_id):
+    """Pousse une mise à jour du dashboard à un joueur précis."""
+    try:
+        data = _dashboard_data(user_id)
+        socketio.emit("dashboard_update", data, to=f"user_{user_id}")
+    except Exception as e:
+        print(f"[emit_dashboard_update] {e}")
+
+def emit_match_update(challenge_id):
+    """Pousse le statut d'un match à ses deux participants."""
+    try:
+        challenges = sb_get("challenges", f"id=eq.{challenge_id}")
+        if not challenges:
+            return
+        c = challenges[0]
+        payload = {
+            "status": c["status"],
+            "reported_by": c.get("reported_by"),
+            "report": c.get("report"),
+            "winner_id": (c.get("report") or {}).get("winner_id") if isinstance(c.get("report"), dict) else None,
+            "score": (c.get("report") or {}).get("score") if isinstance(c.get("report"), dict) else None,
+        }
+        socketio.emit("match_update", payload, to=f"match_{challenge_id}")
+        # Aussi pousser le dashboard aux deux joueurs
+        for uid in [c["challenger_id"], c["challenged_id"]]:
+            emit_dashboard_update(uid)
+    except Exception as e:
+        print(f"[emit_match_update] {e}")
+
+def emit_leaderboard_update():
+    """Pousse une mise à jour du leaderboard à tous les clients."""
+    try:
+        data = _leaderboard_data()
+        socketio.emit("leaderboard_update", data)
+    except Exception as e:
+        print(f"[emit_leaderboard_update] {e}")
+
 if __name__ == "__main__":
-    app.run(debug=False, threaded=True)
+    socketio.run(app, debug=False)
