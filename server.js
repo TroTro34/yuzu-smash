@@ -244,6 +244,10 @@ async function emitLeaderboardUpdate() {
 
 // ── SOCKET.IO EVENTS ──────────────────────────────────────────────────────────
 
+// In-memory chat history per match (max 50 messages)
+const chatHistory = new Map();
+const CHAT_MAX = 50;
+
 io.on('connection', (socket) => {
   const req = socket.request;
 
@@ -259,7 +263,10 @@ io.on('connection', (socket) => {
 
   socket.on('join_match', (data) => {
     const cid = data?.challenge_id || '';
-    if (validateId(cid)) socket.join(`match_${cid}`);
+    if (!validateId(cid)) return;
+    socket.join(`match_${cid}`);
+    const history = chatHistory.get(cid) || [];
+    if (history.length) socket.emit('chat_history', history);
   });
 
   socket.on('leave_match', (data) => {
@@ -274,7 +281,10 @@ io.on('connection', (socket) => {
     const text = (data?.text || '').toString().slice(0, 200).trim();
     if (!uid || !validateId(cid) || !text) return;
     const payload = { uid, name, text, ts: new Date().toISOString() };
-    // Broadcast to both players in this match room (sender included)
+    if (!chatHistory.has(cid)) chatHistory.set(cid, []);
+    const hist = chatHistory.get(cid);
+    hist.push(payload);
+    if (hist.length > CHAT_MAX) hist.shift();
     io.to(`match_${cid}`).emit('chat_message', payload);
   });
 });
@@ -656,6 +666,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
         ]);
         await emitMatchUpdate(challenge_id);
         await emitLeaderboardUpdate();
+        chatHistory.delete(challenge_id); // clear chat history on match end
         return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
       }
     } else {
