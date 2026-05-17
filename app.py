@@ -1,5 +1,6 @@
 import hashlib
 import json
+import secrets
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 import requests
 import os
@@ -7,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "yuzu_dev_secret")
+app.secret_key = os.environ["SECRET_KEY"]  # Plante au démarrage si absente — voulu
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -160,10 +161,18 @@ def index():
 
 @app.route("/login")
 def login():
-    return redirect(DISCORD_AUTH_URL)
+    state = secrets.token_hex(16)
+    session["oauth_state"] = state
+    return redirect(DISCORD_AUTH_URL + f"&state={state}")
 
 @app.route("/callback")
 def callback():
+    # Vérification du state OAuth2 (protection CSRF)
+    state_received = request.args.get("state")
+    state_expected = session.pop("oauth_state", None)
+    if not state_received or state_received != state_expected:
+        return "Invalid state — possible CSRF attack.", 403
+
     code = request.args.get("code")
     if not code:
         return redirect(url_for("index"))
