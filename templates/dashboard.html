@@ -961,40 +961,9 @@ function sendChallenge(id, name, fmt) {
     .then(r=>r.json()).then(d=>{
     if(d.success) {
       showToast('Challenge sent to ' + name + ' [' + fmt + ']!');
-      watchChallengeStatus(d.challenge_id || id, name, fmt);
+      pollBurst(); // Poll rapide : détecte l'acceptation en ~500ms
     } else showToast(d.error, false);
   });
-}
-
-// Poll leger sur /api/match_status — une seule requete Supabase,
-// bien plus rapide que /api/dashboard qui en fait 3.
-function watchChallengeStatus(challengeId, opponentName, fmt) {
-  let stopped = false;
-
-  async function check() {
-    if (stopped) return;
-    try {
-      const r = await fetch('/api/match_status/' + challengeId);
-      if (r.ok) {
-        const d = await r.json();
-        if (d.status === 'accepted') {
-          stopped = true;
-          showMatchFound(myName, opponentName);
-          polling = false;
-          setTimeout(() => { window.location.href = '/match/' + challengeId; }, 2800);
-          return;
-        }
-        if (d.status === 'declined' || d.status === 'cancelled') {
-          stopped = true;
-          showToast(opponentName + ' declined the challenge.', false);
-          return;
-        }
-      }
-    } catch(e) {}
-    setTimeout(check, 500);
-  }
-
-  check();
 }
 
 function acceptChallenge(cid, challengerName, myPlayerName) {
