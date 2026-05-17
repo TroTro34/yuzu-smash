@@ -403,7 +403,7 @@
     <div id="zone-defis">
       {% if challenges_received %}
       <div class="section-title">INCOMING CHALLENGES</div>
-      {% for cid, c in challenges_received.items() %}
+      {% for cid, c in challenges_received %}
       <div class="challenge-card pending">
         <div class="challenge-top">
           <div>
@@ -423,7 +423,7 @@
     <div id="zone-envoyes">
       {% if challenges_sent %}
       <div class="section-title">CHALLENGES SENT</div>
-      {% for cid, c in challenges_sent.items() %}
+      {% for cid, c in challenges_sent %}
       <div class="challenge-card pending" style="border-left-color:var(--muted);">
         <div class="challenge-top">
           <div>
@@ -441,7 +441,7 @@
     <div id="zone-matchs">
       {% if active_matches %}
       <div class="section-title">ACTIVE MATCHES</div>
-      {% for cid, c in active_matches.items() %}
+      {% for cid, c in active_matches %}
       <div class="challenge-card active">
         <div class="challenge-top">
           <div>
@@ -461,7 +461,7 @@
     <div id="zone-attente">
       {% if awaiting_confirmation %}
       <div class="section-title">AWAITING YOUR CONFIRMATION</div>
-      {% for cid, c in awaiting_confirmation.items() %}
+      {% for cid, c in awaiting_confirmation %}
       <div class="challenge-card awaiting">
         <div class="challenge-top">
           <div>
@@ -494,7 +494,7 @@
     <div class="players-grid" id="players-grid">
       {% for p in players %}
         {% if p.id != user.id %}
-        {% set pwr = (p.wins / p.matches_played * 100)|round(0)|int if p.matches_played > 0 else 0 %}
+        {% set pwr = (p.wins / p.matches_played * 100)|round if p.matches_played > 0 else 0 %}
         <div class="player-card" data-name="{{ p.username|lower }}">
           <div class="player-card-left">
             {% if p.avatar %}
@@ -804,23 +804,13 @@ function saveChar(slot, charId, charName) {
 }
 
 // Track which active matches we've already seen (to avoid redirecting on first load)
-const seenActiveMatches = new Set({{ active_matches.keys()|list|tojson }});
+const seenActiveMatches = new Set({{ active_match_ids|tojson }});
 
 // ── SOCKET.IO ────────────────────────────────────────────────
 const socket = io({ transports: ['websocket'], upgrade: false });
 
 socket.on('connect', () => {
-  // Retry join_user avec ack pour survivre aux sessions manquantes au premier connect
-  let attempts = 0;
-  function tryJoin() {
-    socket.emit('join_user', {}, (ack) => {
-      if (!ack && attempts < 5) {
-        attempts++;
-        setTimeout(tryJoin, 1200);
-      }
-    });
-  }
-  tryJoin();
+  socket.emit('join_user', {});
   const dot   = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
   dot.style.background = 'var(--green)';
