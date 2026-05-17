@@ -1156,16 +1156,19 @@ async function contestRecap() {
   setTimeout(() => { window.location.href = '/dashboard'; }, 2500);
 }
 
-// ── Socket.IO : socket UNIQUE — évite le bug reconnecting ──
-let _pollInterval = null;
-
+// ── Socket.IO : socket UNIQUE créé dès le chargement ──
 function startMatchPolling() {
-  if (matchSocket) return; // déjà connecté — ne pas créer un second socket
+  if (matchSocket) return; // déjà connecté
+
   matchSocket = io({ transports: ['websocket'], upgrade: false });
+
   matchSocket.on('connect', () => {
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
+    // Une fois dans la room, vérifier l'état initial (opponent a peut-être déjà soumis)
+    checkInitialState();
   });
+
   matchSocket.on('match_update', (d) => {
     if (d.status === 'completed') {
       document.getElementById('stocks-recap').classList.remove('show');
@@ -1180,6 +1183,7 @@ function startMatchPolling() {
       }
     }
   });
+
   matchSocket.on('chat_message', (d) => { chatReceive(d); });
 }
 
@@ -1336,7 +1340,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 init();
-checkInitialState();
 startMatchPolling();
 </script>
 
