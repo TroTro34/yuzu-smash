@@ -483,32 +483,37 @@
       </div>
     </div>
 
-    <!-- STOCKS MODE -->
+    <!-- STOCKS MODE — MÉDAILLES -->
     <div id="stocks-section" style="display:none;">
-      <div class="section-title">STOCKS MODE — GAME BY GAME</div>
-      <div class="stocks-section" id="games-container"></div>
+      <div class="section-title">🏅 MÉDAILLES — FIN DE MATCH</div>
+      <div style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem;text-align:center;">
+        Entre le nombre total de médailles de chaque joueur à la fin du match
+      </div>
 
-      <!-- Running totals -->
-      <div class="stocks-totals" id="stocks-totals">
-        <div class="section-title" style="margin-bottom:1rem;">TOTALS</div>
-        <div class="totals-row">
-          <div class="total-box">
-            <span class="t-val" id="total-p1" style="color:var(--blue);">0</span>
-            <div class="t-lbl" id="total-p1-name">Player 1</div>
+      <div class="stocks-inputs" style="max-width:500px;margin:0 auto 1.5rem;">
+        <div class="stock-input-group">
+          <div class="stock-input-label blue-label" id="medals-p1-label">Joueur 1 — médailles</div>
+          <div class="stock-counter">
+            <button class="stock-btn" onclick="changeMedals('p1',-1)">−</button>
+            <input type="text" class="stock-value" id="medals-p1" value="0" readonly>
+            <button class="stock-btn" onclick="changeMedals('p1',1)">+</button>
           </div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--muted);">VS</div>
-          <div class="total-box">
-            <span class="t-val" id="total-p2" style="color:var(--accent);">0</span>
-            <div class="t-lbl" id="total-p2-name">Player 2</div>
+        </div>
+        <div class="stock-input-group">
+          <div class="stock-input-label red-label" id="medals-p2-label">Joueur 2 — médailles</div>
+          <div class="stock-counter">
+            <button class="stock-btn" onclick="changeMedals('p2',-1)">−</button>
+            <input type="text" class="stock-value" id="medals-p2" value="0" readonly>
+            <button class="stock-btn" onclick="changeMedals('p2',1)">+</button>
           </div>
         </div>
       </div>
 
-      <button class="end-match-btn" id="end-match-btn" onclick="confirmEndMatch()">
-        🏆 END MATCH & SUBMIT
+      <button class="end-match-btn visible" id="end-match-btn" onclick="confirmEndMatch()">
+        🏆 SOUMETTRE LE RÉSULTAT
       </button>
       <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
-        Results are saved after each game — safe if app crashes
+        Les deux joueurs devront confirmer le résultat
       </div>
     </div>
 
@@ -629,7 +634,7 @@ const MY_ID        = "{{ user.id }}";
 // ── STATE ──
 let p1Score = 0, p2Score = 0;
 let selectedResult = null; // { winner_id, score, p1wins, p2wins }
-let stockGames = []; // [{p1: stocks_taken, p2: stocks_taken, locked: bool}]
+let stockGames = []; // unused in medals mode — kept for compat
 let totalGames = 0;
 
 // ── INIT ──
@@ -720,146 +725,32 @@ function buildScoreOption(wWins, lLoses, winnerKey) {
 }
 
 // ─────────────────────────────────────────────
-// STOCKS MODE
+// MEDALS MODE (anciennement STOCKS)
 // ─────────────────────────────────────────────
+let medalsP1 = 0, medalsP2 = 0;
+
 function initStocksMode() {
-  // Start with 1 game, add more after confirming each
-  stockGames = [{ p1: 0, p2: 0, locked: false }];
-  totalGames = 1;
-  renderStockGames();
+  medalsP1 = 0; medalsP2 = 0;
+  document.getElementById('medals-p1-label').textContent = P1_NAME + ' — médailles';
+  document.getElementById('medals-p2-label').textContent = P2_NAME + ' — médailles';
+  document.getElementById('medals-p1').value = 0;
+  document.getElementById('medals-p2').value = 0;
+  p1Score = 0; p2Score = 0;
+  updateScoreDisplay();
   updateDots([]);
 }
 
-function renderStockGames() {
-  const container = document.getElementById('games-container');
-  container.innerHTML = '';
-
-  stockGames.forEach((game, idx) => {
-    const div = document.createElement('div');
-    div.className = 'game-round' + (game.locked ? ' completed' : ' current');
-    div.id = `game-${idx}`;
-
-    const maxStocks = 4;
-    const isLocked = game.locked;
-
-    div.innerHTML = `
-      <div class="game-round-header">
-        <div class="game-round-title">GAME ${idx + 1}</div>
-        ${isLocked ? `<div class="game-round-result">✓ ${getGameWinner(game)} — ${game.p1} vs ${game.p2}</div>` : '<div style="font-size:0.75rem;color:var(--muted);">Enter stocks taken</div>'}
-      </div>
-      ${isLocked ? '' : `
-      <div class="stocks-inputs">
-        <div class="stock-input-group">
-          <div class="stock-input-label blue-label">${P1_NAME} stocks taken</div>
-          <div class="stock-counter">
-            <button class="stock-btn" onclick="changeStock(${idx},'p1',-1)" id="btn-dec-p1-${idx}">−</button>
-            <input type="text" class="stock-value" id="sv-p1-${idx}" value="${game.p1}" readonly>
-            <button class="stock-btn" onclick="changeStock(${idx},'p1',1)" id="btn-inc-p1-${idx}">+</button>
-          </div>
-          <div class="stock-pips" id="pips-p1-${idx}">
-            ${buildPips(game.p1, maxStocks, 'blue')}
-          </div>
-        </div>
-        <div class="stock-input-group">
-          <div class="stock-input-label red-label">${P2_NAME} stocks taken</div>
-          <div class="stock-counter">
-            <button class="stock-btn" onclick="changeStock(${idx},'p2',-1)" id="btn-dec-p2-${idx}">−</button>
-            <input type="text" class="stock-value" id="sv-p2-${idx}" value="${game.p2}" readonly>
-            <button class="stock-btn" onclick="changeStock(${idx},'p2',1)" id="btn-inc-p2-${idx}">+</button>
-          </div>
-          <div class="stock-pips" id="pips-p2-${idx}">
-            ${buildPips(game.p2, maxStocks, 'red')}
-          </div>
-        </div>
-      </div>
-      <button class="game-confirm-btn" id="confirm-game-${idx}" onclick="confirmGame(${idx})">
-        ✓ CONFIRM GAME ${idx + 1}
-      </button>
-      `}
-    `;
-    container.appendChild(div);
-  });
-
-  updateStockTotals();
-}
-
-function buildPips(filled, total, color) {
-  let html = '';
-  for (let i = 0; i < total; i++) {
-    html += `<div class="stock-pip ${i < filled ? 'filled ' + color : ''}"></div>`;
+function changeMedals(player, delta) {
+  if (player === 'p1') {
+    medalsP1 = Math.max(0, medalsP1 + delta);
+    document.getElementById('medals-p1').value = medalsP1;
+    p1Score = medalsP1;
+  } else {
+    medalsP2 = Math.max(0, medalsP2 + delta);
+    document.getElementById('medals-p2').value = medalsP2;
+    p2Score = medalsP2;
   }
-  return html;
-}
-
-function getGameWinner(game) {
-  if (game.p1 > game.p2) return P1_NAME + ' wins';
-  if (game.p2 > game.p1) return P2_NAME + ' wins';
-  return 'Tie (check manually)';
-}
-
-function changeStock(gameIdx, player, delta) {
-  const maxStocks = 4;
-  const game = stockGames[gameIdx];
-  const newVal = Math.max(0, Math.min(maxStocks, game[player] + delta));
-  game[player] = newVal;
-
-  const svEl = document.getElementById(`sv-${player}-${gameIdx}`);
-  if (svEl) svEl.value = newVal;
-  const pipsEl = document.getElementById(`pips-${player}-${gameIdx}`);
-  if (pipsEl) pipsEl.innerHTML = buildPips(newVal, maxStocks, player === 'p1' ? 'blue' : 'red');
-
-  updateStockTotals();
-}
-
-function confirmGame(gameIdx) {
-  const game = stockGames[gameIdx];
-  if (game.p1 === 0 && game.p2 === 0) {
-    showToast('Enter at least 1 stock taken per player!', false); return;
-  }
-  if (game.p1 === game.p2) {
-    showToast('Stocks taken cannot be equal — one player must have taken more!', false); return;
-  }
-
-  game.locked = true;
-
-  // Update dot for this game
-  const dotWinner = game.p1 > game.p2 ? 'p1' : 'p2';
-  const currentDots = Array.from(document.querySelectorAll('#game-dots .game-dot')).map(d =>
-    d.classList.contains('p1') ? 'p1' : d.classList.contains('p2') ? 'p2' : null
-  ).filter(Boolean);
-  currentDots.push(dotWinner);
-  updateDots(currentDots);
-
-  // Update live scores
-  let t1 = 0, t2 = 0;
-  stockGames.forEach(g => { if (g.locked) { t1 += g.p1; t2 += g.p2; } });
-  p1Score = t1; p2Score = t2;
   updateScoreDisplay();
-
-  // Add next game
-  stockGames.push({ p1: 0, p2: 0, locked: false });
-  renderStockGames();
-
-  // Show end match button
-  document.getElementById('end-match-btn').classList.add('visible');
-  document.getElementById('stocks-totals').classList.add('visible');
-
-  showToast(`Game ${gameIdx + 1} saved ✓`, true);
-
-  // Scroll to new game
-  setTimeout(() => {
-    const newGame = document.getElementById(`game-${gameIdx + 1}`);
-    if (newGame) newGame.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 200);
-}
-
-function updateStockTotals() {
-  let t1 = 0, t2 = 0;
-  stockGames.forEach(g => { if (g.locked) { t1 += g.p1; t2 += g.p2; } });
-  document.getElementById('total-p1').textContent = t1;
-  document.getElementById('total-p2').textContent = t2;
-  document.getElementById('total-p1-name').textContent = P1_NAME;
-  document.getElementById('total-p2-name').textContent = P2_NAME;
 }
 
 // ─────────────────────────────────────────────
@@ -929,49 +820,41 @@ async function submitBO() {
 // ─────────────────────────────────────────────
 let pendingResult = null; // { winner_id, score, [stocks fields] }
 
-// ── STOCKS : bouton END MATCH ──
+// ── MÉDAILLES : bouton SOUMETTRE ──
 function endMatch() {
-  const lockedGames = stockGames.filter(g => g.locked);
-  if (!lockedGames.length) { showToast('No games confirmed yet!', false); return; }
+  if (medalsP1 === medalsP2) {
+    showToast('Les médailles sont égales — il doit y avoir un vainqueur !', false); return;
+  }
+  if (medalsP1 === 0 && medalsP2 === 0) {
+    showToast('Entre le nombre de médailles avant de soumettre !', false); return;
+  }
 
-  let totalP1 = 0, totalP2 = 0;
-  lockedGames.forEach(g => { totalP1 += g.p1; totalP2 += g.p2; });
-  if (totalP1 === totalP2) { showToast('Total stocks are equal — there must be a winner!', false); return; }
-
-  const winnerId     = totalP1 > totalP2 ? P1_ID : P2_ID;
-  const winnerName   = totalP1 > totalP2 ? P1_NAME : P2_NAME;
-  const winnerStocks = Math.max(totalP1, totalP2);
-  const loserStocks  = Math.min(totalP1, totalP2);
+  const winnerId   = medalsP1 > medalsP2 ? P1_ID : P2_ID;
+  const totalP1    = medalsP1;
+  const totalP2    = medalsP2;
+  const winnerMeds = Math.max(totalP1, totalP2);
+  const loserMeds  = Math.min(totalP1, totalP2);
 
   pendingResult = {
     winner_id: winnerId,
-    score: `${winnerStocks}-${loserStocks}`,
-    winner_stocks_taken: winnerStocks,
-    loser_stocks_taken: loserStocks,
-    games: lockedGames.map(g => ({ p1: g.p1, p2: g.p2 }))
+    score: `${winnerMeds}-${loserMeds}`,
+    winner_stocks_taken: winnerMeds,
+    loser_stocks_taken: loserMeds,
+    is_stocks_mode: true
   };
 
-  // Build game-by-game recap
+  // Recap
   const gamesDiv = document.getElementById('recap-games');
-  gamesDiv.innerHTML = '';
-  lockedGames.forEach((g, i) => {
-    const w = g.p1 > g.p2 ? P1_NAME : P2_NAME;
-    const color = g.p1 > g.p2 ? 'var(--blue)' : 'var(--accent)';
-    gamesDiv.innerHTML += `
-      <div style="display:flex;justify-content:space-between;align-items:center;
-        background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-        padding:0.6rem 1rem;font-size:0.9rem;">
-        <span style="color:var(--muted);font-size:0.8rem;letter-spacing:1px;">GAME ${i+1}</span>
-        <span><span style="color:var(--blue);font-family:'Bebas Neue',sans-serif;font-size:1.3rem;">${g.p1}</span>
-        <span style="color:var(--muted);margin:0 0.5rem;">—</span>
-        <span style="color:var(--accent);font-family:'Bebas Neue',sans-serif;font-size:1.3rem;">${g.p2}</span></span>
-        <span style="color:${color};font-weight:700;font-size:0.85rem;">${w}</span>
-      </div>`;
-  });
+  gamesDiv.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">MÉDAILLES TOTALES</div>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${totalP1}</span>
+      <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${totalP2}</span>
+    </div>`;
   populateRecapTotals(totalP1, totalP2, winnerId);
-  document.getElementById('recap-subtitle').textContent = 'STOCKS MODE — WAITING FOR CONFIRMATION';
+  document.getElementById('recap-subtitle').textContent = 'MÉDAILLES — EN ATTENTE DE CONFIRMATION';
 
-  // Submitter sees waiting state
   document.getElementById('recap-my-actions').style.display = 'none';
   document.getElementById('recap-waiting').style.display = 'block';
   document.getElementById('stocks-recap').classList.add('show');
@@ -1110,20 +993,26 @@ function showOpponentRecap(d) {
   if (!report || !report.winner_id) return;
 
   if (report.is_stocks_mode || FORMAT === 'STOCKS') {
-    // Stocks mode
+    // Médailles mode
     pendingResult = {
       winner_id: report.winner_id,
       score: report.score,
       winner_stocks_taken: report.winner_stocks_taken,
-      loser_stocks_taken: report.loser_stocks_taken
+      loser_stocks_taken: report.loser_stocks_taken,
+      is_stocks_mode: true
     };
-    const gamesDiv = document.getElementById('recap-games');
-    gamesDiv.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:0.5rem;">
-      Game-by-game detail not available (submitted by opponent)</div>`;
     const t1 = report.winner_id === P1_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
     const t2 = report.winner_id === P2_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
+    const gamesDiv = document.getElementById('recap-games');
+    gamesDiv.innerHTML = `
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
+        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">MÉDAILLES TOTALES</div>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${t1}</span>
+        <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${t2}</span>
+      </div>`;
     populateRecapTotals(t1, t2, report.winner_id);
-    document.getElementById('recap-subtitle').textContent = 'STOCKS MODE — SUBMITTED BY OPPONENT';
+    document.getElementById('recap-subtitle').textContent = 'MÉDAILLES — SOUMIS PAR TON ADVERSAIRE';
   } else {
     // BO mode
     pendingResult = { winner_id: report.winner_id, score: report.score || '' };
