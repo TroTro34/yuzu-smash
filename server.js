@@ -229,6 +229,7 @@ async function emitMatchUpdate(challengeId) {
       report: c.report,
       winner_id: report?.winner_id || null,
       score: report?.score || null,
+      elo_change: c.elo_change || null,
     });
     await Promise.all([c.challenger_id, c.challenged_id].map(emitDashboardUpdate));
   } catch (e) { console.error('[emitMatchUpdate]', e); }
@@ -264,23 +265,6 @@ io.on('connection', (socket) => {
   socket.on('leave_match', (data) => {
     const cid = data?.challenge_id || '';
     if (validateId(cid)) socket.leave(`match_${cid}`);
-  });
-
-  // ── MATCH CHAT ──
-  socket.on('chat_message', (data) => {
-    const uid  = req.session?.user?.id;
-    const name = req.session?.user?.username;
-    if (!uid || !name) return;
-    const cid = data?.challenge_id || '';
-    if (!validateId(cid)) return;
-    const text = String(data?.text || '').trim().slice(0, 200);
-    if (!text) return;
-    io.to(`match_${cid}`).emit('chat_message', {
-      uid,
-      name,
-      text,
-      ts: Date.now(),
-    });
   });
 });
 
@@ -657,11 +641,11 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
             loser_main: loser.main_char || '', score: report.score || scoreStr,
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
-          sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
+          sbPatch('challenges', { id: challenge_id }, { status: 'completed', elo_change: eloGain }),
         ]);
         await emitMatchUpdate(challenge_id);
         await emitLeaderboardUpdate();
-        return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.` });
+        return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
       }
     } else {
       await sbPatch('challenges', { id: challenge_id }, { status: 'disputed' });
