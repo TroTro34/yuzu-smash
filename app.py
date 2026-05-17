@@ -96,7 +96,7 @@ def calc_elo_stocks(winner_pts, loser_pts, winner_stocks_taken, loser_stocks_tak
 import re
 
 VALID_ID_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
-VALID_FORMATS = {"BO3", "BO5", "STOCKS"}
+VALID_FORMATS = {"BO1", "BO3", "BO5", "STOCKS"}
 VALID_MODES   = {"sets", "stocks"}
 MAX_CHAR_NAME = 32    # longueur max d'un nom de perso
 MAX_MESSAGE   = 200   # longueur max du message LFM
@@ -318,9 +318,13 @@ def challenge(opponent_id):
     if not opponent: return jsonify({"error": "Player not found"}), 404
     existing = sb_get("challenges", f"status=in.(pending,accepted)&or=(and(challenger_id.eq.{user_id},challenged_id.eq.{opponent_id}),and(challenger_id.eq.{opponent_id},challenged_id.eq.{user_id}))")
     if existing: return jsonify({"error": "A challenge is already pending between you"}), 400
+    data = request.json or {}
+    fmt = data.get("format", "BO3")
+    if fmt not in VALID_FORMATS:
+        return jsonify({"error": f"Invalid format. Must be one of: {', '.join(sorted(VALID_FORMATS))}"}), 400
     cid = f"ch_{secrets.token_hex(8)}"
     sb_post("challenges", {"id": cid, "challenger_id": user_id, "challenger_name": session["user"]["username"],
-        "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": None})
+        "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": fmt})
     return jsonify({"success": True})
 
 @app.route("/challenge/<challenge_id>/accept", methods=["POST"])
