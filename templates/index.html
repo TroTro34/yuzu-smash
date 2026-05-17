@@ -347,6 +347,11 @@
     return url ? `<img src="${url}" onerror="this.style.display='none'" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;margin-right:4px;">` : '';
   }
 
+  // ── Échappement HTML — protège contre les XSS dans les champs utilisateur ──
+  function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"''":'&#39;'}[c]));
+  }
+
   // Résout les icônes perso du rendu Jinja statique
   document.querySelectorAll('img.char-inline[data-char]').forEach(img => {
     const url = CHAR_ICONS[img.dataset.char];
@@ -507,6 +512,11 @@
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No open challenges right now.<br>${currentUserId ? 'Be the first to post one!' : '<a href="/login" style="color:var(--accent2);">Sign in</a> to post a challenge.'}</div>`;
     } else {
       grid.innerHTML = posts.map(post => {
+        const safePlayerName = escHtml(post.player_name);
+        const safeMainChar   = escHtml(post.main_char || '');
+        const safeMessage    = post.message ? escHtml(post.message) : '';
+        const safeFormat     = escHtml(post.format);
+        const safeMode       = escHtml(post.mode);
         const avatarHtml = post.player_avatar
           ? `<img class="lfm-avatar" src="https://cdn.discordapp.com/avatars/${post.player_id}/${post.player_avatar}.png" alt="">`
           : `<div class="lfm-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
@@ -519,14 +529,14 @@
           actionHtml = `<button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('${post.id}')">✖ Remove my post</button>`;
         return `<div class="lfm-card">
           <div class="lfm-player">${avatarHtml}<div>
-            <div class="lfm-name">${post.main_char ? charImg(post.main_char) : ''}${post.player_name}</div>
-            <div class="lfm-pts">${post.player_points} ELO${post.main_char?' · '+post.main_char:''}</div>
+            <div class="lfm-name">${safeMainChar ? charImg(post.main_char) : ''}${safePlayerName}</div>
+            <div class="lfm-pts">${post.player_points} ELO${safeMainChar ? ' · ' + safeMainChar : ''}</div>
           </div></div>
           <div class="lfm-details">
-            <span class="lfm-tag format">${post.format}</span>
-            <span class="lfm-tag mode-${post.mode}">${post.mode==='stocks'?'STOCKS':'SETS'}</span>
+            <span class="lfm-tag format">${safeFormat}</span>
+            <span class="lfm-tag mode-${safeMode}">${safeMode === 'stocks' ? 'STOCKS' : 'SETS'}</span>
           </div>
-          ${post.message ? `<div class="lfm-msg">"${post.message}"</div>` : ''}
+          ${safeMessage ? `<div class="lfm-msg">"${safeMessage}"</div>` : ''}
           <div class="lfm-timer">⏱ Expires in ~30 min</div>
           <div class="lfm-actions">${actionHtml}</div>
         </div>`;
@@ -539,6 +549,5 @@
     if (countEl) countEl.textContent = posts.length ? `(${posts.length})` : '';
   }
 </script>
-<script src="/static/notifications.js"></script>
 </body>
 </html>
