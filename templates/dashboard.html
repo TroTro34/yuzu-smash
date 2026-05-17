@@ -810,7 +810,17 @@ const seenActiveMatches = new Set({{ active_matches.keys()|list|tojson }});
 const socket = io({ transports: ['websocket'], upgrade: false });
 
 socket.on('connect', () => {
-  socket.emit('join_user', {});
+  // Retry join_user avec ack pour survivre aux sessions manquantes au premier connect
+  let attempts = 0;
+  function tryJoin() {
+    socket.emit('join_user', {}, (ack) => {
+      if (!ack && attempts < 5) {
+        attempts++;
+        setTimeout(tryJoin, 1200);
+      }
+    });
+  }
+  tryJoin();
   const dot   = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
   dot.style.background = 'var(--green)';
