@@ -830,7 +830,7 @@ function startPolling() {
     const now = Date.now();
     const inBurst = now < burstUntil;
     const idle    = !inBurst && (now - lastActivityAt > 60_000);
-    const delay   = inBurst ? 500 : idle ? 10000 : 3000;
+    const delay   = inBurst ? 100 : idle ? 10000 : 3000;
     try {
       const headers = {};
       if (lastEtag) headers['If-None-Match'] = lastEtag;
@@ -961,47 +961,9 @@ function sendChallenge(id, name, fmt) {
     .then(r=>r.json()).then(d=>{
     if(d.success) {
       showToast('Challenge sent to ' + name + ' [' + fmt + ']!');
-      watchChallengeSSE(id, name);  // SSE instantane + pollBurst en fallback
+      pollBurst(); // Poll toutes les 100ms jusqu'a acceptation
     } else showToast(d.error, false);
   });
-}
-
-// Ouvre une connexion SSE sur le challenge — des que l'adversaire accepte,
-// affiche le VS screen INSTANTANEMENT sans attendre le prochain poll.
-function watchChallengeSSE(challengeId, opponentName) {
-  pollBurst(); // fallback polling en parallele au cas ou SSE echoue
-  let done = false;
-
-  const es = new EventSource('/api/challenge_watch/' + challengeId);
-
-  es.onmessage = function(e) {
-    if (done) return;
-    if (e.data === 'accepted') {
-      done = true;
-      es.close();
-      // Recupere les noms depuis le dashboard pour le VS screen
-      fetch('/api/dashboard').then(r=>r.json()).then(d=>{
-        const match = (d.active_matches || {})[challengeId];
-        const p1 = match ? match.challenger_name : myName;
-        const p2 = match ? match.challenged_name : opponentName;
-        showMatchFound(p1, p2);
-        polling = false;
-        setTimeout(() => { window.location.href = '/match/' + challengeId; }, 2800);
-      }).catch(() => {
-        showMatchFound(myName, opponentName);
-        polling = false;
-        setTimeout(() => { window.location.href = '/match/' + challengeId; }, 2800);
-      });
-    } else if (e.data === 'timeout') {
-      // SSE a expire (30s) — le pollBurst() prend le relais, on reconnecte
-      es.close();
-      if (!done) watchChallengeSSE(challengeId, opponentName);
-    }
-  };
-
-  es.onerror = function() {
-    es.close(); // pollBurst() prend le relais silencieusement
-  };
 }
 
 function acceptChallenge(cid, challengerName, myPlayerName) {
