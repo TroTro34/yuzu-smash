@@ -83,7 +83,15 @@ def sb_patch(table, match, data):
     return r.ok
 
 def sb_delete(table, match):
-    params = "&".join([f"{k}=eq.{v}" for k, v in match.items()])
+    # Si la valeur contient déjà un opérateur Supabase (lt., gt., etc.), on ne rajoute pas eq.
+    parts = []
+    for k, v in match.items():
+        v = str(v)
+        if "." in v and v.split(".")[0] in ("lt", "gt", "lte", "gte", "neq", "like", "ilike", "is", "in"):
+            parts.append(f"{k}={v}")
+        else:
+            parts.append(f"{k}=eq.{v}")
+    params = "&".join(parts)
     r = requests.delete(f"{SUPABASE_URL}/rest/v1/{table}?{params}", headers=sb_headers())
     return r.ok
 
