@@ -996,6 +996,7 @@ async function submitBO() {
         showBORecap(selectedResult, 'waiting');
         showToast("Result submitted \u2713 Waiting for opponent confirmation\u2026", true);
         startMatchPolling();
+        startHttpFallback(); // fallback si le socket rate l'event
       }
     } else {
       showToast(data.error || 'Error', false);
@@ -1121,6 +1122,7 @@ async function submitResult(result, isConfirm) {
       } else {
         showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
         startMatchPolling();
+        startHttpFallback(); // fallback si le socket rate l'event
       }
     } else {
       showToast(data.error || 'Error', false);
@@ -1157,24 +1159,56 @@ async function contestRecap() {
 }
 
 // ── Socket.IO : socket UNIQUE créé dès le chargement ──
+let pollInterval = null;
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+function startHttpFallback() {
+  if (pollInterval) return;
+  pollInterval = setInterval(() => {
+    fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
+      if (d.status === 'completed') {
+        stopPolling();
+        document.getElementById('stocks-recap').classList.remove('show');
+        showWinner(d.winner_id, d.score || '', d.elo_change);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+      } else if (d.status === 'disputed') {
+        stopPolling();
+        showToast('Result contested — contact an admin.', false);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
+      }
+    }).catch(() => {});
+  }, 3000);
+}
+
 function startMatchPolling() {
   if (matchSocket) return; // déjà connecté
 
   matchSocket = io({ transports: ['websocket'], upgrade: false });
+  window.socket = matchSocket; // exposé pour notifications.js (évite le double socket)
 
   matchSocket.on('connect', () => {
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
-    // Une fois dans la room, vérifier l'état initial (opponent a peut-être déjà soumis)
+    checkInitialState();
+  });
+
+  matchSocket.on('reconnect', () => {
+    matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
+    matchSocket.emit('join_user', {});
     checkInitialState();
   });
 
   matchSocket.on('match_update', (d) => {
     if (d.status === 'completed') {
+      stopPolling();
       document.getElementById('stocks-recap').classList.remove('show');
       showWinner(d.winner_id, d.score || '', d.elo_change);
       setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
     } else if (d.status === 'disputed') {
+      stopPolling();
       showToast('Result contested — contact an admin.', false);
       setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
     } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
