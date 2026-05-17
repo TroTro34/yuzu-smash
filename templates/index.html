@@ -218,7 +218,7 @@
     <div class="leaderboard">
       {% if players %}
         {% for player in players %}
-        {% set wr = (player.wins / player.matches_played * 100)|round(0)|int if player.matches_played > 0 else 0 %}
+        {% set wr = (player.wins / player.matches_played * 100)|round if player.matches_played > 0 else 0 %}
         <div class="player-row {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}"
              onclick="{% if user %}window.location='/player/{{ player.id }}'{% endif %}">
           <div class="rank-num">
