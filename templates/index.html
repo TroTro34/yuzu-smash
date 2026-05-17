@@ -505,21 +505,24 @@
     });
 
     // Redirection directe via match_redirect (LFM accept — les deux joueurs)
+    let redirecting = false;
     indexSocket.on('match_redirect', (data) => {
-      if (data && data.challenge_id) {
-        showMatchFound('', '');
+      if (data && data.challenge_id && !redirecting) {
+        redirecting = true;
+        showMatchFound(data.p1 || currentUserName || '???', data.p2 || '???');
         setTimeout(() => { window.location.href = '/match/' + data.challenge_id; }, 2800);
       }
     });
 
     indexSocket.on('dashboard_update', (d) => {
       if (!currentUserId) return;
-      // Fallback redirect si nouveau match actif (challenge direct accepté)
+      // Fallback redirect si nouveau match actif (challenge direct accepté, pas LFM)
       if (d.active_matches) {
-        for (const [cid, c] of Object.entries(d.active_matches)) {
+        for (const [cid, ch] of Object.entries(d.active_matches)) {
           if (!knownActiveMatches.has(cid)) {
-            if (matchCheckReady) {
-              showMatchFound(c.challenger_name, c.challenged_name);
+            if (matchCheckReady && !redirecting) {
+              redirecting = true;
+              showMatchFound(ch.challenger_name, ch.challenged_name);
               setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
               return;
             }
