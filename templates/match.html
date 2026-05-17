@@ -985,17 +985,17 @@ async function submitBO() {
     });
     const data = await res.json();
     if (data.success) {
-      if (data.elo_change || (data.message && data.message.includes('ELO'))) {
-        // Second player confirming — match validated immediately
+      if (data.message && data.message.includes('ELO')) {
+        // Second player confirming — match validated
         showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
         showToast(data.message, true);
         setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
       } else {
-        // First player submitted — wait for opponent confirmation via socket
+        // First player submitted — wait for opponent confirmation
         pendingResult = selectedResult;
         showBORecap(selectedResult, 'waiting');
         showToast("Result submitted \u2713 Waiting for opponent confirmation\u2026", true);
-        // socket already started on page load, nothing to do
+        startMatchPolling();
       }
     } else {
       showToast(data.error || 'Error', false);
@@ -1120,7 +1120,7 @@ async function submitResult(result, isConfirm) {
         setTimeout(() => { window.location.href = '/dashboard'; }, 4000);
       } else {
         showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
-        // socket already started on page load, J1 will receive match_update when J2 confirms
+        startMatchPolling();
       }
     } else {
       showToast(data.error || 'Error', false);
@@ -1169,18 +1169,10 @@ function startMatchPolling() {
     checkInitialState();
   });
 
-  // Reconnexion automatique : re-rejoindre les rooms
-  matchSocket.on('reconnect', () => {
-    matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
-    matchSocket.emit('join_user', {});
-    checkInitialState();
-  });
-
   matchSocket.on('match_update', (d) => {
     if (d.status === 'completed') {
       document.getElementById('stocks-recap').classList.remove('show');
-      const score = d.score || (d.elo_change ? selectedResult?.score : '') || '';
-      showWinner(d.winner_id, score, d.elo_change);
+      showWinner(d.winner_id, d.score || '', d.elo_change);
       setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
     } else if (d.status === 'disputed') {
       showToast('Result contested — contact an admin.', false);
@@ -1366,10 +1358,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
   });
+  init();
+  startMatchPolling(); // Connexion immédiate — les deux joueurs rejoignent la room dès le chargement
 });
-
-init();
-startMatchPolling(); // Connexion immédiate dès le chargement — les deux joueurs sont dans la room
 </script>
 
 <script src="/static/notifications.js"></script>
