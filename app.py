@@ -87,6 +87,33 @@ def calc_elo_stocks(winner_pts, loser_pts, winner_stocks_taken, loser_stocks_tak
     diff_ratio = (winner_stocks_taken - loser_stocks_taken) / total if total > 0 else 0
     return max(round(base * (1.0 + diff_ratio * 0.5)), 1)
 
+# ── VALIDATION ────────────────────────────────────────────────────────────────
+
+import re
+
+VALID_ID_RE = re.compile(r'^[a-zA-Z0-9_\-]+$')
+VALID_FORMATS = {"BO3", "BO5", "STOCKS"}
+VALID_MODES   = {"sets", "stocks"}
+MAX_CHAR_NAME = 32    # longueur max d'un nom de perso
+MAX_MESSAGE   = 200   # longueur max du message LFM
+MAX_STOCKS    = 8     # stocks max par partie dans Smash
+
+def validate_id(value):
+    """Vérifie qu'un ID ne contient que des caractères sûrs."""
+    return bool(value and VALID_ID_RE.match(str(value)))
+
+def sanitize_str(value, max_len):
+    """Tronque et strip une chaîne."""
+    return str(value or "").strip()[:max_len]
+
+def validate_stocks(value):
+    """Valeur de stocks entre 0 et MAX_STOCKS."""
+    try:
+        v = int(value)
+        return v if 0 <= v <= MAX_STOCKS else None
+    except (TypeError, ValueError):
+        return None
+
 # ── DATA (requêtes Supabase parallèles) ───────────────────────────────────────
 
 def _dashboard_data(user_id):
@@ -259,11 +286,13 @@ def logout():
 def update_profile():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    data = request.json
+    data = request.json or {}
     user_id = session["user"]["id"]
+    main_char      = sanitize_str(data.get("main_char", ""), MAX_CHAR_NAME)
+    secondary_char = sanitize_str(data.get("secondary_char", ""), MAX_CHAR_NAME)
     sb_patch("players", {"id": user_id}, {
-        "main_char": data.get("main_char", ""),
-        "secondary_char": data.get("secondary_char", "")
+        "main_char": main_char,
+        "secondary_char": secondary_char
     })
     return jsonify({"success": True})
 
@@ -284,13 +313,14 @@ def search_players():
 @app.route("/challenge/<opponent_id>", methods=["POST"])
 def challenge(opponent_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(opponent_id): return jsonify({"error": "Invalid opponent ID"}), 400
     user_id = session["user"]["id"]
     if user_id == opponent_id: return jsonify({"error": "You can't challenge yourself"}), 400
     opponent = sb_get("players", f"id=eq.{opponent_id}")
     if not opponent: return jsonify({"error": "Player not found"}), 404
     existing = sb_get("challenges", f"status=in.(pending,accepted)&or=(and(challenger_id.eq.{user_id},challenged_id.eq.{opponent_id}),and(challenger_id.eq.{opponent_id},challenged_id.eq.{user_id}))")
     if existing: return jsonify({"error": "A challenge is already pending between you"}), 400
-    cid = f"ch_{int(datetime.now().timestamp())}_{user_id}"
+    cid = f"ch_{secrets.token_hex(8)}"
     sb_post("challenges", {"id": cid, "challenger_id": user_id, "challenger_name": session["user"]["username"],
         "challenged_id": opponent_id, "challenged_name": opponent[0]["username"], "status": "pending", "format": None})
     return jsonify({"success": True})
@@ -298,6 +328,7 @@ def challenge(opponent_id):
 @app.route("/challenge/<challenge_id>/accept", methods=["POST"])
 def accept_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(challenge_id): return jsonify({"error": "Invalid challenge ID"}), 400
     user_id = session["user"]["id"]
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges: return jsonify({"error": "Challenge not found"}), 404
@@ -313,6 +344,7 @@ def accept_challenge(challenge_id):
 @app.route("/challenge/<challenge_id>/decline", methods=["POST"])
 def decline_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(challenge_id): return jsonify({"error": "Invalid challenge ID"}), 400
     user_id = session["user"]["id"]
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges: return jsonify({"error": "Challenge not found"}), 404
@@ -325,6 +357,7 @@ def decline_challenge(challenge_id):
 @app.route("/challenge/<challenge_id>/cancel", methods=["POST"])
 def cancel_challenge(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(challenge_id): return jsonify({"error": "Invalid challenge ID"}), 400
     user_id = session["user"]["id"]
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges: return jsonify({"error": "Challenge not found"}), 404
@@ -338,20 +371,29 @@ def cancel_challenge(challenge_id):
 def create_lfm():
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
     user_id = session["user"]["id"]
-    data = request.json
+    data = request.json or {}
+
+    # Validation format et mode
+    fmt  = data.get("format", "BO3")
+    mode = data.get("mode", "sets")
+    if fmt not in VALID_FORMATS:  return jsonify({"error": "Invalid format"}), 400
+    if mode not in VALID_MODES:   return jsonify({"error": "Invalid mode"}), 400
+
+    message = sanitize_str(data.get("message", ""), MAX_MESSAGE)
+
     sb_delete("lfm_posts", {"player_id": user_id})
     player = sb_get("players", f"id=eq.{user_id}")
     pts    = player[0]["points"] if player else 1000
     main   = player[0].get("main_char", "") if player else ""
     avatar = session["user"].get("avatar", "")
     expires = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
-    post_id = f"lfm_{int(datetime.now().timestamp())}_{user_id}"
+    post_id = f"lfm_{secrets.token_hex(8)}"
     sb_post("lfm_posts", {
         "id": post_id, "player_id": user_id,
         "player_name": session["user"]["username"],
         "player_avatar": avatar, "player_points": pts, "main_char": main,
-        "format": data.get("format", "BO3"), "mode": data.get("mode", "sets"),
-        "message": data.get("message", ""),
+        "format": fmt, "mode": mode,
+        "message": message,
         "created_at": datetime.utcnow().isoformat(), "expires_at": expires
     })
     return jsonify({"success": True})
@@ -359,12 +401,13 @@ def create_lfm():
 @app.route("/lfm/<post_id>/accept", methods=["POST"])
 def accept_lfm(post_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(post_id): return jsonify({"error": "Invalid post ID"}), 400
     user_id = session["user"]["id"]
     posts = sb_get("lfm_posts", f"id=eq.{post_id}")
     if not posts: return jsonify({"error": "Post not found"}), 404
     post = posts[0]
     if post["player_id"] == user_id: return jsonify({"error": "You can't accept your own post"}), 400
-    cid = f"ch_{int(datetime.now().timestamp())}_{user_id}"
+    cid = f"ch_{secrets.token_hex(8)}"
     challenger_name = session["user"]["username"]
     # Écriture Supabase en arrière-plan — réponse immédiate au client
     def _do_accept_lfm():
@@ -382,6 +425,7 @@ def accept_lfm(post_id):
 @app.route("/lfm/<post_id>/cancel", methods=["POST"])
 def cancel_lfm(post_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(post_id): return jsonify({"error": "Invalid post ID"}), 400
     user_id = session["user"]["id"]
     posts = sb_get("lfm_posts", f"id=eq.{post_id}")
     if not posts: return jsonify({"error": "Post not found"}), 404
@@ -393,6 +437,8 @@ def cancel_lfm(post_id):
 def api_match_status(challenge_id):
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(challenge_id):
+        return jsonify({"error": "Invalid challenge ID"}), 400
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges:
         return jsonify({"error": "Not found"}), 404
@@ -409,6 +455,8 @@ def api_match_status(challenge_id):
 def match_page(challenge_id):
     if "user" not in session:
         return redirect(url_for("login"))
+    if not validate_id(challenge_id):
+        return redirect(url_for("dashboard"))
     user_id = session["user"]["id"]
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges:
@@ -437,17 +485,23 @@ def match_page(challenge_id):
 @app.route("/result/<challenge_id>", methods=["POST"])
 def submit_result(challenge_id):
     if "user" not in session: return jsonify({"error": "Unauthorized"}), 401
+    if not validate_id(challenge_id): return jsonify({"error": "Invalid challenge ID"}), 400
     user_id = session["user"]["id"]
     challenges = sb_get("challenges", f"id=eq.{challenge_id}")
     if not challenges: return jsonify({"error": "Challenge not found"}), 404
     c = challenges[0]
     if user_id not in [c["challenger_id"], c["challenged_id"]]: return jsonify({"error": "Not part of this match"}), 403
-    data = request.json
+    data = request.json or {}
     winner_id = data.get("winner_id")
-    score = data.get("score", "")
-    winner_stocks_taken = int(data.get("winner_stocks_taken", 0))
-    loser_stocks_taken  = int(data.get("loser_stocks_taken", 0))
+    score = sanitize_str(data.get("score", ""), 20)
     is_stocks_mode = c["format"] == "STOCKS"
+
+    # Validation stocks
+    winner_stocks_taken = validate_stocks(data.get("winner_stocks_taken", 0))
+    loser_stocks_taken  = validate_stocks(data.get("loser_stocks_taken", 0))
+    if winner_stocks_taken is None or loser_stocks_taken is None:
+        return jsonify({"error": f"Stocks must be between 0 and {MAX_STOCKS}"}), 400
+
     if is_stocks_mode and not score:
         score = f"{winner_stocks_taken}-{loser_stocks_taken}"
     if winner_id not in [c["challenger_id"], c["challenged_id"]]: return jsonify({"error": "Invalid winner"}), 400
@@ -477,7 +531,7 @@ def submit_result(challenge_id):
             report = raw_report
         else:
             report = {}
-        print(f"[DEBUG report] type={type(raw_report)} val={raw_report} -> winner_id={report.get('winner_id')}")
+        print(f"[report] challenge={challenge_id} winner_id={report.get('winner_id')}")
         if str(winner_id) == str(report.get("winner_id", "")):
             with ThreadPoolExecutor(max_workers=2) as ex:
                 f_winner = ex.submit(sb_get, "players", f"id=eq.{winner_id}")
