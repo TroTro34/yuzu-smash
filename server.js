@@ -217,20 +217,25 @@ async function emitDashboardUpdate(userId) {
   } catch (e) { console.error('[emitDashboardUpdate]', e); }
 }
 
-async function emitMatchUpdate(challengeId) {
+async function emitMatchUpdate(challengeId, override = {}) {
   try {
     const challenges = await sbGet('challenges', `id=eq.${challengeId}`);
     if (!challenges.length) return;
     const c = challenges[0];
     const report = typeof c.report === 'object' ? c.report : {};
-    io.to(`match_${challengeId}`).emit('match_update', {
-      status: c.status,
-      reported_by: c.reported_by,
-      report: c.report,
-      winner_id: report?.winner_id || null,
-      score: report?.score || null,
-      elo_change: c.elo_change || null,
-    });
+    const payload = {
+      status:      override.status      ?? c.status,
+      reported_by: override.reported_by ?? c.reported_by,
+      report:      c.report,
+      winner_id:   override.winner_id   ?? report?.winner_id  ?? null,
+      score:       override.score       ?? report?.score       ?? null,
+      elo_change:  override.elo_change  ?? c.elo_change        ?? null,
+    };
+    // Envoi dans la room match ET directement à chaque joueur (comme les notifications)
+    // → garanti même si un joueur a perdu sa room après reconnexion
+    io.to(`match_${challengeId}`).emit('match_update', payload);
+    io.to(`user_${c.challenger_id}`).emit('match_update', payload);
+    io.to(`user_${c.challenged_id}`).emit('match_update', payload);
     await Promise.all([c.challenger_id, c.challenged_id].map(emitDashboardUpdate));
   } catch (e) { console.error('[emitMatchUpdate]', e); }
 }
