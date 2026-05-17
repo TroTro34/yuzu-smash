@@ -183,6 +183,138 @@
 
     .empty { color: var(--muted); text-align: center; padding: 2rem; font-size: 0.95rem; }
     @media (max-width: 700px) { .profile-stats { gap: 0.8rem; } .stat-box { min-width: 65px; padding: 0.6rem 0.8rem; } }
+
+    /* ── MATCH FOUND OVERLAY ── */
+    #match-found-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #050508;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    #match-found-overlay.visible {
+      opacity: 1; pointer-events: all;
+    }
+    /* Radial glow halves */
+    #match-found-overlay::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 55% 70% at 20% 50%, rgba(255,120,0,0.18) 0%, transparent 65%),
+        radial-gradient(ellipse 55% 70% at 80% 50%, rgba(255,200,0,0.14) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    /* Diagonal slash lines */
+    #match-found-overlay::after {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(135deg, transparent 40%, rgba(255,160,0,0.06) 50%, transparent 60%),
+        linear-gradient(45deg,  transparent 40%, rgba(255,160,0,0.04) 50%, transparent 60%);
+      pointer-events: none;
+    }
+    .mfo-found-label {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(1.4rem, 5vw, 2.2rem);
+      letter-spacing: 10px;
+      color: #ffd060;
+      text-shadow: 0 0 30px rgba(255,180,0,0.8), 0 0 60px rgba(255,120,0,0.4);
+      animation: mfo-glow-pulse 1.2s ease-in-out infinite alternate;
+      margin-bottom: 2.5rem;
+      position: relative; z-index: 1;
+    }
+    @keyframes mfo-glow-pulse {
+      from { text-shadow: 0 0 20px rgba(255,180,0,0.6), 0 0 40px rgba(255,100,0,0.3); }
+      to   { text-shadow: 0 0 40px rgba(255,200,0,1),   0 0 80px rgba(255,130,0,0.6); }
+    }
+    .mfo-arena {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; width: 100%; max-width: 800px; padding: 0 1.5rem;
+      position: relative; z-index: 1;
+    }
+    .mfo-player {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 0.6rem;
+      animation: mfo-slide-in 0.45s cubic-bezier(.22,1,.36,1) both;
+    }
+    .mfo-player.p1 { animation-name: mfo-slide-left; }
+    .mfo-player.p2 { animation-name: mfo-slide-right; }
+    @keyframes mfo-slide-left {
+      from { transform: translateX(-80px); opacity: 0; }
+      to   { transform: translateX(0);     opacity: 1; }
+    }
+    @keyframes mfo-slide-right {
+      from { transform: translateX(80px);  opacity: 0; }
+      to   { transform: translateX(0);     opacity: 1; }
+    }
+    .mfo-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      letter-spacing: 4px; text-align: center;
+      color: #fff;
+      text-shadow: 0 0 24px rgba(255,140,0,0.5);
+      word-break: break-word;
+    }
+    .mfo-tag {
+      font-size: 0.75rem; letter-spacing: 3px;
+      color: rgba(255,180,60,0.7); text-transform: uppercase;
+    }
+    .mfo-vs-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      flex-shrink: 0; padding: 0 1.5rem;
+      animation: mfo-vs-pop 0.5s 0.15s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes mfo-vs-pop {
+      from { transform: scale(0.4) rotate(-10deg); opacity: 0; }
+      to   { transform: scale(1)   rotate(0deg);   opacity: 1; }
+    }
+    .mfo-vs-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 14vw, 8rem);
+      letter-spacing: 4px; line-height: 0.9;
+      background: linear-gradient(160deg, #ffe080 0%, #ff8c00 40%, #ff4400 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 18px rgba(255,140,0,0.8)) drop-shadow(0 0 40px rgba(255,60,0,0.5));
+      animation: mfo-vs-shine 1.8s ease-in-out infinite alternate;
+    }
+    @keyframes mfo-vs-shine {
+      from { filter: drop-shadow(0 0 14px rgba(255,160,0,0.7)) drop-shadow(0 0 30px rgba(255,60,0,0.4)); }
+      to   { filter: drop-shadow(0 0 28px rgba(255,200,0,1))   drop-shadow(0 0 60px rgba(255,80,0,0.7)); }
+    }
+    /* Slash decorations */
+    .mfo-slash {
+      width: 60px; height: 3px; border-radius: 2px;
+      background: linear-gradient(90deg, transparent, #ff8c00, transparent);
+      margin: 0.3rem 0;
+      animation: mfo-slash-expand 0.6s 0.3s ease both;
+    }
+    @keyframes mfo-slash-expand {
+      from { transform: scaleX(0); opacity: 0; }
+      to   { transform: scaleX(1); opacity: 1; }
+    }
+    /* Sparks */
+    .mfo-sparks {
+      position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+    }
+    .mfo-spark {
+      position: absolute;
+      width: 3px; height: 3px; border-radius: 50%;
+      background: #ffb800;
+      animation: mfo-spark-fly var(--dur, 1.8s) var(--delay, 0s) ease-out infinite;
+      top: var(--y, 50%); left: var(--x, 50%);
+      box-shadow: 0 0 6px #ff8c00;
+    }
+    @keyframes mfo-spark-fly {
+      0%   { transform: translate(0,0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--dx,30px), var(--dy,-60px)) scale(0); opacity: 0; }
+    }
+    .mfo-divider {
+      position: absolute; top: 0; bottom: 0; left: 50%;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(255,140,0,0.4), transparent);
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -280,7 +412,7 @@
           </div>
         </div>
         <div class="challenge-actions">
-          <button class="btn btn-success" onclick="acceptChallenge('{{ cid }}')">✅ Accept</button>
+          <button class="btn btn-success" onclick="acceptChallenge('{{ cid }}','{{ c.challenger_name }}',myName)">✅ Accept</button>
           <button class="btn btn-danger" onclick="declineChallenge('{{ cid }}')">Decline</button>
       </div>
       {% endfor %}
@@ -477,7 +609,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const myId = "{{ user.id }}";
+const myId   = "{{ user.id }}";
+const myName = "{{ user.username }}";
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
 
 // Pré-remplir sessionStorage avec les challenges déjà visibles au chargement
@@ -713,7 +846,10 @@ function startPolling() {
         if (d.active_matches) {
           for (const [cid, c] of Object.entries(d.active_matches)) {
             if (!seenActiveMatches.has(cid)) {
-              window.location.href = '/match/' + cid;
+              // Show VS screen for the challenger (they were waiting for accept)
+              showMatchFound(c.challenger_name, c.challenged_name);
+              polling = false; // stop further polls
+              setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
               return;
             }
           }
@@ -767,7 +903,7 @@ function renderDefis(defis) {
   let h = '<div class="section-title">INCOMING CHALLENGES</div>';
   for (const [cid, c] of Object.entries(defis)) {
     const icon = c.challenger_main ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c.challenger_main}.png" onerror="this.style.display='none'" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">` : '';
-    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${icon}${c.challenger_name} is challenging you!</div><div class="challenge-sub">Mode : <strong>${c.format || 'BO3'}</strong> — chosen by the challenger</div></div></div><div class="challenge-actions"><button class="btn btn-success" onclick="acceptChallenge('${cid}')">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
+    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${icon}${c.challenger_name} is challenging you!</div><div class="challenge-sub">Mode : <strong>${c.format || 'BO3'}</strong> — chosen by the challenger</div></div></div><div class="challenge-actions"><button class="btn btn-success" onclick="acceptChallenge('${cid}','${c.challenger_name}',myName)">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
   }
   z.innerHTML = h;
 }
@@ -830,12 +966,15 @@ function sendChallenge(id, name, fmt) {
   });
 }
 
-function acceptChallenge(cid) {
-  // Redirect immédiat — on n'attend pas Supabase, le serveur écrit en background
+function acceptChallenge(cid, challengerName, myPlayerName) {
+  // Show VS screen IMMEDIATELY — no waiting for the network
+  showMatchFound(challengerName || '???', myPlayerName || myName);
+  // Fire accept request in background
   fetch('/challenge/'+cid+'/accept', {method:'POST'}).then(r=>r.json()).then(d=>{
-    if(!d.success) showToast(d.error, false); // Erreur auth/logique seulement
+    if(!d.success) console.warn(d.error);
   }).catch(()=>{});
-  window.location.href = '/match/' + cid;
+  // Redirect after the overlay animation plays (~2.8s)
+  setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
 }
 
 function declineChallenge(cid) {
@@ -898,6 +1037,59 @@ function submitResult() {
     .then(r=>r.json()).then(d=>{ if(d.success){showToast(d.message);closeModal('resultModal');}else showToast(d.error,false); });
 }
 </script>
+<!-- MATCH FOUND OVERLAY -->
+<div id="match-found-overlay">
+  <div class="mfo-sparks" id="mfo-sparks"></div>
+  <div class="mfo-divider"></div>
+  <div class="mfo-found-label">⚔ MATCH FOUND ⚔</div>
+  <div class="mfo-arena">
+    <div class="mfo-player p1">
+      <div class="mfo-tag">PLAYER 1</div>
+      <div class="mfo-name" id="mfo-p1-name">—</div>
+    </div>
+    <div class="mfo-vs-wrap">
+      <div class="mfo-slash"></div>
+      <div class="mfo-vs-text">VS</div>
+      <div class="mfo-slash"></div>
+    </div>
+    <div class="mfo-player p2">
+      <div class="mfo-tag">PLAYER 2</div>
+      <div class="mfo-name" id="mfo-p2-name">—</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── MATCH FOUND OVERLAY ──────────────────────────────────────
+function showMatchFound(p1, p2) {
+  document.getElementById('mfo-p1-name').textContent = p1 || '???';
+  document.getElementById('mfo-p2-name').textContent = p2 || '???';
+
+  // Generate sparks
+  const sparksEl = document.getElementById('mfo-sparks');
+  sparksEl.innerHTML = '';
+  const centerPositions = [
+    {x:'48%',y:'30%'},{x:'50%',y:'45%'},{x:'52%',y:'60%'},{x:'49%',y:'75%'},
+    {x:'51%',y:'20%'},{x:'47%',y:'55%'},{x:'53%',y:'40%'},{x:'50%',y:'65%'},
+    {x:'30%',y:'50%'},{x:'70%',y:'50%'},{x:'25%',y:'35%'},{x:'75%',y:'65%'},
+  ];
+  centerPositions.forEach((pos, i) => {
+    const s = document.createElement('div');
+    s.className = 'mfo-spark';
+    const angle = (i / centerPositions.length) * 360;
+    const dist = 40 + Math.random() * 80;
+    const dx = Math.cos(angle * Math.PI/180) * dist;
+    const dy = Math.sin(angle * Math.PI/180) * dist - 20;
+    s.style.cssText = `--x:${pos.x};--y:${pos.y};--dx:${dx}px;--dy:${dy}px;--dur:${1.4+Math.random()*1.2}s;--delay:${Math.random()*0.8}s;`;
+    sparksEl.appendChild(s);
+  });
+
+  const overlay = document.getElementById('match-found-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('visible')));
+}
+</script>
+
 <script src="/static/notifications.js"></script>
 </body>
 </html>
