@@ -1185,13 +1185,34 @@ function startMatchPolling() {
   });
 
   matchSocket.on('chat_message', (d) => { chatReceive(d); });
+  matchSocket.on('chat_history', (msgs) => {
+    msgs.forEach(d => chatReceive(d));
+  });
 }
 
 // ── Vérification au chargement ──
 function checkInitialState() {
   fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
-    if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
+    if (d.status === 'completed') {
+      // Match déjà terminé (ex: rechargement après confirmation)
+      showWinner(d.winner_id, d.score || '', d.elo_change);
+      setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+    } else if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
+      // L'adversaire a soumis — afficher le recap pour confirmer/contester
       showOpponentRecap(d);
+    } else if (d.status === 'reported' && d.reported_by === MY_ID) {
+      // J'ai soumis, en attente de l'adversaire — restaurer le recap waiting
+      const report = (typeof d.report === 'object' && d.report) ? d.report : {};
+      if (report.winner_id) {
+        pendingResult = {
+          winner_id: report.winner_id,
+          score: report.score || '',
+          winner_stocks_taken: report.winner_stocks_taken,
+          loser_stocks_taken: report.loser_stocks_taken,
+          is_stocks_mode: report.is_stocks_mode
+        };
+        showBORecap(pendingResult, 'waiting');
+      }
     }
   }).catch(() => {});
 }
