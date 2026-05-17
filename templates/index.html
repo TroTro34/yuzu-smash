@@ -379,12 +379,13 @@
   }
 
   function acceptLFM(postId) {
+    // Le serveur génère le challenge_id avant d'écrire dans Supabase
+    // → on récupère l'ID et on redirige dès que le serveur répond (~200ms)
     fetch('/lfm/' + postId + '/accept', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.success && d.challenge_id) { window.location.href = '/match/' + d.challenge_id; }
-        else if (d.success) { window.location.href = '/dashboard'; }
-        else alert(d.error);
-      });
+        if (d.error) { alert(d.error); return; }
+        window.location.href = d.challenge_id ? '/match/' + d.challenge_id : '/dashboard';
+      }).catch(() => { window.location.href = '/dashboard'; });
   }
 
   function cancelLFM(postId) {
