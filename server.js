@@ -670,7 +670,12 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed', elo_change: eloGain }),
         ]);
-        await emitMatchUpdate(challenge_id);
+        await emitMatchUpdate(challenge_id, {
+          status: 'completed',
+          winner_id,
+          score: report.score || scoreStr,
+          elo_change: eloGain,
+        });
         await emitLeaderboardUpdate();
         chatHistory.delete(challenge_id); // clear chat history on match end
         return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
