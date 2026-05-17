@@ -831,11 +831,11 @@ function sendChallenge(id, name, fmt) {
 }
 
 function acceptChallenge(cid) {
-  fetch('/challenge/'+cid+'/accept',{method:'POST'})
-    .then(r=>r.json()).then(d=>{
-      if(d.success) window.location.href='/match/'+cid; // Redirect direct, pas besoin de polling
-      else showToast(d.error,false);
-    });
+  // Redirect immédiat — on n'attend pas Supabase, le serveur écrit en background
+  fetch('/challenge/'+cid+'/accept', {method:'POST'}).then(r=>r.json()).then(d=>{
+    if(!d.success) showToast(d.error, false); // Erreur auth/logique seulement
+  }).catch(()=>{});
+  window.location.href = '/match/' + cid;
 }
 
 function declineChallenge(cid) {
