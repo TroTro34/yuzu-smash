@@ -518,6 +518,7 @@ app.post('/lfm', requireAuth, async (req, res) => {
     player_points: pts, main_char: main, format: fmt, mode, message,
     created_at: new Date().toISOString(), expires_at: expires });
   res.json({ success: true });
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
 });
 
 app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
@@ -546,6 +547,7 @@ app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
   if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
   await sbDelete('lfm_posts', { id: post_id });
   res.json({ success: true });
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
 });
 
 // ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
