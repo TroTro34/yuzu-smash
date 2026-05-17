@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import hashlib
 import json
 import secrets
@@ -19,7 +22,13 @@ app.config["SESSION_FILE_DIR"] = "/tmp/flask_sessions"
 app.config["PERMANENT_SESSION_LIFETIME"] = 86400
 Session(app)
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode="eventlet",
+    ping_timeout=60,
+    ping_interval=25,
+)
 
 CLIENT_ID = "1504467669712240861"
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
@@ -599,6 +608,8 @@ def on_join_user(data):
     uid = session.get("user", {}).get("id")
     if uid:
         join_room(f"user_{uid}")
+        return True   # ack au client — confirme que la session est bien lue
+    return False
 
 @socketio.on("join_match")
 def on_join_match(data):
