@@ -2,3 +2,6 @@ flask
 requests
 gunicorn
 Flask-Session
+flask-socketio
+gevent
+gevent-websocket
