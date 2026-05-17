@@ -276,19 +276,12 @@
         <div class="challenge-top">
           <div>
             <div class="challenge-title">⚔ {{ c.challenger_name }} is challenging you!</div>
-            <div class="challenge-sub">Pick a mode and accept</div>
+            <div class="challenge-sub">Mode : <strong>{{ c.format or "BO3" }}</strong> — chosen by the challenger</div>
           </div>
         </div>
         <div class="challenge-actions">
-          <select class="form-select" id="fmt-{{ cid }}" style="padding:0.35rem 0.8rem;font-size:0.9rem;width:auto;">
-            <option value="BO1">BO1 — Best of 1</option>
-            <option value="BO3" selected>BO3 — Best of 3</option>
-            <option value="BO5">BO5 — Best of 5</option>
-            <option value="STOCKS">STOCKS — Stocks Taken</option>
-          </select>
-          <button class="btn btn-success" onclick="acceptChallenge('{{ cid }}', document.getElementById('fmt-{{ cid }}').value)">✅ Accept</button>
+          <button class="btn btn-success" onclick="acceptChallenge('{{ cid }}')">✅ Accept</button>
           <button class="btn btn-danger" onclick="declineChallenge('{{ cid }}')">Decline</button>
-        </div>
       </div>
       {% endfor %}
       {% endif %}
@@ -384,9 +377,15 @@
               <div class="player-card-sub">{{ p.wins }}W {{ p.losses }}L · {{ pwr }}% WR{% if p.main_char %} · {{ p.main_char }}{% endif %}</div>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:1rem;">
+          <div style="display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;justify-content:flex-end;">
             <span class="player-card-pts">{{ p.points }} ELO</span>
-            <button class="btn btn-primary" onclick="sendChallenge('{{ p.id }}','{{ p.username }}')">⚔ Challenge</button>
+            <select class="form-select" id="fmt-search-{{ p.id }}" style="padding:0.35rem 0.6rem;font-size:0.85rem;width:auto;">
+              <option value="BO1">BO1</option>
+              <option value="BO3" selected>BO3</option>
+              <option value="BO5">BO5</option>
+              <option value="STOCKS">STOCKS</option>
+            </select>
+            <button class="btn btn-primary" onclick="sendChallenge('{{ p.id }}','{{ p.username }}', document.getElementById('fmt-search-{{ p.id }}').value)">⚔ Challenge</button>
           </div>
         </div>
         {% endif %}
@@ -748,7 +747,7 @@ function renderDefis(defis) {
   let h = '<div class="section-title">INCOMING CHALLENGES</div>';
   for (const [cid, c] of Object.entries(defis)) {
     const icon = c.challenger_main ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c.challenger_main}.png" onerror="this.style.display='none'" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;">` : '';
-    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${icon}${c.challenger_name} is challenging you!</div><div class="challenge-sub">Pick a mode and accept</div></div></div><div class="challenge-actions"><select class="form-select" id="fmt-${cid}" style="padding:0.35rem 0.8rem;font-size:0.9rem;width:auto;"><option value="BO1">BO1 — Best of 1</option><option value="BO3" selected>BO3 — Best of 3</option><option value="BO5">BO5 — Best of 5</option><option value="STOCKS">STOCKS — Stocks Taken</option></select><button class="btn btn-success" onclick="acceptChallenge('${cid}', document.getElementById('fmt-${cid}').value)">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
+    h += `<div class="challenge-card pending"><div class="challenge-top"><div><div class="challenge-title">⚔ ${icon}${c.challenger_name} is challenging you!</div><div class="challenge-sub">Mode : <strong>${c.format || 'BO3'}</strong> — chosen by the challenger</div></div></div><div class="challenge-actions"><button class="btn btn-success" onclick="acceptChallenge('${cid}')">✅ Accept</button><button class="btn btn-danger" onclick="declineChallenge('${cid}')">Decline</button></div></div>`;
   }
   z.innerHTML = h;
 }
@@ -800,15 +799,17 @@ function renderHistory(matches) {
 
 
 // ── ACTIONS ──────────────────────────────────────────────────
-function sendChallenge(id, name) {
-  fetch('/challenge/' + id, {method:'POST'}).then(r=>r.json()).then(d=>{
-    if(d.success) showToast('Challenge sent to ' + name + '!');
+// ── ACTIONS ──────────────────────────────────────────────────
+function sendChallenge(id, name, fmt) {
+  fetch('/challenge/' + id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
+    .then(r=>r.json()).then(d=>{
+    if(d.success) showToast('Challenge sent to ' + name + ' [' + fmt + ']!');
     else showToast(d.error, false);
   });
 }
 
-function acceptChallenge(cid, fmt) {
-  fetch('/challenge/'+cid+'/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
+function acceptChallenge(cid) {
+  fetch('/challenge/'+cid+'/accept',{method:'POST'})
     .then(r=>r.json()).then(d=>{ if(d.success) window.location.href='/match/'+cid; else showToast(d.error,false); });
 }
 
