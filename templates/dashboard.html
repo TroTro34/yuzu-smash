@@ -803,74 +803,47 @@ function saveChar(slot, charId, charName) {
     });
 }
 
-// ── POLLING ADAPTATIF ────────────────────────────────────────
-// 3s si actif, 10s si idle >60s, 304 si rien n'a changé → ~90% moins de requêtes
-let polling = true;
-let lastEtag = null;
-let lastActivityAt = Date.now();
-// Mode rafale : poll rapide quand on attend une réponse imminente
-let burstUntil = 0;
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') lastActivityAt = Date.now();
-});
-
-// Déclenche 15s de poll rapide (500ms) — appelé après chaque action qui attend une réponse
-function pollBurst() { burstUntil = Date.now() + 15000; }
-
 // Track which active matches we've already seen (to avoid redirecting on first load)
 const seenActiveMatches = new Set({{ active_matches.keys()|list|tojson }});
 
-function startPolling() {
+// ── SOCKET.IO ────────────────────────────────────────────────
+const socket = io({ transports: ['websocket'], upgrade: false });
+
+socket.on('connect', () => {
+  socket.emit('join_user', {});
   const dot   = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
+  dot.style.background = 'var(--green)';
+  label.style.color    = 'var(--green)';
+  label.textContent    = 'Live';
+});
 
-  async function tick() {
-    if (!polling) return;
-    const now = Date.now();
-    const inBurst = now < burstUntil;
-    const idle    = !inBurst && (now - lastActivityAt > 60_000);
-    const delay   = inBurst ? 500 : idle ? 10000 : 3000;
-    try {
-      const headers = {};
-      if (lastEtag) headers['If-None-Match'] = lastEtag;
-      const r = await fetch('/api/dashboard', { headers });
-      if (r.status === 401) { polling = false; return; }
-      dot.style.background = 'var(--green)';
-      label.style.color    = 'var(--green)';
-      label.textContent    = inBurst ? 'Syncing…' : 'Live';
-      if (r.status !== 304 && r.ok) {
-        lastEtag = r.headers.get('ETag');
-        const d = await r.json();
-        // Auto-redirect to match page as soon as a new active match appears (works for both players)
-        if (d.active_matches) {
-          for (const [cid, c] of Object.entries(d.active_matches)) {
-            if (!seenActiveMatches.has(cid)) {
-              // Show VS screen for the challenger (they were waiting for accept)
-              showMatchFound(c.challenger_name, c.challenged_name);
-              polling = false; // stop further polls
-              setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
-              return;
-            }
-          }
-          Object.keys(d.active_matches).forEach(cid => seenActiveMatches.add(cid));
-        }
-        // Quitte le mode rafale si plus de challenges en attente
-        if (inBurst && !Object.keys(d.challenges_sent || {}).length) burstUntil = 0;
-        if (!modalOpen) applyDashboardData(d);
+socket.on('disconnect', () => {
+  const dot   = document.getElementById('ws-dot');
+  const label = document.getElementById('ws-label');
+  dot.style.background = 'var(--red)';
+  label.style.color    = 'var(--red)';
+  label.textContent    = 'Reconnecting…';
+});
+
+socket.on('dashboard_update', (d) => {
+  if (modalOpen) return;
+  // Redirect si nouveau match actif
+  if (d.active_matches) {
+    for (const [cid, c] of Object.entries(d.active_matches)) {
+      if (!seenActiveMatches.has(cid)) {
+        showMatchFound(c.challenger_name, c.challenged_name);
+        setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
+        return;
       }
-    } catch(e) {
-      dot.style.background = 'var(--red)';
-      label.style.color    = 'var(--red)';
-      label.textContent    = 'Reconnecting…';
     }
-    setTimeout(tick, delay);
+    Object.keys(d.active_matches).forEach(cid => seenActiveMatches.add(cid));
   }
+  applyDashboardData(d);
+});
 
-  tick();
-}
-
-startPolling();
+// Déclenchement d'un "burst" plus nécessaire — on garde juste la fn pour compat
+function pollBurst() {}
 
 // Init character images from server-rendered IDs
 (function() {
@@ -1090,6 +1063,7 @@ function showMatchFound(p1, p2) {
 }
 </script>
 
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="/static/notifications.js"></script>
 </body>
 </html>
