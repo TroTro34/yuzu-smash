@@ -2,6 +2,7 @@ import hashlib
 import json
 import secrets
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
+from flask_session import Session
 import requests
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -12,7 +13,10 @@ app.secret_key = os.environ["SECRET_KEY"]  # Plante au démarrage si absente —
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = "/tmp/flask_sessions"
 app.config["PERMANENT_SESSION_LIFETIME"] = 86400
+Session(app)
 
 CLIENT_ID = "1504467669712240861"
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
