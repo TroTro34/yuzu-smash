@@ -266,6 +266,17 @@ io.on('connection', (socket) => {
     const cid = data?.challenge_id || '';
     if (validateId(cid)) socket.leave(`match_${cid}`);
   });
+
+  socket.on('chat_message', (data) => {
+    const uid  = req.session?.user?.id;
+    const name = req.session?.user?.username || 'Unknown';
+    const cid  = data?.challenge_id || '';
+    const text = (data?.text || '').toString().slice(0, 200).trim();
+    if (!uid || !validateId(cid) || !text) return;
+    const payload = { uid, name, text, ts: new Date().toISOString() };
+    // Broadcast to both players in this match room (sender included)
+    io.to(`match_${cid}`).emit('chat_message', payload);
+  });
 });
 
 // ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
