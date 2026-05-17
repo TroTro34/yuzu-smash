@@ -378,14 +378,25 @@
       });
   }
 
-  function acceptLFM(postId) {
-    // Le serveur génère le challenge_id avant d'écrire dans Supabase
-    // → on récupère l'ID et on redirige dès que le serveur répond (~200ms)
+  function acceptLFM(postId, posterName) {
+    // Show VS screen IMMEDIATELY — no waiting for the network
+    showMatchFound(currentUserName || '???', posterName || '???');
+    // Fire request in background
     fetch('/lfm/' + postId + '/accept', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.error) { alert(d.error); return; }
-        window.location.href = d.challenge_id ? '/match/' + d.challenge_id : '/dashboard';
-      }).catch(() => { window.location.href = '/dashboard'; });
+        if (d.error) {
+          // Hide overlay and show error if accept failed (e.g. already taken)
+          const ov = document.getElementById('match-found-overlay');
+          if (ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display='none', 300); }
+          alert(d.error);
+          return;
+        }
+        // Overlay already showing — redirect after animation completes
+        const cid = d.challenge_id;
+        setTimeout(() => { window.location.href = cid ? '/match/' + cid : '/dashboard'; }, 2800);
+      }).catch(() => {
+        setTimeout(() => { window.location.href = '/dashboard'; }, 2800);
+      });
   }
 
   function cancelLFM(postId) {
@@ -412,7 +423,8 @@
   }
 
   // ── POLLING LEADERBOARD 1s ────────────────────────────────
-  const currentUserId = "{{ user.id if user else '' }}";
+  const currentUserId   = "{{ user.id if user else '' }}";
+  const currentUserName = "{{ user.username if user else '' }}";
   // Track active matches known at page load to avoid false redirect
   const knownActiveMatches = new Set();
   let matchCheckReady = false; // wait one cycle before redirecting
@@ -435,10 +447,12 @@
         if (r2.ok) {
           const d2 = await r2.json();
           if (d2.active_matches) {
-            for (const cid of Object.keys(d2.active_matches)) {
+            for (const [cid, c] of Object.entries(d2.active_matches)) {
               if (!knownActiveMatches.has(cid)) {
                 if (matchCheckReady) {
-                  window.location.href = '/match/' + cid;
+                  // Show VS screen for the LFM poster — their annonce just got accepted
+                  showMatchFound(c.challenger_name, c.challenged_name);
+                  setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
                   return;
                 }
                 knownActiveMatches.add(cid);
@@ -523,7 +537,7 @@
           : `<div class="lfm-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
         let actionHtml;
         if (currentUserId && post.player_id !== currentUserId)
-          actionHtml = `<button class="btn btn-primary" style="flex:1;" onclick="acceptLFM('${post.id}')">⚔ Accept Challenge</button>`;
+          actionHtml = `<button class="btn btn-primary" style="flex:1;" onclick="acceptLFM('${post.id}','${safePlayerName}')">⚔ Accept Challenge</button>`;
         else if (!currentUserId)
           actionHtml = `<a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>`;
         else
@@ -549,6 +563,133 @@
     const countEl = document.getElementById('lfm-count');
     if (countEl) countEl.textContent = posts.length ? `(${posts.length})` : '';
   }
+</script>
+<!-- MATCH FOUND OVERLAY -->
+<style>
+  #match-found-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    background: #050508;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  #match-found-overlay.visible { opacity: 1; pointer-events: all; }
+  #match-found-overlay::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 55% 70% at 20% 50%, rgba(255,120,0,0.18) 0%, transparent 65%),
+      radial-gradient(ellipse 55% 70% at 80% 50%, rgba(255,200,0,0.14) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .mfo-found-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(1.4rem, 5vw, 2.2rem); letter-spacing: 10px;
+    color: #ffd060;
+    text-shadow: 0 0 30px rgba(255,180,0,0.8), 0 0 60px rgba(255,120,0,0.4);
+    animation: mfo-glow-pulse 1.2s ease-in-out infinite alternate;
+    margin-bottom: 2.5rem; position: relative; z-index: 1;
+  }
+  @keyframes mfo-glow-pulse {
+    from { text-shadow: 0 0 20px rgba(255,180,0,0.6), 0 0 40px rgba(255,100,0,0.3); }
+    to   { text-shadow: 0 0 40px rgba(255,200,0,1),   0 0 80px rgba(255,130,0,0.6); }
+  }
+  .mfo-arena {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; width: 100%; max-width: 800px; padding: 0 1.5rem;
+    position: relative; z-index: 1;
+  }
+  .mfo-player { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+  .mfo-player.p1 { animation: mfo-slide-left  0.45s cubic-bezier(.22,1,.36,1) both; }
+  .mfo-player.p2 { animation: mfo-slide-right 0.45s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes mfo-slide-left  { from { transform:translateX(-80px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+  @keyframes mfo-slide-right { from { transform:translateX(80px);  opacity:0; } to { transform:translateX(0); opacity:1; } }
+  .mfo-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(1.8rem, 6vw, 3rem); letter-spacing: 4px; text-align: center;
+    color: #fff; text-shadow: 0 0 24px rgba(255,140,0,0.5); word-break: break-word;
+  }
+  .mfo-tag { font-size: 0.75rem; letter-spacing: 3px; color: rgba(255,180,60,0.7); text-transform: uppercase; }
+  .mfo-vs-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    flex-shrink: 0; padding: 0 1.5rem;
+    animation: mfo-vs-pop 0.5s 0.15s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes mfo-vs-pop { from { transform:scale(0.4) rotate(-10deg); opacity:0; } to { transform:scale(1) rotate(0deg); opacity:1; } }
+  .mfo-vs-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(4rem, 14vw, 8rem); letter-spacing: 4px; line-height: 0.9;
+    background: linear-gradient(160deg, #ffe080 0%, #ff8c00 40%, #ff4400 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    animation: mfo-vs-shine 1.8s ease-in-out infinite alternate;
+  }
+  @keyframes mfo-vs-shine {
+    from { filter: drop-shadow(0 0 14px rgba(255,160,0,0.7)) drop-shadow(0 0 30px rgba(255,60,0,0.4)); }
+    to   { filter: drop-shadow(0 0 28px rgba(255,200,0,1))   drop-shadow(0 0 60px rgba(255,80,0,0.7)); }
+  }
+  .mfo-slash {
+    width: 60px; height: 3px; border-radius: 2px;
+    background: linear-gradient(90deg, transparent, #ff8c00, transparent);
+    margin: 0.3rem 0;
+    animation: mfo-slash-expand 0.6s 0.3s ease both;
+  }
+  @keyframes mfo-slash-expand { from { transform:scaleX(0); opacity:0; } to { transform:scaleX(1); opacity:1; } }
+  .mfo-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .mfo-spark {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: #ffb800; box-shadow: 0 0 6px #ff8c00;
+    animation: mfo-spark-fly var(--dur, 1.8s) var(--delay, 0s) ease-out infinite;
+    top: var(--y, 50%); left: var(--x, 50%);
+  }
+  @keyframes mfo-spark-fly {
+    0%   { transform: translate(0,0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx,30px), var(--dy,-60px)) scale(0); opacity: 0; }
+  }
+</style>
+
+<div id="match-found-overlay">
+  <div class="mfo-sparks" id="mfo-sparks"></div>
+  <div class="mfo-found-label">⚔ MATCH FOUND ⚔</div>
+  <div class="mfo-arena">
+    <div class="mfo-player p1">
+      <div class="mfo-tag">PLAYER 1</div>
+      <div class="mfo-name" id="mfo-p1-name">—</div>
+    </div>
+    <div class="mfo-vs-wrap">
+      <div class="mfo-slash"></div>
+      <div class="mfo-vs-text">VS</div>
+      <div class="mfo-slash"></div>
+    </div>
+    <div class="mfo-player p2">
+      <div class="mfo-tag">PLAYER 2</div>
+      <div class="mfo-name" id="mfo-p2-name">—</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showMatchFound(p1, p2) {
+  document.getElementById('mfo-p1-name').textContent = p1 || '???';
+  document.getElementById('mfo-p2-name').textContent = p2 || '???';
+  const sparksEl = document.getElementById('mfo-sparks');
+  sparksEl.innerHTML = '';
+  const positions = [
+    {x:'48%',y:'30%'},{x:'50%',y:'45%'},{x:'52%',y:'60%'},{x:'49%',y:'75%'},
+    {x:'51%',y:'20%'},{x:'47%',y:'55%'},{x:'53%',y:'40%'},{x:'50%',y:'65%'},
+    {x:'30%',y:'50%'},{x:'70%',y:'50%'},{x:'25%',y:'35%'},{x:'75%',y:'65%'},
+  ];
+  positions.forEach((pos, i) => {
+    const s = document.createElement('div');
+    s.className = 'mfo-spark';
+    const angle = (i / positions.length) * 360;
+    const dist  = 40 + Math.random() * 80;
+    s.style.cssText = `--x:${pos.x};--y:${pos.y};--dx:${Math.cos(angle*Math.PI/180)*dist}px;--dy:${Math.sin(angle*Math.PI/180)*dist-20}px;--dur:${1.4+Math.random()*1.2}s;--delay:${Math.random()*0.8}s;`;
+    sparksEl.appendChild(s);
+  });
+  const overlay = document.getElementById('match-found-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('visible')));
+}
 </script>
 </body>
 </html>
