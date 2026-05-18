@@ -993,7 +993,7 @@ async function submitBO() {
         stopPolling();
         showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
         showToast(data.message, true);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
+        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
       } else {
         // First player submitted — wait for opponent confirmation
         pendingResult = selectedResult;
@@ -1125,7 +1125,7 @@ async function submitResult(result, isConfirm) {
           ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} medals`
           : result.score;
         showWinner(result.winner_id, scoreLabel, data.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
+        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
       } else {
         showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
         startMatchPolling();
@@ -1162,7 +1162,7 @@ async function contestRecap() {
   } catch(e) {}
   showToast('Result contested — an admin will review.', false);
   document.getElementById('stocks-recap').classList.remove('show');
-  setTimeout(() => { window.location.href = '/dashboard'; }, 2500);
+  setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 2500);
 }
 
 // ── Socket.IO : socket UNIQUE créé dès le chargement ──
@@ -1182,11 +1182,11 @@ function startHttpFallback() {
         stopPolling();
         document.getElementById('stocks-recap').classList.remove('show');
         showWinner(d.winner_id, d.score || '', d.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
+        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
       } else if (d.status === 'disputed') {
         stopPolling();
         showToast('Result contested — contact an admin.', false);
-        setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
+        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
       }
     }).catch(() => {});
   }, 3000);
@@ -1217,11 +1217,11 @@ function startMatchPolling() {
       stopPolling();
       document.getElementById('stocks-recap').classList.remove('show');
       showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     } else if (d.status === 'disputed') {
       stopPolling();
       showToast('Result contested — contact an admin.', false);
-      setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
     } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
       if (!document.getElementById('stocks-recap').classList.contains('show')) {
         showOpponentRecap(d);
@@ -1243,7 +1243,7 @@ function checkInitialState() {
       matchFinished = true;
       // Match déjà terminé (ex: rechargement après confirmation)
       showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard'; }, 4500);
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     } else if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
       // L'adversaire a soumis — afficher le recap pour confirmer/contester
       showOpponentRecap(d);
