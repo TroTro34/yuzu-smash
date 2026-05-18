@@ -678,6 +678,8 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed', elo_change: eloGain }),
         ]);
+        // Petit délai pour laisser Supabase propager le PATCH avant les re-queries
+        await new Promise(r => setTimeout(r, 300));
         await emitMatchUpdate(challenge_id, {
           status: 'completed',
           winner_id,
@@ -690,6 +692,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
       }
     } else {
       await sbPatch('challenges', { id: challenge_id }, { status: 'disputed' });
+      await new Promise(r => setTimeout(r, 300));
       await emitMatchUpdate(challenge_id);
       return res.json({ success: true, message: 'Conflict detected! Contact an admin.' });
     }
