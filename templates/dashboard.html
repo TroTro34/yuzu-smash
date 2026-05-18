@@ -821,7 +821,7 @@ function saveChar(slot, charId, charName) {
 const seenActiveMatches = new Set({{ active_match_ids|tojson }});
 
 // ── SOCKET.IO ────────────────────────────────────────────────
-const socket = io({ transports: ['websocket'], upgrade: false });
+const socket = io({ transports: ['polling', 'websocket'], upgrade: true });
 
 socket.on('connect', () => {
   socket.emit('join_user', {});
@@ -841,62 +841,38 @@ socket.on('disconnect', () => {
 });
 
 socket.on('dashboard_update', (d) => {
-  if (modalOpen) return;
   // Redirect si nouveau match actif
   if (d.active_matches) {
     for (const [cid, c] of Object.entries(d.active_matches)) {
       if (!seenActiveMatches.has(cid)) {
         showMatchFound(c.challenger_name, c.challenged_name);
         setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
-        // Ne pas return ici — on laisse applyDashboardData mettre à jour les autres zones
         break;
       }
     }
     Object.keys(d.active_matches).forEach(cid => seenActiveMatches.add(cid));
   }
+  if (modalOpen) {
+    // On garde les données pour les appliquer dès la fermeture du modal
+    _pendingDashboardData = d;
+    return;
+  }
   applyDashboardData(d);
 });
 
 // Écouter les match_update directement (emis vers user_xxx par emitMatchUpdate)
-// → permet de retirer la carte "AWAITING CONFIRMATION" même si on ne visite pas /match
+// → retire la carte "AWAITING CONFIRMATION" pour les DEUX joueurs, même si un modal est ouvert
 socket.on('match_update', (data) => {
   if (data && (data.status === 'completed' || data.status === 'disputed') && data.challenge_id) {
     doneMatchIds.add(data.challenge_id);
-    // Re-render the awaiting/active zones immediately using doneMatchIds filter
-    // (no fetch — avoids race condition where the DB hasn't updated yet)
-    const zoneAttente = document.getElementById('zone-attente');
-    const zoneMatchs  = document.getElementById('zone-matchs');
-    if (zoneAttente) {
-      zoneAttente.querySelectorAll('.challenge-card').forEach(card => {
-        const btn = card.querySelector('button[onclick*="' + data.challenge_id + '"]');
-        if (btn) card.remove();
-      });
-      if (!zoneAttente.querySelector('.challenge-card')) {
-        zoneAttente.innerHTML = '';
-      }
-    }
-    if (zoneMatchs) {
-      zoneMatchs.querySelectorAll('.challenge-card').forEach(card => {
-        const btn = card.querySelector('button[onclick*="' + data.challenge_id + '"]');
-        if (btn) card.remove();
-      });
-      if (!zoneMatchs.querySelector('.challenge-card')) {
-        zoneMatchs.innerHTML = '';
-      }
-    }
-    // Update badge
-    const badge = document.getElementById('activity-badge');
-    if (badge && badge.style.display !== 'none') {
-      const cur = parseInt(badge.textContent) || 0;
-      if (cur <= 1) badge.style.display = 'none';
-      else badge.textContent = cur - 1;
-    }
-    // After a short delay, fetch fresh data (DB should be updated by then)
+    // Fetch fresh data and ALWAYS apply — even if modal is open.
+    // The match is over: both players must see the zones cleared immediately.
     setTimeout(() => {
       fetch('/api/dashboard').then(r => r.json()).then(d => {
-        if (!modalOpen) applyDashboardData(d);
+        applyDashboardData(d);
+        _pendingDashboardData = null;
       }).catch(() => {});
-    }, 1500);
+    }, 800);
   }
 });
 
@@ -1091,7 +1067,13 @@ function selectWinner(id, btn) {
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
   modalOpen = false;
+  // Si un update a été bloqué par le modal, on le rejoue maintenant
+  if (_pendingDashboardData) {
+    applyDashboardData(_pendingDashboardData);
+    _pendingDashboardData = null;
+  }
 }
+let _pendingDashboardData = null;
 
 function submitResult() {
   if (!selectedWinnerId) { showToast('Pick a winner!', false); return; }
