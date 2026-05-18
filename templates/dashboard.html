@@ -863,15 +863,21 @@ socket.on('match_update', (data) => {
   if (!data || !data.challenge_id) return;
   if (data.status === 'completed' || data.status === 'disputed') {
     doneMatchIds.add(data.challenge_id);
-    // Vider immédiatement les zones concernées (pas d'attente réseau)
-    // puis rafraîchir depuis l'API pour avoir les stats ELO à jour
+    // Vider IMMÉDIATEMENT les zones actives — pas de fetch ici, Supabase n'est pas encore
+    // à jour (race condition entre le PATCH challenges et la re-query de dashboardData).
+    // Le dashboard_update socket arrive dans la foulée avec les bonnes données (excludeIds).
+    // On fetch /api/dashboard après 2.5s seulement pour rafraîchir l'historique/ELO,
+    // une fois que Supabase a eu le temps de propager le PATCH.
     renderMatchs({});
     renderAttente({});
-    fetch('/api/dashboard').then(r => r.json()).then(d => {
-      if (!modalOpen) applyDashboardData(d);
-    }).catch(() => {});
+    setTimeout(() => {
+      fetch('/api/dashboard').then(r => r.json()).then(d => {
+        if (!modalOpen) applyDashboardData(d);
+      }).catch(() => {});
+    }, 2500);
   } else if (data.status === 'reported' && data.reported_by !== myId) {
     // L'adversaire vient de soumettre — rafraîchir pour faire apparaître la carte "confirm"
+    // Pas de race condition ici : le challenge est encore "reported" dans Supabase
     fetch('/api/dashboard').then(r => r.json()).then(d => {
       if (!modalOpen) applyDashboardData(d);
     }).catch(() => {});
