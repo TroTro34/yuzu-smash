@@ -391,7 +391,7 @@
     <div class="tab active" onclick="showTab('activity', this)">
       ⚡ Activity
       {% set notif = challenges_received|length + active_matches|length + awaiting_confirmation|length %}
-      {% if notif > 0 %}<span class="tab-badge">{{ notif }}</span>{% endif %}
+      {% if notif > 0 %}<span class="tab-badge" id="activity-badge">{{ notif }}</span>{% else %}<span class="tab-badge" id="activity-badge" style="display:none">0</span>{% endif %}
     </div>
     <div class="tab" onclick="showTab('search', this)">🔍 Find Players</div>
     <div class="tab" onclick="showTab('history', this)">📋 Match History</div>
@@ -469,7 +469,7 @@
             <div class="challenge-title">⏳ {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
             <div class="challenge-sub">Your opponent submitted a result — confirm it!</div>
           </div>
-          <button class="btn btn-primary" onclick="window.location.href='/match/{{ cid }}'">
+          <button class="btn btn-primary" onclick="confirmResultFromDashboard('{{ cid }}')">
             ✅ Confirm Result
           </button>
         </div>
@@ -862,10 +862,41 @@ socket.on('dashboard_update', (d) => {
 socket.on('match_update', (data) => {
   if (data && (data.status === 'completed' || data.status === 'disputed') && data.challenge_id) {
     doneMatchIds.add(data.challenge_id);
-    // Forcer un refresh du dashboard pour mettre à jour toutes les zones
-    fetch('/api/dashboard').then(r => r.json()).then(d => {
-      if (!modalOpen) applyDashboardData(d);
-    }).catch(() => {});
+    // Re-render the awaiting/active zones immediately using doneMatchIds filter
+    // (no fetch — avoids race condition where the DB hasn't updated yet)
+    const zoneAttente = document.getElementById('zone-attente');
+    const zoneMatchs  = document.getElementById('zone-matchs');
+    if (zoneAttente) {
+      zoneAttente.querySelectorAll('.challenge-card').forEach(card => {
+        const btn = card.querySelector('button[onclick*="' + data.challenge_id + '"]');
+        if (btn) card.remove();
+      });
+      if (!zoneAttente.querySelector('.challenge-card')) {
+        zoneAttente.innerHTML = '';
+      }
+    }
+    if (zoneMatchs) {
+      zoneMatchs.querySelectorAll('.challenge-card').forEach(card => {
+        const btn = card.querySelector('button[onclick*="' + data.challenge_id + '"]');
+        if (btn) card.remove();
+      });
+      if (!zoneMatchs.querySelector('.challenge-card')) {
+        zoneMatchs.innerHTML = '';
+      }
+    }
+    // Update badge
+    const badge = document.getElementById('activity-badge');
+    if (badge && badge.style.display !== 'none') {
+      const cur = parseInt(badge.textContent) || 0;
+      if (cur <= 1) badge.style.display = 'none';
+      else badge.textContent = cur - 1;
+    }
+    // After a short delay, fetch fresh data (DB should be updated by then)
+    setTimeout(() => {
+      fetch('/api/dashboard').then(r => r.json()).then(d => {
+        if (!modalOpen) applyDashboardData(d);
+      }).catch(() => {});
+    }, 1500);
   }
 });
 
@@ -882,6 +913,21 @@ function pollBurst() {}
   if (secEl  && secId  && CHAR_ICONS[secId])  secEl.src  = CHAR_ICONS[secId];
 })();
 
+function updateBadge(d) {
+  const badge = document.getElementById('activity-badge');
+  if (!badge) return;
+  const rcv = d.challenges_received ? Object.keys(d.challenges_received).length : 0;
+  const act = d.active_matches ? Object.keys(d.active_matches).length : 0;
+  const awt = d.awaiting_confirmation ? Object.keys(d.awaiting_confirmation).length : 0;
+  const total = rcv + act + awt;
+  if (total > 0) {
+    badge.textContent = total;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 function applyDashboardData(d) {
     document.getElementById('stat-points').textContent = d.player.points;
     document.getElementById('stat-wins').textContent = d.player.wins;
@@ -895,6 +941,7 @@ function applyDashboardData(d) {
     renderMatchs(d.active_matches);
     renderAttente(d.awaiting_confirmation);
     renderHistory(d.my_matches);
+    updateBadge(d);
 }
 
 function renderDefis(defis) {
@@ -945,7 +992,7 @@ function renderAttente(att) {
   if (!Object.keys(filtered).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">AWAITING YOUR CONFIRMATION</div>';
   for (const [cid, c] of Object.entries(filtered)) {
-    h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="window.location.href='/match/${cid}'">✅ Confirm Result</button></div></div>`;
+    h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="confirmResultFromDashboard('${cid}')">✅ Confirm Result</button></div></div>`;
   }
   z.innerHTML = h;
 }
@@ -966,7 +1013,25 @@ function renderHistory(matches) {
 
 // ── ACTIONS ──────────────────────────────────────────────────
 // ── ACTIONS ──────────────────────────────────────────────────
-function sendChallenge(id, name, fmt) {
+function confirmResultFromDashboard(cid) {
+  // Optimistic: hide the card and decrement badge before navigating
+  doneMatchIds.add(cid);
+  const z = document.getElementById('zone-attente');
+  if (z) {
+    z.querySelectorAll('.challenge-card').forEach(card => {
+      if (card.innerHTML.includes(cid)) card.remove();
+    });
+    if (!z.querySelector('.challenge-card')) z.innerHTML = '';
+  }
+  const badge = document.getElementById('activity-badge');
+  if (badge && badge.style.display !== 'none') {
+    const cur = parseInt(badge.textContent) || 0;
+    if (cur <= 1) badge.style.display = 'none';
+    else badge.textContent = cur - 1;
+  }
+  window.location.href = '/match/' + cid;
+}
+(id, name, fmt) {
   fetch('/challenge/' + id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:fmt})})
     .then(r=>r.json()).then(d=>{
     if(d.success) {
