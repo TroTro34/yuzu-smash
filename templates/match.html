@@ -1192,13 +1192,17 @@ function startHttpFallback() {
   }, 3000);
 }
 
-function startMatchPolling() {
-  if (matchSocket) return; // déjà connecté
+// ── Connexion socket immédiate — les deux joueurs rejoignent dès le chargement ──
+// Ainsi le joueur qui attend la confirmation reçoit match_update en temps réel
+// sans avoir besoin de soumettre quoi que ce soit d'abord.
+function initMatchSocket() {
+  if (matchSocket) return;
 
   matchSocket = io({ transports: ['websocket'], upgrade: false });
   window.socket = matchSocket; // exposé pour notifications.js (évite le double socket)
 
   matchSocket.on('connect', () => {
+    // Rejoindre la room match ET la room user dès la connexion
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
     checkInitialState();
@@ -1211,8 +1215,9 @@ function startMatchPolling() {
   });
 
   matchSocket.on('match_update', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return; // ignorer les events d'autres matchs
     if (d.status === 'completed') {
-      if (matchFinished) return; // déjà géré par la réponse HTTP
+      if (matchFinished) return;
       matchFinished = true;
       stopPolling();
       document.getElementById('stocks-recap').classList.remove('show');
@@ -1223,6 +1228,7 @@ function startMatchPolling() {
       showToast('Result contested — contact an admin.', false);
       setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
     } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
+      // L'adversaire vient de soumettre son résultat — afficher le recap de confirmation
       if (!document.getElementById('stocks-recap').classList.contains('show')) {
         showOpponentRecap(d);
       }
@@ -1234,6 +1240,9 @@ function startMatchPolling() {
     msgs.forEach(d => chatReceive(d));
   });
 }
+
+// Alias conservé pour compatibilité avec les appels existants (submitBO, endMatch…)
+function startMatchPolling() { initMatchSocket(); }
 
 // ── Vérification au chargement ──
 function checkInitialState() {
@@ -1414,7 +1423,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
   });
   init();
-  startMatchPolling(); // Connexion immédiate — les deux joueurs rejoignent la room dès le chargement
+  // Connexion immédiate — les deux joueurs rejoignent la room dès le chargement
+  // Crucial : le joueur qui attend la confirmation reçoit match_update en temps réel
+  // même sans avoir soumis quoi que ce soit.
+  initMatchSocket();
 });
 </script>
 
