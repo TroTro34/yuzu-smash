@@ -990,7 +990,6 @@ async function submitBO() {
         // Second player confirming — match validated
         if (matchFinished) return;
         matchFinished = true;
-        stopPolling();
         showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
         showToast(data.message, true);
         setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
@@ -1118,7 +1117,6 @@ async function submitResult(result, isConfirm) {
       if (isConfirm) {
         if (matchFinished) return; // déjà géré par le socket
         matchFinished = true;
-        stopPolling();
         showToast(data.message, true);
         document.getElementById('stocks-recap').classList.remove('show');
         const scoreLabel = result.winner_stocks_taken != null
@@ -1219,12 +1217,10 @@ function initMatchSocket() {
     if (d.status === 'completed') {
       if (matchFinished) return;
       matchFinished = true;
-      stopPolling();
       document.getElementById('stocks-recap').classList.remove('show');
       showWinner(d.winner_id, d.score || '', d.elo_change);
       setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     } else if (d.status === 'disputed') {
-      stopPolling();
       showToast('Result contested — contact an admin.', false);
       setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
     } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
