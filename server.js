@@ -224,6 +224,7 @@ async function emitMatchUpdate(challengeId, override = {}) {
     const c = challenges[0];
     const report = typeof c.report === 'object' ? c.report : {};
     const payload = {
+      challenge_id: challengeId,
       status:      override.status      ?? c.status,
       reported_by: override.reported_by ?? c.reported_by,
       report:      c.report,
