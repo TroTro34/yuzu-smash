@@ -614,6 +614,12 @@ const myId   = "{{ user.id }}";
 const myName = "{{ user.username }}";
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
 
+// Challenge ID du match qui vient de se terminer (paramètre ?done=)
+// → on l'exclut de l'affichage initial ET des dashboard_update reçus juste après la redirection
+const doneChallengeId = new URLSearchParams(window.location.search).get('done') || null;
+// Nettoyer l'URL sans recharger la page
+if (doneChallengeId) history.replaceState(null, '', '/dashboard');
+
 // Pré-remplir sessionStorage avec les challenges déjà visibles au chargement
 // → notifications.js ne re-notifiera pas pour ceux déjà affichés ici
 (function() {
@@ -624,6 +630,13 @@ let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', moda
     sessionStorage.setItem(key, JSON.stringify([...existing]));
   } catch(_) {}
 })();
+
+// Supprimer le challenge terminé du rendu initial (si la page s'est chargée avant la synchro Supabase)
+// On vide immédiatement les zones actives — le dashboard_update via Socket.IO les reremplit dans la seconde
+if (doneChallengeId) {
+  document.getElementById('zone-attente').innerHTML = '';
+  document.getElementById('zone-matchs').innerHTML = '';
+}
 let currentCharSlot = null, selectedChar = null;
 
 
@@ -897,8 +910,13 @@ function renderEnvoyes(envois) {
 function renderMatchs(matchs) {
   const z = document.getElementById('zone-matchs');
   if (!matchs || !Object.keys(matchs).length) { z.innerHTML = ''; return; }
+  // Exclure le challenge qui vient de se terminer
+  const filtered = doneChallengeId
+    ? Object.fromEntries(Object.entries(matchs).filter(([cid]) => cid !== doneChallengeId))
+    : matchs;
+  if (!Object.keys(filtered).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">ACTIVE MATCHES</div>';
-  for (const [cid, c] of Object.entries(matchs)) {
+  for (const [cid, c] of Object.entries(filtered)) {
     h += `<div class="challenge-card active"><div class="challenge-top"><div><div class="challenge-title">🎮 ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">${c.format} — Click to enter the match</div></div><button class="btn btn-success" onclick="window.location.href='/match/${cid}'">🎮 Enter Match</button></div></div>`;
   }
   z.innerHTML = h;
@@ -907,8 +925,13 @@ function renderMatchs(matchs) {
 function renderAttente(att) {
   const z = document.getElementById('zone-attente');
   if (!att || !Object.keys(att).length) { z.innerHTML = ''; return; }
+  // Exclure le challenge qui vient de se terminer (race condition post-redirection)
+  const filtered = doneChallengeId
+    ? Object.fromEntries(Object.entries(att).filter(([cid]) => cid !== doneChallengeId))
+    : att;
+  if (!Object.keys(filtered).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">AWAITING YOUR CONFIRMATION</div>';
-  for (const [cid, c] of Object.entries(att)) {
+  for (const [cid, c] of Object.entries(filtered)) {
     h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="window.location.href='/match/${cid}'">✅ Confirm Result</button></div></div>`;
   }
   z.innerHTML = h;
