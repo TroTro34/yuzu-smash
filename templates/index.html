@@ -539,8 +539,8 @@
       const wr = p.matches_played > 0 ? Math.round(p.wins / p.matches_played * 100) : 0;
       const rankClass = i===0 ? 'rank-1' : i===1 ? 'rank-2' : i===2 ? 'rank-3' : '';
       const rankNum = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1;
-      const avatarHtml = p.avatar
-        ? `<img class="player-avatar" src="https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png" alt="">`
+      const avatarHtml = (p.avatar && p.avatar !== 'null' && p.avatar !== 'undefined')
+        ? `<img class="player-avatar" src="https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png" alt="" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'player-avatar\\' style=\\'background:var(--surface3);display:flex;align-items:center;justify-content:center;\\'>👤</div>')">`
         : `<div class="player-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
       const charUrl = p.main_char ? CHAR_ICONS[p.main_char] : null;
       const charHtml = charUrl ? `<img class="char-icon" src="${charUrl}" onerror="this.style.display='none'" alt="">` : '';
@@ -595,8 +595,8 @@
         const safeMessage    = post.message ? escHtml(post.message) : '';
         const safeFormat     = escHtml(post.format);
         const safeMode       = escHtml(post.mode);
-        const avatarHtml = post.player_avatar
-          ? `<img class="lfm-avatar" src="https://cdn.discordapp.com/avatars/${post.player_id}/${post.player_avatar}.png" alt="">`
+        const avatarHtml = (post.player_avatar && post.player_avatar !== 'null' && post.player_avatar !== 'undefined')
+          ? `<img class="lfm-avatar" src="https://cdn.discordapp.com/avatars/${post.player_id}/${post.player_avatar}.png" alt="" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'lfm-avatar\\' style=\\'background:var(--surface3);display:flex;align-items:center;justify-content:center;\\'>👤</div>')">`
           : `<div class="lfm-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
         let actionHtml;
         if (currentUserId && post.player_id !== currentUserId)
