@@ -684,7 +684,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
             loser_main: loser.main_char || '', score: report.score || scoreStr,
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
-          sbPatch('challenges', { id: challenge_id }, { status: 'completed', elo_change: eloGain }),
+          sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
         // Petit délai pour laisser Supabase propager le PATCH avant les re-queries
         await new Promise(r => setTimeout(r, 300));
