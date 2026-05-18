@@ -264,11 +264,19 @@ const CHAT_MAX = 50;
 io.on('connection', (socket) => {
   const req = socket.request;
 
-  socket.on('join_user', (data, cb) => {
+  socket.on('join_user', async (data, cb) => {
     const uid = req.session?.user?.id;
     if (uid) {
       socket.join(`user_${uid}`);
       if (typeof cb === 'function') cb(true);
+      // Émettre immédiatement un dashboard_update propre avec les IDs exclus
+      // fournis par le client (matchs terminés qu'il connaît déjà)
+      // → résout la race condition quand J2 arrive sur /dashboard après confirmation
+      const excludeIds = Array.isArray(data?.exclude) ? data.exclude.filter(v => validateId(String(v))) : [];
+      try {
+        const dashData = await dashboardData(uid, excludeIds);
+        socket.emit('dashboard_update', dashData);
+      } catch (e) { console.error('[join_user dashboard_update]', e); }
     } else {
       if (typeof cb === 'function') cb(false);
     }
