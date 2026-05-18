@@ -860,9 +860,18 @@ socket.on('dashboard_update', (d) => {
 // Écouter les match_update directement (emis vers user_xxx par emitMatchUpdate)
 // → permet de retirer la carte "AWAITING CONFIRMATION" même si on ne visite pas /match
 socket.on('match_update', (data) => {
-  if (data && (data.status === 'completed' || data.status === 'disputed') && data.challenge_id) {
+  if (!data || !data.challenge_id) return;
+  if (data.status === 'completed' || data.status === 'disputed') {
     doneMatchIds.add(data.challenge_id);
-    // Forcer un refresh du dashboard pour mettre à jour toutes les zones
+    // Vider immédiatement les zones concernées (pas d'attente réseau)
+    // puis rafraîchir depuis l'API pour avoir les stats ELO à jour
+    renderMatchs({});
+    renderAttente({});
+    fetch('/api/dashboard').then(r => r.json()).then(d => {
+      if (!modalOpen) applyDashboardData(d);
+    }).catch(() => {});
+  } else if (data.status === 'reported' && data.reported_by !== myId) {
+    // L'adversaire vient de soumettre — rafraîchir pour faire apparaître la carte "confirm"
     fetch('/api/dashboard').then(r => r.json()).then(d => {
       if (!modalOpen) applyDashboardData(d);
     }).catch(() => {});
