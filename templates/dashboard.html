@@ -614,11 +614,11 @@ const myId   = "{{ user.id }}";
 const myName = "{{ user.username }}";
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
 
+// Set des challenge IDs terminés — alimenté par ?done= au chargement ET par match_update en temps réel
+const doneMatchIds = new Set();
 // Challenge ID du match qui vient de se terminer (paramètre ?done=)
-// → on l'exclut de l'affichage initial ET des dashboard_update reçus juste après la redirection
 const doneChallengeId = new URLSearchParams(window.location.search).get('done') || null;
-// Nettoyer l'URL sans recharger la page
-if (doneChallengeId) history.replaceState(null, '', '/dashboard');
+if (doneChallengeId) { doneMatchIds.add(doneChallengeId); history.replaceState(null, '', '/dashboard'); }
 
 // Pré-remplir sessionStorage avec les challenges déjà visibles au chargement
 // → notifications.js ne re-notifiera pas pour ceux déjà affichés ici
@@ -633,7 +633,7 @@ if (doneChallengeId) history.replaceState(null, '', '/dashboard');
 
 // Supprimer le challenge terminé du rendu initial (si la page s'est chargée avant la synchro Supabase)
 // On vide immédiatement les zones actives — le dashboard_update via Socket.IO les reremplit dans la seconde
-if (doneChallengeId) {
+if (doneMatchIds.size) {
   document.getElementById('zone-attente').innerHTML = '';
   document.getElementById('zone-matchs').innerHTML = '';
 }
@@ -848,12 +848,25 @@ socket.on('dashboard_update', (d) => {
       if (!seenActiveMatches.has(cid)) {
         showMatchFound(c.challenger_name, c.challenged_name);
         setTimeout(() => { window.location.href = '/match/' + cid; }, 2800);
-        return;
+        // Ne pas return ici — on laisse applyDashboardData mettre à jour les autres zones
+        break;
       }
     }
     Object.keys(d.active_matches).forEach(cid => seenActiveMatches.add(cid));
   }
   applyDashboardData(d);
+});
+
+// Écouter les match_update directement (emis vers user_xxx par emitMatchUpdate)
+// → permet de retirer la carte "AWAITING CONFIRMATION" même si on ne visite pas /match
+socket.on('match_update', (data) => {
+  if (data && (data.status === 'completed' || data.status === 'disputed') && data.challenge_id) {
+    doneMatchIds.add(data.challenge_id);
+    // Forcer un refresh du dashboard pour mettre à jour toutes les zones
+    fetch('/api/dashboard').then(r => r.json()).then(d => {
+      if (!modalOpen) applyDashboardData(d);
+    }).catch(() => {});
+  }
 });
 
 // Déclenchement d'un "burst" plus nécessaire — on garde juste la fn pour compat
@@ -911,8 +924,8 @@ function renderMatchs(matchs) {
   const z = document.getElementById('zone-matchs');
   if (!matchs || !Object.keys(matchs).length) { z.innerHTML = ''; return; }
   // Exclure le challenge qui vient de se terminer
-  const filtered = doneChallengeId
-    ? Object.fromEntries(Object.entries(matchs).filter(([cid]) => cid !== doneChallengeId))
+  const filtered = doneMatchIds.size
+    ? Object.fromEntries(Object.entries(matchs).filter(([cid]) => !doneMatchIds.has(cid)))
     : matchs;
   if (!Object.keys(filtered).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">ACTIVE MATCHES</div>';
@@ -926,8 +939,8 @@ function renderAttente(att) {
   const z = document.getElementById('zone-attente');
   if (!att || !Object.keys(att).length) { z.innerHTML = ''; return; }
   // Exclure le challenge qui vient de se terminer (race condition post-redirection)
-  const filtered = doneChallengeId
-    ? Object.fromEntries(Object.entries(att).filter(([cid]) => cid !== doneChallengeId))
+  const filtered = doneMatchIds.size
+    ? Object.fromEntries(Object.entries(att).filter(([cid]) => !doneMatchIds.has(cid)))
     : att;
   if (!Object.keys(filtered).length) { z.innerHTML = ''; return; }
   let h = '<div class="section-title">AWAITING YOUR CONFIRMATION</div>';
