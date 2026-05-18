@@ -165,7 +165,7 @@ function validateStocks(v) {
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 
-async function dashboardData(userId) {
+async function dashboardData(userId, excludeChallengeIds = []) {
   const [players, allChallenges, myMatches] = await Promise.all([
     sbGet('players', 'order=points.desc'),
     sbGet('challenges', 'status=in.(pending,accepted,reported)'),
@@ -178,8 +178,10 @@ async function dashboardData(userId) {
   const challengesSent     = {};
   const activeMatches      = {};
   const awaitingConf       = {};
+  const excludeSet = new Set(excludeChallengeIds);
 
   for (const c of allChallenges) {
+    if (excludeSet.has(c.id)) continue;
     if (c.challenged_id === userId && c.status === 'pending')
       challengesReceived[c.id] = c;
     if (c.challenger_id === userId && c.status === 'pending')
@@ -210,9 +212,9 @@ async function leaderboardData() {
 
 // ── SOCKET.IO EMITTERS ────────────────────────────────────────────────────────
 
-async function emitDashboardUpdate(userId) {
+async function emitDashboardUpdate(userId, excludeChallengeIds = []) {
   try {
-    const data = await dashboardData(userId);
+    const data = await dashboardData(userId, excludeChallengeIds);
     io.to(`user_${userId}`).emit('dashboard_update', data);
   } catch (e) { console.error('[emitDashboardUpdate]', e); }
 }
@@ -237,7 +239,12 @@ async function emitMatchUpdate(challengeId, override = {}) {
     io.to(`match_${challengeId}`).emit('match_update', payload);
     io.to(`user_${c.challenger_id}`).emit('match_update', payload);
     io.to(`user_${c.challenged_id}`).emit('match_update', payload);
-    await Promise.all([c.challenger_id, c.challenged_id].map(emitDashboardUpdate));
+    // Si le match vient d'être complété, exclure ce challenge du dashboard_update
+    // pour éviter la race condition Supabase (le PATCH completed pas encore lisible)
+    const excludeIds = (payload.status === 'completed' || payload.status === 'disputed')
+      ? [challengeId]
+      : [];
+    await Promise.all([c.challenger_id, c.challenged_id].map(uid => emitDashboardUpdate(uid, excludeIds)));
   } catch (e) { console.error('[emitMatchUpdate]', e); }
 }
 
