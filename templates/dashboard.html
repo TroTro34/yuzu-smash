@@ -824,7 +824,9 @@ const seenActiveMatches = new Set({{ active_match_ids|tojson }});
 const socket = io({ transports: ['websocket'], upgrade: false });
 
 socket.on('connect', () => {
-  socket.emit('join_user', {});
+  // Passe les IDs des matchs terminés → le serveur exclut ces challenges du dashboard_update immédiat
+  // Résout la race condition : J2 arrive sur /dashboard avant que Supabase ait propagé le PATCH completed
+  socket.emit('join_user', { exclude: [...doneMatchIds] });
   const dot   = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
   dot.style.background = 'var(--green)';
