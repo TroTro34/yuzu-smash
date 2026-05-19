@@ -8,7 +8,6 @@
   <title>Smash YUZU — Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* ========== STYLES IDENTIQUES À L'ORIGINAL ========== */
     :root {
       --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
       --border: #252540; --accent: #e8400a; --accent2: #ff8000;
@@ -37,26 +36,22 @@
     .btn-danger:hover { background: var(--red); color: white; }
     .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
     .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    .btn-sm { padding: 0.3rem 0.75rem; font-size: 0.85rem; }
     .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
     .live-label { font-size: 0.75rem; color: var(--green); letter-spacing: 2px; text-transform: uppercase; }
     .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
-    .tab { padding: 0.8rem 1.5rem; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
-      color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
-    .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
-    .tab-badge { background: var(--accent); color: white; border-radius: 50%; width: 18px; height: 18px;
-      font-size: 0.7rem; display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 700; margin-left: 6px; font-family: 'Rajdhani', sans-serif; vertical-align: middle; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+
+    /* PROFILE */
     .profile-card { display: grid; grid-template-columns: auto 1fr; gap: 2rem;
       padding: 2rem; background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
     .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
       background: linear-gradient(to bottom, var(--accent), var(--accent2)); }
     .profile-left { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; min-width: 120px; }
-    .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); }
+    .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); object-fit: cover; }
+    .profile-avatar-placeholder { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent);
+      background: var(--surface3); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
     .profile-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--muted); letter-spacing: 2px; }
     .profile-right { display: flex; flex-direction: column; gap: 1rem; }
     .profile-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 3px; line-height: 1; }
@@ -68,6 +63,11 @@
     .stat-box.wins .val { color: var(--green); }
     .stat-box.losses .val { color: var(--red); }
     .stat-box.stocks .val { color: var(--purple); }
+    .wr-section { margin-top: 0.5rem; }
+    .wr-row { display: flex; align-items: center; gap: 1rem; }
+    .wr-bar { flex: 1; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+    .wr-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--accent2)); border-radius: 3px; transition: width 1s; }
+    .wr-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
     .chars-row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
     .char-slot { display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
       background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem;
@@ -76,18 +76,24 @@
     .char-slot img { width: 48px; height: 48px; object-fit: contain; }
     .char-slot .char-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
     .char-slot .char-name { font-size: 0.85rem; font-weight: 700; text-align: center; }
-    .char-add { background: var(--surface2); border: 1px dashed var(--border); border-radius: 8px;
-      padding: 0.5rem 1rem; cursor: pointer; transition: all 0.2s; min-width: 80px;
-      display: flex; flex-direction: column; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.8rem; }
-    .char-add:hover { border-color: var(--accent2); color: var(--accent2); }
-    .wr-section { margin-top: 0.5rem; }
-    .wr-row { display: flex; align-items: center; gap: 1rem; }
-    .wr-bar { flex: 1; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
-    .wr-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--accent2)); border-radius: 3px; transition: width 1s; }
-    .wr-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+
+    /* TABS */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
+    .tab { padding: 0.8rem 1.5rem; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+      color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+    .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+    .tab-badge { background: var(--accent); color: white; border-radius: 50%; width: 18px; height: 18px;
+      font-size: 0.7rem; display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; margin-left: 6px; font-family: 'Rajdhani', sans-serif; vertical-align: middle; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* SECTION TITLE */
     .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 3px;
       color: var(--accent); margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; }
     .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* CHALLENGE CARDS */
     .challenge-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
       padding: 1.2rem; margin-bottom: 0.8rem; transition: all 0.2s; }
     .challenge-card:hover { border-color: var(--accent2); }
@@ -98,10 +104,8 @@
     .challenge-title { font-weight: 700; font-size: 1.05rem; }
     .challenge-sub { font-size: 0.85rem; color: var(--muted); margin-top: 0.2rem; }
     .challenge-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .fmt-btn { padding: 0.35rem 0.8rem; border: 1px solid var(--border); border-radius: 4px;
-      background: var(--surface2); color: var(--text); cursor: pointer;
-      font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.9rem; transition: all 0.15s; }
-    .fmt-btn:hover, .fmt-btn.selected { border-color: var(--accent2); color: var(--accent2); background: rgba(255,128,0,0.1); }
+
+    /* SEARCH */
     .search-wrap { position: relative; margin-bottom: 1.5rem; }
     .search-input { width: 100%; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.9rem 1.2rem 0.9rem 3rem; border-radius: 8px;
@@ -114,10 +118,16 @@
       border-radius: 8px; transition: all 0.15s; }
     .player-card:hover { border-color: var(--accent); background: var(--surface2); }
     .player-card-left { display: flex; align-items: center; gap: 0.8rem; }
-    .mini-avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); }
+    .mini-avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); object-fit: cover; }
+    .mini-avatar-placeholder { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border);
+      background: var(--surface3); display: flex; align-items: center; justify-content: center; font-size: 1rem; }
     .player-card-name { font-weight: 700; font-size: 1rem; }
     .player-card-sub { font-size: 0.8rem; color: var(--muted); }
     .player-card-pts { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--accent2); }
+    .form-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.35rem 0.6rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; width: auto; }
+
+    /* MATCH HISTORY */
     .match-card { padding: 0.8rem 1.2rem; border-radius: 8px; margin-bottom: 0.5rem;
       border: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
     .match-card.win { border-left: 3px solid var(--green); background: rgba(61,220,132,0.04); }
@@ -130,58 +140,78 @@
     .win .match-elo { color: var(--green); }
     .loss .match-elo { color: var(--red); }
     .match-fmt { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
+    .match-date { font-size: 0.75rem; color: var(--muted); }
+
+    /* MODALS */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
       z-index: 200; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
     .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-      padding: 2rem; max-width: 480px; width: 90%; position: relative; }
+      padding: 2rem; max-width: 480px; width: 90%; position: relative; max-height: 90vh; overflow-y: auto; }
     .modal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 14px 14px 0 0;
       background: linear-gradient(90deg, var(--accent), var(--accent2)); }
     .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 2px; margin-bottom: 1.2rem; color: var(--accent2); }
+    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.2rem; }
+    .modal-close:hover { color: var(--text); }
     .modal-actions { display: flex; gap: 0.7rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .form-group { margin-bottom: 1rem; }
     .form-label { display: block; color: var(--muted); font-size: 0.8rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.4rem; }
-    .form-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 0.6rem 1rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 1rem; width: 100%; }
-    .form-input:focus { outline: none; border-color: var(--accent2); }
-    .form-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 0.6rem 1rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 1rem; width: 100%; }
+
+    /* CHAR PICKER */
+    .char-search { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.6rem 1rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 1rem;
+      margin-bottom: 0.8rem; }
+    .char-search:focus { outline: none; border-color: var(--accent2); }
     .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.5rem;
-      max-height: 400px; overflow-y: auto; padding-right: 0.3rem; }
+      max-height: 380px; overflow-y: auto; padding-right: 0.3rem; }
     .char-option { display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
       padding: 0.4rem; border-radius: 6px; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
     .char-option:hover, .char-option.selected { border-color: var(--accent2); background: rgba(255,128,0,0.1); }
     .char-option img { width: 44px; height: 44px; object-fit: contain; }
     .char-option span { font-size: 0.6rem; color: var(--muted); text-align: center; line-height: 1.2; }
+
+    /* TOAST */
     .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
       border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
       border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
       transition: all 0.3s; font-weight: 700; max-width: 320px; }
     .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* EMPTY */
     .empty { color: var(--muted); text-align: center; padding: 2rem; font-size: 0.95rem; }
-    @media (max-width: 700px) { .profile-stats { gap: 0.8rem; } .stat-box { min-width: 65px; padding: 0.6rem 0.8rem; } }
-    #match-found-overlay { position: fixed; inset: 0; z-index: 9999; background: #050508; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+
+    /* MATCH FOUND OVERLAY */
+    #match-found-overlay { position: fixed; inset: 0; z-index: 9999; background: #050508;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
     #match-found-overlay.visible { opacity: 1; pointer-events: all; }
-    #match-found-overlay::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 55% 70% at 20% 50%, rgba(255,120,0,0.18) 0%, transparent 65%), radial-gradient(ellipse 55% 70% at 80% 50%, rgba(255,200,0,0.14) 0%, transparent 65%); pointer-events: none; }
-    .mfo-found-label { font-family: 'Bebas Neue', sans-serif; font-size: clamp(1.4rem, 5vw, 2.2rem); letter-spacing: 10px; color: #ffd060; text-shadow: 0 0 30px rgba(255,180,0,0.8); animation: mfo-glow-pulse 1.2s ease-in-out infinite alternate; margin-bottom: 2.5rem; position: relative; z-index: 1; }
+    #match-found-overlay::before { content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 55% 70% at 20% 50%, rgba(255,120,0,0.18) 0%, transparent 65%),
+                  radial-gradient(ellipse 55% 70% at 80% 50%, rgba(255,200,0,0.14) 0%, transparent 65%);
+      pointer-events: none; }
+    .mfo-found-label { font-family: 'Bebas Neue', sans-serif; font-size: clamp(1.4rem, 5vw, 2.2rem);
+      letter-spacing: 10px; color: #ffd060; text-shadow: 0 0 30px rgba(255,180,0,0.8);
+      animation: mfo-glow-pulse 1.2s ease-in-out infinite alternate;
+      margin-bottom: 2.5rem; position: relative; z-index: 1; }
     @keyframes mfo-glow-pulse { from { text-shadow: 0 0 20px rgba(255,180,0,0.6); } to { text-shadow: 0 0 40px rgba(255,200,0,1); } }
     .mfo-arena { display: flex; align-items: center; justify-content: center; gap: 0; width: 100%; max-width: 800px; padding: 0 1.5rem; position: relative; z-index: 1; }
-    .mfo-player { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; animation: mfo-slide-in 0.45s cubic-bezier(.22,1,.36,1) both; }
-    .mfo-player.p1 { animation-name: mfo-slide-left; }
-    .mfo-player.p2 { animation-name: mfo-slide-right; }
+    .mfo-player { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+    .mfo-player.p1 { animation: mfo-slide-left 0.45s cubic-bezier(.22,1,.36,1) both; }
+    .mfo-player.p2 { animation: mfo-slide-right 0.45s cubic-bezier(.22,1,.36,1) both; }
     @keyframes mfo-slide-left { from { transform: translateX(-80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     @keyframes mfo-slide-right { from { transform: translateX(80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    .mfo-name { font-family: 'Bebas Neue', sans-serif; font-size: clamp(1.8rem, 6vw, 3rem); letter-spacing: 4px; text-align: center; color: #fff; text-shadow: 0 0 24px rgba(255,140,0,0.5); word-break: break-word; }
+    .mfo-name { font-family: 'Bebas Neue', sans-serif; font-size: clamp(1.8rem, 6vw, 3rem); letter-spacing: 4px; text-align: center; color: #fff; }
     .mfo-tag { font-size: 0.75rem; letter-spacing: 3px; color: rgba(255,180,60,0.7); text-transform: uppercase; }
-    .mfo-vs-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; padding: 0 1.5rem; animation: mfo-vs-pop 0.5s 0.15s cubic-bezier(.22,1,.36,1) both; }
+    .mfo-vs-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; padding: 0 1.5rem;
+      animation: mfo-vs-pop 0.5s 0.15s cubic-bezier(.22,1,.36,1) both; }
     @keyframes mfo-vs-pop { from { transform: scale(0.4) rotate(-10deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }
-    .mfo-vs-text { font-family: 'Bebas Neue', sans-serif; font-size: clamp(4rem, 14vw, 8rem); letter-spacing: 4px; line-height: 0.9; background: linear-gradient(160deg, #ffe080 0%, #ff8c00 40%, #ff4400 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 18px rgba(255,140,0,0.8)); animation: mfo-vs-shine 1.8s ease-in-out infinite alternate; }
-    @keyframes mfo-vs-shine { from { filter: drop-shadow(0 0 14px rgba(255,160,0,0.7)); } to { filter: drop-shadow(0 0 28px rgba(255,200,0,1)); } }
-    .mfo-slash { width: 60px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, transparent, #ff8c00, transparent); margin: 0.3rem 0; animation: mfo-slash-expand 0.6s 0.3s ease both; }
-    @keyframes mfo-slash-expand { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
-    .mfo-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-    .mfo-spark { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #ffb800; animation: mfo-spark-fly var(--dur, 1.8s) var(--delay, 0s) ease-out infinite; top: var(--y, 50%); left: var(--x, 50%); box-shadow: 0 0 6px #ff8c00; }
-    @keyframes mfo-spark-fly { 0% { transform: translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(var(--dx,30px), var(--dy,-60px)) scale(0); opacity: 0; } }
+    .mfo-vs-text { font-family: 'Bebas Neue', sans-serif; font-size: clamp(4rem, 14vw, 8rem); letter-spacing: 4px; line-height: 0.9;
+      background: linear-gradient(160deg, #ffe080 0%, #ff8c00 40%, #ff4400 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 18px rgba(255,140,0,0.8)); }
+    .mfo-slash { width: 60px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, transparent, #ff8c00, transparent); margin: 0.3rem 0; }
+
+    @media (max-width: 700px) { .profile-card { grid-template-columns: 1fr; } .profile-stats { gap: 0.8rem; } .stat-box { min-width: 65px; padding: 0.6rem 0.8rem; } }
   </style>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
@@ -189,19 +219,25 @@
 <nav>
   <a href="/" class="logo">⚔ YUZU</a>
   <div class="nav-links">
-    <span id="ws-status" title="WebSocket connection"><span class="live-dot" id="ws-dot" style="background:var(--muted);"></span><span class="live-label" id="ws-label" style="color:var(--muted);">Connecting...</span></span>
+    <span id="ws-status" title="WebSocket connection">
+      <span class="live-dot" id="ws-dot" style="background:var(--muted);"></span>
+      <span class="live-label" id="ws-label" style="color:var(--muted);">Connecting…</span>
+    </span>
     <a href="/" class="btn btn-ghost">Leaderboard</a>
     <a href="/logout" class="btn btn-ghost">Log Out</a>
   </div>
 </nav>
+
 <div class="container">
+
+  {# ── PROFILE CARD ── #}
   {% set wr = (player.wins / player.matches_played * 100)|round(1) if player.matches_played > 0 else 0 %}
   <div class="profile-card">
     <div class="profile-left">
       {% if user.avatar %}
         <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="">
       {% else %}
-        <div class="profile-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2.5rem;">👤</div>
+        <div class="profile-avatar-placeholder">👤</div>
       {% endif %}
       <div class="profile-rank">RANK #<span id="profile-rank">{{ rank }}</span></div>
     </div>
@@ -211,8 +247,8 @@
         <div class="stat-box pts"><span class="val" id="stat-points">{{ player.points }}</span><span class="lbl">ELO</span></div>
         <div class="stat-box wins"><span class="val" id="stat-wins">{{ player.wins }}</span><span class="lbl">Wins</span></div>
         <div class="stat-box losses"><span class="val" id="stat-losses">{{ player.losses }}</span><span class="lbl">Losses</span></div>
-        <div class="stat-box"><span class="val">{{ player.matches_played }}</span><span class="lbl">Sets</span></div>
-        <div class="stat-box stocks"><span class="val">{{ player.stocks_taken or 0 }}</span><span class="lbl">Stocks taken</span></div>
+        <div class="stat-box"><span class="val" id="stat-sets">{{ player.matches_played }}</span><span class="lbl">Sets</span></div>
+        <div class="stat-box stocks"><span class="val" id="stat-stocks">{{ player.stocks_taken or 0 }}</span><span class="lbl">Stocks taken</span></div>
       </div>
       <div class="wr-section">
         <div class="wr-row">
@@ -222,119 +258,60 @@
         </div>
       </div>
       <div class="chars-row">
-        <div class="char-slot" onclick="openCharPicker('main')">
+        <div class="char-slot" id="main-char-slot" onclick="openCharPicker('main')">
           {% if player.main_char %}
-            <img id="main-char-img" src="" onerror="this.style.display='none'" alt="">
+            <img id="main-char-img" src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.main_char }}.png" onerror="this.style.display='none'" alt="">
             <span class="char-label">Main</span>
-            <span class="char-name">{{ player.main_char }}</span>
+            <span class="char-name" id="main-char-name">{{ player.main_char }}</span>
           {% else %}
             <span style="font-size:1.5rem;">🎮</span>
             <span class="char-label">Main</span>
-            <span class="char-name" style="color:var(--muted);">Pick</span>
+            <span class="char-name" id="main-char-name" style="color:var(--muted);">Pick</span>
           {% endif %}
         </div>
-        <div class="char-slot" onclick="openCharPicker('secondary')">
+        <div class="char-slot" id="sec-char-slot" onclick="openCharPicker('secondary')">
           {% if player.secondary_char %}
-            <img id="sec-char-img" src="" onerror="this.style.display='none'" alt="">
+            <img id="sec-char-img" src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ player.secondary_char }}.png" onerror="this.style.display='none'" alt="">
             <span class="char-label">Secondary</span>
-            <span class="char-name">{{ player.secondary_char }}</span>
+            <span class="char-name" id="sec-char-name">{{ player.secondary_char }}</span>
           {% else %}
             <span style="font-size:1.5rem;">➕</span>
             <span class="char-label">Secondary</span>
-            <span class="char-name" style="color:var(--muted);">Pick</span>
+            <span class="char-name" id="sec-char-name" style="color:var(--muted);">Pick</span>
           {% endif %}
         </div>
       </div>
     </div>
   </div>
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('activity', this)">
+
+  {# ── TABS ── #}
+  <div class="tabs" id="tabs">
+    <div class="tab active" onclick="showTab('activity', this)" id="tab-activity">
       ⚡ Activity
       {% set notif = challenges_received|length + active_matches|length + awaiting_confirmation|length %}
-      {% if notif > 0 %}<span class="tab-badge">{{ notif }}</span>{% endif %}
+      {% if notif > 0 %}<span class="tab-badge" id="activity-badge">{{ notif }}</span>{% else %}<span class="tab-badge" id="activity-badge" style="display:none">0</span>{% endif %}
     </div>
     <div class="tab" onclick="showTab('search', this)">🔍 Find Players</div>
-    <div class="tab" onclick="showTab('history', this)">📋 Match History</div>
+    <div class="tab" onclick="showTab('history', this)">📋 History</div>
   </div>
+
+  {# ── ACTIVITY ── #}
   <div class="tab-panel active" id="panel-activity">
-    <div id="zone-defis">
-      {% if challenges_received %}
-      <div class="section-title">INCOMING CHALLENGES</div>
-      {% for cid, c in challenges_received %}
-      <div class="challenge-card pending">
-        <div class="challenge-top">
-          <div>
-            <div class="challenge-title">⚔ {{ c.challenger_name }} is challenging you!</div>
-            <div class="challenge-sub">Mode : <strong>{{ c.format or "BO3" }}</strong> — chosen by the challenger</div>
-          </div>
-        </div>
-        <div class="challenge-actions">
-          <button class="btn btn-success" onclick="acceptChallenge('{{ cid }}','{{ c.challenger_name }}',myName)">✅ Accept</button>
-          <button class="btn btn-danger" onclick="declineChallenge('{{ cid }}')">Decline</button>
-        </div>
-      </div>
-      {% endfor %}
-      {% endif %}
-    </div>
-    <div id="zone-envoyes">
-      {% if challenges_sent %}
-      <div class="section-title">CHALLENGES SENT</div>
-      {% for cid, c in challenges_sent %}
-      <div class="challenge-card pending" style="border-left-color:var(--muted);">
-        <div class="challenge-top">
-          <div>
-            <div class="challenge-title">⏳ Waiting for <strong>{{ c.challenged_name }}</strong></div>
-            <div class="challenge-sub">You sent this challenge — they haven't accepted yet</div>
-          </div>
-          <button class="btn btn-danger" onclick="cancelChallenge('{{ cid }}')">✖ Cancel</button>
-        </div>
-      </div>
-      {% endfor %}
-      {% endif %}
-    </div>
-    <div id="zone-matchs">
-      {% if active_matches %}
-      <div class="section-title">ACTIVE MATCHES</div>
-      {% for cid, c in active_matches %}
-      <div class="challenge-card active">
-        <div class="challenge-top">
-          <div>
-            <div class="challenge-title">🎮 {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
-            <div class="challenge-sub">{{ c.format }} — Submit the result when done</div>
-          </div>
-          <button class="btn btn-success" onclick="window.location.href='/match/{{ cid }}'">🎮 Enter Match</button>
-        </div>
-      </div>
-      {% endfor %}
-      {% endif %}
-    </div>
-    <div id="zone-attente">
-      {% if awaiting_confirmation %}
-      <div class="section-title">AWAITING YOUR CONFIRMATION</div>
-      {% for cid, c in awaiting_confirmation %}
-      <div class="challenge-card awaiting">
-        <div class="challenge-top">
-          <div>
-            <div class="challenge-title">⏳ {{ c.challenger_name }} vs {{ c.challenged_name }}</div>
-            <div class="challenge-sub">Your opponent submitted a result — confirm it!</div>
-          </div>
-          <button class="btn btn-primary" onclick="window.location.href='/match/{{ cid }}'">✅ Confirm Result</button>
-        </div>
-      </div>
-      {% endfor %}
-      {% endif %}
-    </div>
-    {% if not challenges_received and not active_matches and not awaiting_confirmation %}
-    <div class="empty" style="padding:3rem;">
+    <div id="zone-defis"></div>
+    <div id="zone-envoyes"></div>
+    <div id="zone-matchs"></div>
+    <div id="zone-attente"></div>
+    <div id="zone-empty" class="empty" style="padding:3rem;display:none;">
       <div style="font-size:3rem;margin-bottom:1rem;">🎮</div>
       No active challenges.<br>Go to <strong>Find Players</strong> to start a match!
     </div>
-    {% endif %}
   </div>
+
+  {# ── SEARCH ── #}
   <div class="tab-panel" id="panel-search">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input class="search-input" type="text" id="search-input" placeholder="Search by player name..." oninput="filterPlayers(this.value)">
+      <input class="search-input" type="text" id="search-input" placeholder="Search by player name…" oninput="filterPlayers(this.value)">
     </div>
     <div class="players-grid" id="players-grid">
       {% for p in players %}
@@ -345,24 +322,28 @@
             {% if p.avatar %}
               <img class="mini-avatar" src="https://cdn.discordapp.com/avatars/{{ p.id }}/{{ p.avatar }}.png" alt="">
             {% else %}
-              <div class="mini-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>
+              <div class="mini-avatar-placeholder">👤</div>
             {% endif %}
             <div>
               <div class="player-card-name">
-                {% if p.main_char %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ p.main_char }}.png" onerror="this.style.display='none'" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;" alt="">{% endif %}{{ p.username }}
+                {% if p.main_char %}
+                  <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ p.main_char }}.png"
+                    onerror="this.style.display='none'"
+                    style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;" alt="">
+                {% endif %}
+                <a href="/player/{{ p.id }}" style="color:inherit;text-decoration:none;">{{ p.username }}</a>
               </div>
               <div class="player-card-sub">{{ p.wins }}W {{ p.losses }}L · {{ pwr }}% WR{% if p.main_char %} · {{ p.main_char }}{% endif %}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;justify-content:flex-end;">
             <span class="player-card-pts">{{ p.points }} ELO</span>
-            <select class="form-select" id="fmt-search-{{ p.id }}" style="padding:0.35rem 0.6rem;font-size:0.85rem;width:auto;">
+            <select class="form-select" id="fmt-search-{{ p.id }}">
               <option value="BO1">BO1</option>
               <option value="BO3" selected>BO3</option>
               <option value="BO5">BO5</option>
-              <option value="STOCKS">STOCKS</option>
             </select>
-            <button class="btn btn-primary" onclick="sendChallenge('{{ p.id }}','{{ p.username }}', document.getElementById('fmt-search-{{ p.id }}').value)">⚔ Challenge</button>
+            <button class="btn btn-primary btn-sm" onclick="sendChallenge('{{ p.id }}','{{ p.username }}',document.getElementById('fmt-search-{{ p.id }}').value)">⚔ Challenge</button>
           </div>
         </div>
         {% endif %}
@@ -372,25 +353,27 @@
       {% endif %}
     </div>
   </div>
+
+  {# ── HISTORY ── #}
   <div class="tab-panel" id="panel-history">
     <div id="zone-historique">
       {% if my_matches %}
         {% for match in my_matches %}
           {% if match.winner_id == user.id %}
-          {% set opp_main = match.loser_main or '' %}
           <div class="match-card win">
             <span class="match-result">WIN</span>
-            <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+            <span class="match-vs">vs <strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
             <span class="match-fmt">{{ match.format }}</span>
             {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
+            <span class="match-date">{{ match.date[:10] if match.date else '' }}</span>
           </div>
           {% else %}
-          {% set opp_main = match.winner_main or '' %}
           <div class="match-card loss">
             <span class="match-result">LOSS</span>
-            <span class="match-vs">vs {% if opp_main %}<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ opp_main }}.png" onerror="this.style.display='none'" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;">{% endif %}<strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
+            <span class="match-vs">vs <strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
             <span class="match-fmt">{{ match.format }}</span>
             {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
+            <span class="match-date">{{ match.date[:10] if match.date else '' }}</span>
           </div>
           {% endif %}
         {% endfor %}
@@ -399,43 +382,397 @@
       {% endif %}
     </div>
   </div>
+
+</div><!-- /container -->
+
+{# ── CHAR PICKER MODAL ── #}
+<div class="modal-overlay" id="charModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('charModal')">✕</button>
+    <h2 id="charModal-title">Choose Main</h2>
+    <input class="char-search" type="text" id="char-search" placeholder="Search character…" oninput="filterChars(this.value)">
+    <div class="char-grid" id="char-grid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('charModal')">Cancel</button>
+    </div>
+  </div>
 </div>
-<div class="modal-overlay" id="resultModal">...</div>
-<div class="modal-overlay" id="charModal">...</div>
+
 <div class="toast" id="toast"></div>
+
+{# ── MATCH FOUND OVERLAY ── #}
+<div id="match-found-overlay">
+  <div class="mfo-found-label">MATCH FOUND</div>
+  <div class="mfo-arena">
+    <div class="mfo-player p1">
+      <div class="mfo-name" id="mfo-p1"></div>
+      <div class="mfo-tag">CHALLENGER</div>
+    </div>
+    <div class="mfo-vs-wrap">
+      <div class="mfo-vs-text">VS</div>
+      <div class="mfo-slash"></div>
+    </div>
+    <div class="mfo-player p2">
+      <div class="mfo-name" id="mfo-p2"></div>
+      <div class="mfo-tag">OPPONENT</div>
+    </div>
+  </div>
+</div>
+
 <script>
-// -------------------------------------------------------------
-//  DASHBOARD JAVASCRIPT CORRIGÉ (pas de & non échappé)
-// -------------------------------------------------------------
+// ── CONSTANTS ──────────────────────────────────────────────────────────────────
 const myId   = "{{ user.id }}";
 const myName = "{{ user.username }}";
-let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
 const doneMatchIds = new Set();
-const doneChallengeId = new URLSearchParams(window.location.search).get('done') || null;
-if (doneChallengeId) { doneMatchIds.add(doneChallengeId); history.replaceState(null, '', '/dashboard'); }
+const doneChallengeId = new URLSearchParams(window.location.search).get('done');
+if (doneChallengeId) { doneMatchIds.add(doneChallengeId); history.replaceState(null,'','/dashboard'); }
 
-const CHAR_ICONS = {
-  mario: "https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png",
-  donkey_kong: "https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png",
-  // ... (tous les personnages, mais je raccourcis pour la lisibilité – vous pouvez garder la liste complète de votre original)
+// Full Smash Ultimate roster
+const SMASH_CHARS = [
+  {name:"Mario",id:"mario"},{name:"Donkey Kong",id:"donkey_kong"},{name:"Link",id:"link"},
+  {name:"Samus",id:"samus"},{name:"Dark Samus",id:"dark_samus"},{name:"Yoshi",id:"yoshi"},
+  {name:"Kirby",id:"kirby"},{name:"Fox",id:"fox"},{name:"Pikachu",id:"pikachu"},
+  {name:"Luigi",id:"luigi"},{name:"Ness",id:"ness"},{name:"Captain Falcon",id:"captain_falcon"},
+  {name:"Jigglypuff",id:"jigglypuff"},{name:"Peach",id:"peach"},{name:"Daisy",id:"daisy"},
+  {name:"Bowser",id:"bowser"},{name:"Ice Climbers",id:"ice_climbers"},{name:"Sheik",id:"sheik"},
+  {name:"Zelda",id:"zelda"},{name:"Dr. Mario",id:"dr_mario"},{name:"Pichu",id:"pichu"},
+  {name:"Falco",id:"falco"},{name:"Marth",id:"marth"},{name:"Lucina",id:"lucina"},
+  {name:"Young Link",id:"young_link"},{name:"Ganondorf",id:"ganondorf"},{name:"Mewtwo",id:"mewtwo"},
+  {name:"Roy",id:"roy"},{name:"Chrom",id:"chrom"},{name:"Mr. Game & Watch",id:"mr_game_and_watch"},
+  {name:"Meta Knight",id:"meta_knight"},{name:"Pit",id:"pit"},{name:"Dark Pit",id:"dark_pit"},
+  {name:"Zero Suit Samus",id:"zero_suit_samus"},{name:"Wario",id:"wario"},{name:"Snake",id:"snake"},
+  {name:"Ike",id:"ike"},{name:"Pokémon Trainer",id:"pokemon_trainer"},{name:"Diddy Kong",id:"diddy_kong"},
+  {name:"Lucas",id:"lucas"},{name:"Sonic",id:"sonic"},{name:"King Dedede",id:"dedede"},
+  {name:"Olimar",id:"olimar"},{name:"Lucario",id:"lucario"},{name:"R.O.B.",id:"rob"},
+  {name:"Toon Link",id:"toon_link"},{name:"Wolf",id:"wolf"},{name:"Villager",id:"villager"},
+  {name:"Mega Man",id:"mega_man"},{name:"Wii Fit Trainer",id:"wii_fit_trainer"},{name:"Rosalina",id:"rosalina_and_luma"},
+  {name:"Little Mac",id:"little_mac"},{name:"Greninja",id:"greninja"},{name:"Mii Brawler",id:"mii_brawler"},
+  {name:"Mii Swordfighter",id:"mii_swordfighter"},{name:"Mii Gunner",id:"mii_gunner"},{name:"Palutena",id:"palutena"},
+  {name:"Pac-Man",id:"pac_man"},{name:"Robin",id:"robin"},{name:"Shulk",id:"shulk"},
+  {name:"Bowser Jr.",id:"bowser_jr"},{name:"Duck Hunt",id:"duck_hunt"},{name:"Ryu",id:"ryu"},
+  {name:"Ken",id:"ken"},{name:"Cloud",id:"cloud"},{name:"Corrin",id:"corrin"},
+  {name:"Bayonetta",id:"bayonetta"},{name:"Inkling",id:"inkling"},{name:"Ridley",id:"ridley"},
+  {name:"Simon",id:"simon"},{name:"Richter",id:"richter"},{name:"King K. Rool",id:"king_k_rool"},
+  {name:"Isabelle",id:"isabelle"},{name:"Incineroar",id:"incineroar"},{name:"Piranha Plant",id:"piranha_plant"},
+  {name:"Joker",id:"joker"},{name:"Hero",id:"hero"},{name:"Banjo & Kazooie",id:"banjo_and_kazooie"},
+  {name:"Terry",id:"terry"},{name:"Byleth",id:"byleth"},{name:"Min Min",id:"min_min"},
+  {name:"Steve",id:"steve"},{name:"Sephiroth",id:"sephiroth"},{name:"Pyra/Mythra",id:"pyra_mythra"},
+  {name:"Kazuya",id:"kazuya"},{name:"Sora",id:"sora"}
+];
+function charImg(id) { return `https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${id}.png`; }
+function charThumb(id) { return `https://www.smashbros.com/assets_v2/img/fighter/pict/${id}.png`; }
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? 'var(--green)' : 'var(--red)';
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function showTab(name, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'activity') refreshActivityUI(window._lastDashData);
+}
+
+// ── FILTER PLAYERS ────────────────────────────────────────────────────────────
+function filterPlayers(q) {
+  const low = q.toLowerCase();
+  document.querySelectorAll('#players-grid .player-card').forEach(card => {
+    card.style.display = card.dataset.name.includes(low) ? '' : 'none';
+  });
+}
+
+// ── CHAR PICKER ───────────────────────────────────────────────────────────────
+let charPickerSlot = 'main';
+function openCharPicker(slot) {
+  charPickerSlot = slot;
+  document.getElementById('charModal-title').textContent = slot === 'main' ? 'Choose Main' : 'Choose Secondary';
+  document.getElementById('char-search').value = '';
+  renderCharGrid(SMASH_CHARS);
+  openModal('charModal');
+}
+function renderCharGrid(list) {
+  const grid = document.getElementById('char-grid');
+  grid.innerHTML = '';
+  list.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'char-option';
+    div.innerHTML = `<img src="${charImg(c.id)}" loading="lazy" onerror="this.style.display='none'" alt=""><span>${c.name}</span>`;
+    div.onclick = () => { saveChar(charPickerSlot, c.id, c.name); closeModal('charModal'); };
+    grid.appendChild(div);
+  });
+}
+function filterChars(q) {
+  const low = q.toLowerCase();
+  renderCharGrid(SMASH_CHARS.filter(c => c.name.toLowerCase().includes(low)));
+}
+async function saveChar(slot, charId, charName) {
+  const body = {};
+  if (slot === 'main') body.main_char = charId;
+  else body.secondary_char = charId;
+  await fetch('/api/update_profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  // Update UI
+  const imgEl  = document.getElementById(slot === 'main' ? 'main-char-img' : 'sec-char-img');
+  const nameEl = document.getElementById(slot === 'main' ? 'main-char-name' : 'sec-char-name');
+  const slot_  = document.getElementById(slot === 'main' ? 'main-char-slot' : 'sec-char-slot');
+  if (!imgEl) {
+    // rebuild slot
+    slot_.innerHTML = `<img id="${slot==='main'?'main-char-img':'sec-char-img'}" src="${charImg(charId)}" onerror="this.style.display='none'" alt="" style="width:48px;height:48px;object-fit:contain;">
+      <span class="char-label">${slot==='main'?'Main':'Secondary'}</span>
+      <span class="char-name" id="${slot==='main'?'main-char-name':'sec-char-name'}">${charName}</span>`;
+  } else {
+    imgEl.src = charImg(charId);
+    imgEl.style.display = '';
+    nameEl.textContent = charName;
+    nameEl.style.color = '';
+  }
+  showToast(`${slot === 'main' ? 'Main' : 'Secondary'} updated: ${charName}`);
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+});
+
+// ── CHALLENGE ACTIONS ─────────────────────────────────────────────────────────
+async function sendChallenge(opponentId, opponentName, format) {
+  try {
+    const r = await fetch(`/challenge/${opponentId}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ format })
+    });
+    const d = await r.json();
+    if (d.success) showToast(`Challenge sent to ${opponentName} (${format})!`);
+    else showToast(d.error || 'Error', false);
+  } catch { showToast('Network error', false); }
+}
+
+async function acceptChallenge(challengeId) {
+  try {
+    const r = await fetch(`/challenge/${challengeId}/accept`, { method:'POST' });
+    const d = await r.json();
+    if (d.success) { showToast('Challenge accepted!'); window.location.href = `/match/${challengeId}`; }
+    else showToast(d.error || 'Error', false);
+  } catch { showToast('Network error', false); }
+}
+
+async function declineChallenge(challengeId) {
+  try {
+    const r = await fetch(`/challenge/${challengeId}/decline`, { method:'POST' });
+    const d = await r.json();
+    if (d.success) showToast('Challenge declined.');
+    else showToast(d.error || 'Error', false);
+  } catch { showToast('Network error', false); }
+}
+
+async function cancelChallenge(challengeId) {
+  try {
+    const r = await fetch(`/challenge/${challengeId}/cancel`, { method:'POST' });
+    const d = await r.json();
+    if (d.success) showToast('Challenge cancelled.');
+    else showToast(d.error || 'Error', false);
+  } catch { showToast('Network error', false); }
+}
+
+// ── ACTIVITY UI (RENDER FROM DATA) ────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function refreshActivityUI(data) {
+  if (!data) return;
+  window._lastDashData = data;
+
+  const received = data.challenges_received || {};
+  const sent     = data.challenges_sent || {};
+  const active   = data.active_matches || {};
+  const awaiting = data.awaiting_confirmation || {};
+
+  // Incoming challenges
+  const zoneDefis = document.getElementById('zone-defis');
+  const rcvIds = Object.keys(received).filter(id => !doneMatchIds.has(id));
+  if (rcvIds.length) {
+    zoneDefis.innerHTML = `<div class="section-title">INCOMING CHALLENGES</div>` +
+      rcvIds.map(cid => {
+        const c = received[cid];
+        return `<div class="challenge-card pending" id="card-${esc(cid)}">
+          <div class="challenge-top">
+            <div>
+              <div class="challenge-title">⚔ ${esc(c.challenger_name)} is challenging you!</div>
+              <div class="challenge-sub">Format: <strong>${esc(c.format||'BO3')}</strong></div>
+            </div>
+          </div>
+          <div class="challenge-actions">
+            <button class="btn btn-success" onclick="acceptChallenge('${esc(cid)}')">✅ Accept</button>
+            <button class="btn btn-danger" onclick="declineChallenge('${esc(cid)}')">Decline</button>
+          </div>
+        </div>`;
+      }).join('');
+  } else { zoneDefis.innerHTML = ''; }
+
+  // Sent challenges
+  const zoneSent = document.getElementById('zone-envoyes');
+  const sentIds = Object.keys(sent).filter(id => !doneMatchIds.has(id));
+  if (sentIds.length) {
+    zoneSent.innerHTML = `<div class="section-title">CHALLENGES SENT</div>` +
+      sentIds.map(cid => {
+        const c = sent[cid];
+        return `<div class="challenge-card pending" style="border-left-color:var(--muted);" id="card-${esc(cid)}">
+          <div class="challenge-top">
+            <div>
+              <div class="challenge-title">⏳ Waiting for <strong>${esc(c.challenged_name)}</strong></div>
+              <div class="challenge-sub">Format: <strong>${esc(c.format||'BO3')}</strong></div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="cancelChallenge('${esc(cid)}')">✖ Cancel</button>
+          </div>
+        </div>`;
+      }).join('');
+  } else { zoneSent.innerHTML = ''; }
+
+  // Active matches
+  const zoneMatchs = document.getElementById('zone-matchs');
+  const activeIds = Object.keys(active).filter(id => !doneMatchIds.has(id));
+  if (activeIds.length) {
+    zoneMatchs.innerHTML = `<div class="section-title">ACTIVE MATCHES</div>` +
+      activeIds.map(cid => {
+        const c = active[cid];
+        return `<div class="challenge-card active" id="card-${esc(cid)}">
+          <div class="challenge-top">
+            <div>
+              <div class="challenge-title">🎮 ${esc(c.challenger_name)} vs ${esc(c.challenged_name)}</div>
+              <div class="challenge-sub">${esc(c.format)} — click to enter the match room</div>
+            </div>
+            <button class="btn btn-success" onclick="window.location.href='/match/${esc(cid)}'">🎮 Enter Match</button>
+          </div>
+        </div>`;
+      }).join('');
+  } else { zoneMatchs.innerHTML = ''; }
+
+  // Awaiting confirmation
+  const zoneAttente = document.getElementById('zone-attente');
+  const awaitIds = Object.keys(awaiting).filter(id => !doneMatchIds.has(id));
+  if (awaitIds.length) {
+    zoneAttente.innerHTML = `<div class="section-title">AWAITING YOUR CONFIRMATION</div>` +
+      awaitIds.map(cid => {
+        const c = awaiting[cid];
+        return `<div class="challenge-card awaiting" id="card-${esc(cid)}">
+          <div class="challenge-top">
+            <div>
+              <div class="challenge-title">⏳ ${esc(c.challenger_name)} vs ${esc(c.challenged_name)}</div>
+              <div class="challenge-sub">Your opponent submitted a result — confirm it!</div>
+            </div>
+            <button class="btn btn-primary" onclick="window.location.href='/match/${esc(cid)}'">✅ Confirm Result</button>
+          </div>
+        </div>`;
+      }).join('');
+  } else { zoneAttente.innerHTML = ''; }
+
+  // Empty state
+  const hasAny = rcvIds.length || sentIds.length || activeIds.length || awaitIds.length;
+  document.getElementById('zone-empty').style.display = hasAny ? 'none' : 'block';
+
+  // Update badge
+  const badge = document.getElementById('activity-badge');
+  const badgeCount = rcvIds.length + activeIds.length + awaitIds.length;
+  badge.textContent = badgeCount;
+  badge.style.display = badgeCount > 0 ? '' : 'none';
+
+  // Update stats if present
+  if (data.player) {
+    const p = data.player;
+    document.getElementById('stat-points').textContent = p.points;
+    document.getElementById('stat-wins').textContent   = p.wins;
+    document.getElementById('stat-losses').textContent = p.losses;
+    document.getElementById('stat-sets').textContent   = p.matches_played;
+    document.getElementById('stat-stocks').textContent = p.stocks_taken || 0;
+    const wr = p.matches_played > 0 ? Math.round(p.wins / p.matches_played * 1000) / 10 : 0;
+    document.getElementById('wr-fill').style.width = wr + '%';
+    document.getElementById('wr-val').textContent  = wr + '%';
+  }
+  if (data.rank) document.getElementById('profile-rank').textContent = data.rank;
+
+  // History tab (live update)
+  if (data.my_matches && data.my_matches.length) {
+    const hist = document.getElementById('zone-historique');
+    hist.innerHTML = data.my_matches.map(m => {
+      const isWin = m.winner_id === myId;
+      const opp   = isWin ? m.loser_name : m.winner_name;
+      const elo   = m.elo_change ? (isWin ? `+${m.elo_change}` : `-${m.elo_change}`) + ' ELO' : '';
+      const date  = m.date ? m.date.slice(0,10) : '';
+      return `<div class="match-card ${isWin?'win':'loss'}">
+        <span class="match-result">${isWin?'WIN':'LOSS'}</span>
+        <span class="match-vs">vs <strong>${esc(opp)}</strong>${m.score?' — '+esc(m.score):''}</span>
+        <span class="match-fmt">${esc(m.format)}</span>
+        ${elo ? `<span class="match-elo">${esc(elo)}</span>` : ''}
+        <span class="match-date">${date}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── MATCH FOUND OVERLAY ───────────────────────────────────────────────────────
+function showMatchFound(p1, p2) {
+  document.getElementById('mfo-p1').textContent = p1;
+  document.getElementById('mfo-p2').textContent = p2;
+  document.getElementById('match-found-overlay').classList.add('visible');
+}
+
+// ── SOCKET.IO ─────────────────────────────────────────────────────────────────
+const socket = io({ transports: ['websocket'], upgrade: false });
+
+socket.on('connect', () => {
+  document.getElementById('ws-dot').style.background   = 'var(--green)';
+  document.getElementById('ws-label').style.color      = 'var(--green)';
+  document.getElementById('ws-label').textContent      = 'Live';
+  socket.emit('join_user', { exclude: [...doneMatchIds] });
+});
+
+socket.on('disconnect', () => {
+  document.getElementById('ws-dot').style.background  = 'var(--muted)';
+  document.getElementById('ws-label').style.color     = 'var(--muted)';
+  document.getElementById('ws-label').textContent     = 'Offline';
+});
+
+socket.on('dashboard_update', data => {
+  refreshActivityUI(data);
+});
+
+socket.on('new_challenge', data => {
+  showToast(`⚔ ${data.challenger_name} is challenging you! (${data.format})`);
+});
+
+socket.on('match_redirect', data => {
+  if (data && data.challenge_id) {
+    showMatchFound(data.p1 || '?', data.p2 || '?');
+    setTimeout(() => { window.location.href = '/match/' + data.challenge_id; }, 2000);
+  }
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window._lastDashData = {
+  challenges_received: {{ challenges_received | tojson }},
+  challenges_sent:     {{ challenges_sent | tojson }},
+  active_matches:      {{ active_matches | tojson }},
+  awaiting_confirmation: {{ awaiting_confirmation | tojson }},
+  my_matches:          {{ my_matches | tojson }},
+  player:              {{ player | tojson }},
+  rank:                {{ rank | tojson }}
 };
-function charImg(id) { return CHAR_ICONS[id] || ""; }
-const SMASH_CHARS = [ /* votre liste complète */ ];
+refreshActivityUI(window._lastDashData);
 
-function showToast(msg, ok=true) { /* ... */ }
-function showTab(name, el) { /* ... */ }
-function filterPlayers(q) { /* ... */ }
-function openCharPicker(slot) { /* ... */ }
-function saveChar(slot, charId, charName) { /* ... */ }
-// ... (tout le reste du JS original, sans erreur de &)
-
-// Pour éviter l'erreur "Unexpected token '&'", assurez-vous qu'il n'y a pas de & non échappé dans les chaînes.
-// Si vous utilisez des conditions avec &&, c'est OK. Le problème venait peut-être d'un & dans un commentaire HTML.
-// Tout le code original fonctionne, je ne réécris pas les 300 lignes ici.
-// Veuillez reprendre l'intégralité du JS de votre dashboard.html original, il n'y a aucune erreur de syntaxe.
-// Je fournis le fichier complet en pièce jointe.
+// Anchor #activity
+if (window.location.hash === '#activity') showTab('activity', document.getElementById('tab-activity'));
 </script>
-<div id="match-found-overlay">...</div>
 <script src="/static/notifications.js"></script>
 </body>
 </html>
