@@ -2,320 +2,527 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚔ Smash YUZU — Match</title>
+  <title>⚔ MATCH — Smash YUZU</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ========== STYLES ORIGINAUX (inchangés) ========== */
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+      --blue: #4f8ef7; --blue-glow: rgba(79,142,247,0.4);
+      --red-glow: rgba(232,64,10,0.4);
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #07070f; color: #eeeef5; font-family: 'Rajdhani', sans-serif; }
-    nav { display: flex; justify-content: space-between; padding: 1rem 2rem; background: #0f0f1a; border-bottom: 1px solid #252540; }
-    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; background: linear-gradient(135deg, #fff, #ff8000); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
-    .btn { padding: 0.45rem 1.1rem; border-radius: 4px; text-decoration: none; font-weight: 700; }
-    .btn-ghost { background: transparent; color: #eeeef5; border: 1px solid #252540; }
-    .arena { display: flex; flex-direction: column; align-items: center; padding: 2rem; }
-    .vs-arena { display: grid; grid-template-columns: 1fr auto 1fr; gap: 2rem; align-items: center; max-width: 800px; width: 100%; margin-bottom: 2rem; }
-    .fighter { text-align: center; }
-    .fighter-name { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; }
-    .fighter-score { font-size: 3rem; font-weight: bold; color: #ff8000; }
-    .vs-center { text-align: center; background: #16162a; padding: 1rem; border-radius: 12px; }
-    .vs-text { font-size: 2.5rem; font-weight: bold; }
-    .score-section { background: #0f0f1a; border: 1px solid #252540; border-radius: 12px; padding: 2rem; max-width: 800px; width: 100%; }
-    .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.5rem; margin-top: 1rem; }
-    .char-option { background: #16162a; border: 1px solid #252540; border-radius: 8px; padding: 0.5rem; cursor: pointer; text-align: center; transition: 0.2s; }
-    .char-option:hover { border-color: #ff8000; }
-    .stage-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
-    .stage-option { background: #16162a; border: 1px solid #252540; border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer; }
-    .stage-option:hover { border-color: #ff8000; }
-    .btn-primary { background: linear-gradient(135deg, #e8400a, #ff8000); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin: 0.5rem; }
-    .btn-success { background: #3ddc84; color: #07070f; }
-    .btn-danger { background: #ff5555; color: white; }
-    .toast { position: fixed; bottom: 20px; right: 20px; background: #16162a; border: 1px solid #ff8000; padding: 0.8rem 1.2rem; border-radius: 8px; opacity: 0; transition: opacity 0.3s; }
-    .toast.show { opacity: 1; }
-    .winner-announcement { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; overflow-x: hidden; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.4); }
+    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .btn-danger:hover { background: var(--red); color: white; }
+    .arena { min-height: calc(100vh - 65px); display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem 4rem;
+      background: radial-gradient(ellipse 60% 40% at 20% 50%, rgba(79,142,247,0.12) 0%, transparent 60%),
+                  radial-gradient(ellipse 60% 40% at 80% 50%, rgba(232,64,10,0.12) 0%, transparent 60%); }
+    .format-badge { font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 3px;
+      color: var(--accent2); border: 1px solid var(--accent2); padding: 0.25rem 1rem;
+      border-radius: 3px; background: rgba(255,128,0,0.08); margin-bottom: 1.5rem; }
+    .vs-arena { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; align-items: center;
+      width: 100%; max-width: 860px; margin-bottom: 2rem; }
+    .fighter-side { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem 1.5rem; position: relative; }
+    .fighter-side.blue-side { background: linear-gradient(135deg, rgba(79,142,247,0.08) 0%, transparent 70%);
+      border: 1px solid rgba(79,142,247,0.2); border-right: none; border-radius: 12px 0 0 12px; }
+    .fighter-side.red-side { background: linear-gradient(225deg, rgba(232,64,10,0.08) 0%, transparent 70%);
+      border: 1px solid rgba(232,64,10,0.2); border-left: none; border-radius: 0 12px 12px 0; }
+    .fighter-avatar { width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(79,142,247,0.5);
+      box-shadow: 0 0 20px var(--blue-glow); }
+    .red-side .fighter-avatar { border-color: rgba(232,64,10,0.5); box-shadow: 0 0 20px var(--red-glow); }
+    .fighter-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 3px; text-align: center; color: #fff; }
+    .fighter-elo { font-size: 0.85rem; color: var(--muted); letter-spacing: 1px; }
+    .fighter-score { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; line-height: 1; }
+    .blue-side .fighter-score { color: var(--blue); text-shadow: 0 0 30px var(--blue-glow); }
+    .red-side .fighter-score { color: var(--accent); text-shadow: 0 0 30px var(--red-glow); }
+    .vs-center { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.5rem 1rem;
+      background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); min-width: 100px; }
+    .vs-text { font-family: 'Bebas Neue', sans-serif; font-size: 3.5rem; letter-spacing: 6px;
+      background: linear-gradient(135deg, var(--blue) 0%, #fff 40%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .game-dots { display: flex; gap: 5px; margin-top: 0.3rem; }
+    .game-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--surface3); border: 1px solid var(--border); }
+    .game-dot.p1 { background: var(--blue); box-shadow: 0 0 8px var(--blue-glow); }
+    .game-dot.p2 { background: var(--accent); box-shadow: 0 0 8px var(--red-glow); }
+    .score-section { width: 100%; max-width: 860px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 2rem; position: relative; overflow: hidden; }
+    .score-section::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--accent)); border-radius: 12px 12px 0 0; }
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 3px;
+      color: var(--accent2); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 1rem; }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .step-indicator { font-family: 'Bebas Neue', sans-serif; color: var(--accent2); letter-spacing: 2px;
+      margin-bottom: 1rem; text-align: center; font-size: 0.9rem; background: var(--surface2); display: inline-block;
+      padding: 0.2rem 1rem; border-radius: 20px; }
+    .char-grid, .stage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 0.6rem; margin-bottom: 1rem; max-height: 300px; overflow-y: auto; }
+    .char-option, .stage-option { display: flex; flex-direction: column; align-items: center;
+      gap: 0.2rem; padding: 0.5rem; border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+      background: var(--surface2); transition: all 0.15s; }
+    .char-option:hover, .stage-option:hover { border-color: var(--accent2); background: rgba(255,128,0,0.1); }
+    .char-option.selected, .stage-option.selected { border-color: var(--accent2); background: rgba(255,128,0,0.2); }
+    .char-option img { width: 44px; height: 44px; object-fit: contain; }
+    .stage-option { font-size: 0.9rem; font-weight: 600; padding: 0.8rem; text-align: center; }
+    .wait-turn { color: var(--muted); text-align: center; padding: 1rem; font-style: italic; }
+    .game-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1rem; margin-bottom: 1.2rem; }
+    .propose-buttons { display: flex; gap: 1rem; justify-content: center; margin: 1rem 0; }
+    .confirm-box { background: var(--surface3); border-left: 3px solid var(--accent2); padding: 1rem;
+      border-radius: 8px; margin: 1rem 0; }
+    .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2); border: 1px solid var(--accent);
+      color: var(--text); padding: 1rem 1.5rem; border-radius: 8px; z-index: 999; opacity: 0;
+      transform: translateY(10px); transition: all 0.3s; font-weight: 700; max-width: 320px; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .winner-announcement { display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.9); align-items: center; justify-content: center; flex-direction: column; gap: 1.5rem; }
     .winner-announcement.show { display: flex; }
-    .winner-name { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; background: linear-gradient(135deg, gold, orange); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .wait-turn { color: #6060a0; font-style: italic; margin-top: 1rem; }
-    .step-indicator { margin-bottom: 1rem; color: #ff8000; font-weight: bold; }
+    #match-chat { width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
+      background: var(--surface); border-left: 1px solid var(--border); position: sticky; top: 65px;
+      height: calc(100vh - 65px); z-index: 50; }
+    .page-body { display: flex; flex: 1; min-height: 0; }
+    #chat-messages { flex: 1; overflow-y: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .chat-msg { max-width: 88%; }
+    .chat-msg.mine { align-self: flex-end; }
+    .chat-msg.theirs { align-self: flex-start; }
+    .chat-msg-bubble { padding: 0.45rem 0.75rem; border-radius: 10px; font-size: 0.88rem; background: var(--surface2); border: 1px solid var(--border); }
+    .chat-msg.mine .chat-msg-bubble { background: rgba(79,142,247,0.18); border-color: rgba(79,142,247,0.25); }
+    #chat-input-row { display: flex; gap: 0.4rem; padding: 0.6rem; border-top: 1px solid var(--border); background: var(--surface2); }
+    #chat-input { flex: 1; background: var(--surface3); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.75rem; color: var(--text); }
+    #chat-send { background: rgba(255,128,0,0.15); border: 1px solid var(--accent2); border-radius: 6px; color: var(--accent2); padding: 0.45rem 0.8rem; cursor: pointer; }
+    @media (max-width: 860px) { #match-chat { display: none; } }
+    @media (max-width: 640px) { .vs-arena { grid-template-columns: 1fr; } .vs-center { border: 1px solid var(--border); margin: 0.5rem 0; } }
   </style>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
+
 <nav>
   <a href="/" class="logo">⚔ YUZU</a>
-  <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
+  <div class="nav-links"><a href="/dashboard" class="btn btn-ghost">← Dashboard</a></div>
 </nav>
+
+<div class="page-body">
 <div class="arena">
+
+  <div class="format-badge" id="format-badge">{{ challenge.format }} — MATCH</div>
+
   <div class="vs-arena">
-    <div class="fighter">
-      <div class="fighter-name" id="p1-name">Challenger</div>
+    <div class="fighter-side blue-side">
+      {% if challenger.avatar %}
+        <img class="fighter-avatar" src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png">
+      {% else %}
+        <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>
+      {% endif %}
+      <div class="fighter-name">{{ challenger.username }}</div>
+      <div class="fighter-elo">{{ challenger.points }} ELO</div>
       <div class="fighter-score" id="score-p1">0</div>
     </div>
     <div class="vs-center">
       <div class="vs-text">VS</div>
-      <div id="game-counter">GAME 1</div>
-      <div id="game-dots"></div>
+      <div class="game-counter" id="game-counter">GAME 1</div>
+      <div class="game-dots" id="game-dots"></div>
     </div>
-    <div class="fighter">
-      <div class="fighter-name" id="p2-name">Opponent</div>
+    <div class="fighter-side red-side">
+      {% if challenged.avatar %}
+        <img class="fighter-avatar" src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png">
+      {% else %}
+        <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>
+      {% endif %}
+      <div class="fighter-name">{{ challenged.username }}</div>
+      <div class="fighter-elo">{{ challenged.points }} ELO</div>
       <div class="fighter-score" id="score-p2">0</div>
     </div>
   </div>
-  <div class="score-section" id="dynamic-phase">
-    <div>Loading match data...</div>
+
+  <div class="score-section" id="score-section">
+    <div id="dynamic-phase"></div>
+  </div>
+
+</div>
+
+<div id="match-chat">
+  <div id="chat-header">💬 MATCH CHAT <span style="margin-left:auto;font-size:0.65rem;">only you two</span></div>
+  <div id="chat-messages"><div class="chat-empty">No messages yet — say hi! 👋</div></div>
+  <div id="chat-input-row">
+    <input id="chat-input" type="text" placeholder="Message…" maxlength="200">
+    <button id="chat-send" onclick="chatSend()">➤</button>
   </div>
 </div>
+</div>
+
 <div class="winner-announcement" id="winner-announcement">
-  <div class="winner-name" id="winner-name"></div>
-  <div id="winner-score"></div>
-  <div id="winner-elo"></div>
-  <div style="margin-top: 2rem;">Redirecting to dashboard...</div>
+  <div class="winner-crown">🏆</div>
+  <div class="winner-label">WINNER</div>
+  <div class="winner-name-big" id="winner-name-big">—</div>
+  <div class="winner-score-big" id="winner-score-big">—</div>
+  <div id="winner-elo-line"></div>
+  <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted);">Redirecting to dashboard…</div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
-  // Récupération des données injectées par le serveur (via Nunjucks)
-  const CHALLENGE_ID = "{{ challenge.id }}";
-  const FORMAT = "{{ challenge.format }}";
-  const P1_ID = "{{ challenge.challenger_id }}";
-  const P1_NAME = "{{ challenger.username }}";
-  const P2_ID = "{{ challenge.challenged_id }}";
-  const P2_NAME = "{{ challenged.username }}";
-  const MY_ID = "{{ user.id }}";
-  
-  // Vérification que les données existent
-  if (!CHALLENGE_ID || CHALLENGE_ID === "") {
-    document.getElementById('dynamic-phase').innerHTML = '<div style="color:red;">Erreur: Données du match manquantes. Retournez au <a href="/dashboard">dashboard</a>.</div>';
-  } else {
-    document.getElementById('p1-name').innerText = P1_NAME;
-    document.getElementById('p2-name').innerText = P2_NAME;
+// ---------- CONFIG ----------
+const CHALLENGE_ID = "{{ challenge.id }}";
+const FORMAT       = "{{ challenge.format }}";
+const P1_ID        = "{{ challenge.challenger_id }}";
+const P1_NAME      = "{{ challenger.username }}";
+const P2_ID        = "{{ challenge.challenged_id }}";
+const P2_NAME      = "{{ challenged.username }}";
+const MY_ID        = "{{ user.id }}";
+const IS_STOCKS    = FORMAT === 'STOCKS';
+
+let MAX_WINS = 1;
+if (FORMAT === 'BO1') MAX_WINS = 1;
+else if (FORMAT === 'BO3') MAX_WINS = 2;
+else if (FORMAT === 'BO5') MAX_WINS = 3;
+
+// Liste complète des stages (9)
+const ALL_STAGES = [
+  "Battlefield", "Small Battlefield", "Final Destination",
+  "Pokemon Stadium 2", "Town and City", "Smashville",
+  "Hollow Bastion", "Kalos Pokémon League", "Yoshi's Story"
+];
+
+let matchSocket = null;
+let currentState = null;
+let setFinished = false;
+
+// ---------- UI Helpers ----------
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? 'var(--green)' : 'var(--red)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function updateScoreDisplay(state) {
+  if (!state) return;
+  document.getElementById('score-p1').innerText = state.p1GamesWon;
+  document.getElementById('score-p2').innerText = state.p2GamesWon;
+  const dotsContainer = document.getElementById('game-dots');
+  dotsContainer.innerHTML = '';
+  for (let i = 0; i < state.p1GamesWon + state.p2GamesWon; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'game-dot ' + (i < state.p1GamesWon ? 'p1' : 'p2');
+    dotsContainer.appendChild(dot);
   }
-  
-  const IS_STOCKS = FORMAT === 'STOCKS';
-  const MAX_WINS = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
-  
-  let matchSocket = null;
-  let currentState = null;
-  let setFinished = false;
-  
-  function showToast(msg, ok=true) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.style.borderColor = ok ? '#3ddc84' : '#ff5555';
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
+  document.getElementById('game-counter').innerHTML = `GAME ${state.gameIndex+1}`;
+}
+
+// ---------- Character selection (avec la liste complète des persos du dashboard) ----------
+// Pour gagner de la place, on reprend la liste complète depuis le dashboard.
+// On va la définir en dur ici (tu peux la copier depuis l'original).
+const SMASH_CHARS = [
+  {name:"Mario",id:"mario"},{name:"Donkey Kong",id:"donkey_kong"},{name:"Link",id:"link"},
+  {name:"Samus",id:"samus"},{name:"Dark Samus",id:"dark_samus"},{name:"Yoshi",id:"yoshi"},
+  {name:"Kirby",id:"kirby"},{name:"Fox",id:"fox"},{name:"Pikachu",id:"pikachu"},
+  {name:"Luigi",id:"luigi"},{name:"Ness",id:"ness"},{name:"Captain Falcon",id:"captain_falcon"},
+  {name:"Jigglypuff",id:"jigglypuff"},{name:"Peach",id:"peach"},{name:"Daisy",id:"daisy"},
+  {name:"Bowser",id:"bowser"},{name:"Ice Climbers",id:"ice_climbers"},{name:"Sheik",id:"sheik"},
+  {name:"Zelda",id:"zelda"},{name:"Dr. Mario",id:"dr_mario"},{name:"Pichu",id:"pichu"},
+  {name:"Falco",id:"falco"},{name:"Marth",id:"marth"},{name:"Lucina",id:"lucina"},
+  {name:"Young Link",id:"young_link"},{name:"Ganondorf",id:"ganondorf"},{name:"Mewtwo",id:"mewtwo"},
+  {name:"Roy",id:"roy"},{name:"Chrom",id:"chrom"},{name:"Mr. Game & Watch",id:"mr_game_and_watch"},
+  {name:"Meta Knight",id:"meta_knight"},{name:"Pit",id:"pit"},{name:"Dark Pit",id:"dark_pit"},
+  {name:"Zero Suit Samus",id:"zero_suit_samus"},{name:"Wario",id:"wario"},{name:"Snake",id:"snake"},
+  {name:"Ike",id:"ike"},{name:"Pokémon Trainer",id:"pokemon_trainer"},{name:"Diddy Kong",id:"diddy_kong"},
+  {name:"Lucas",id:"lucas"},{name:"Sonic",id:"sonic"},{name:"King Dedede",id:"dedede"},
+  {name:"Olimar",id:"olimar"},{name:"Lucario",id:"lucario"},{name:"R.O.B.",id:"rob"},
+  {name:"Toon Link",id:"toon_link"},{name:"Wolf",id:"wolf"},{name:"Villager",id:"villager"},
+  {name:"Mega Man",id:"mega_man"},{name:"Wii Fit Trainer",id:"wii_fit_trainer"},{name:"Rosalina",id:"rosalina_and_luma"},
+  {name:"Little Mac",id:"little_mac"},{name:"Greninja",id:"greninja"},{name:"Mii Brawler",id:"mii_brawler"},
+  {name:"Mii Swordfighter",id:"mii_swordfighter"},{name:"Mii Gunner",id:"mii_gunner"},{name:"Palutena",id:"palutena"},
+  {name:"Pac-Man",id:"pac_man"},{name:"Robin",id:"robin"},{name:"Shulk",id:"shulk"},
+  {name:"Bowser Jr.",id:"bowser_jr"},{name:"Duck Hunt",id:"duck_hunt"},{name:"Ryu",id:"ryu"},
+  {name:"Ken",id:"ken"},{name:"Cloud",id:"cloud"},{name:"Corrin",id:"corrin"},
+  {name:"Bayonetta",id:"bayonetta"},{name:"Inkling",id:"inkling"},{name:"Ridley",id:"ridley"},
+  {name:"Simon",id:"simon"},{name:"Richter",id:"richter"},{name:"King K. Rool",id:"king_k_rool"},
+  {name:"Isabelle",id:"isabelle"},{name:"Incineroar",id:"incineroar"},{name:"Piranha Plant",id:"piranha_plant"},
+  {name:"Joker",id:"joker"},{name:"Hero",id:"hero"},{name:"Banjo & Kazooie",id:"banjo_and_kazooie"},
+  {name:"Terry",id:"terry"},{name:"Byleth",id:"byleth"},{name:"Min Min",id:"min_min"},
+  {name:"Steve",id:"steve"},{name:"Sephiroth",id:"sephiroth"},{name:"Pyra/Mythra",id:"pyra_mythra"},
+  {name:"Kazuya",id:"kazuya"},{name:"Sora",id:"sora"}
+];
+const CHAR_ICONS = {}; // On va utiliser l'URL directe plus bas
+function charImg(id) { return `https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${id}.png`; }
+
+function showCharacterSelection(state) {
+  const container = document.getElementById('dynamic-phase');
+  const isMe = (MY_ID === state.turn);
+  const playerName = (state.turn === state.p1Id) ? P1_NAME : P2_NAME;
+  container.innerHTML = `
+    <div class="section-title">🎮 CHARACTER SELECTION</div>
+    <div class="step-indicator">${isMe ? 'Your turn' : `Waiting for ${playerName}...`}</div>
+    <div id="char-grid" class="char-grid"></div>
+    ${!isMe ? '<div class="wait-turn">⏳ Opponent is choosing a character...</div>' : ''}
+  `;
+  if (isMe) {
+    const grid = document.getElementById('char-grid');
+    SMASH_CHARS.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'char-option';
+      div.innerHTML = `<img src="${charImg(c.id)}" onerror="this.style.display='none'"><span>${c.name}</span>`;
+      div.onclick = () => {
+        document.querySelectorAll('.char-option').forEach(o => o.classList.remove('selected'));
+        div.classList.add('selected');
+        matchSocket.emit('char_pick', { challenge_id: CHALLENGE_ID, player_id: MY_ID, char_id: c.id, char_name: c.name });
+      };
+      grid.appendChild(div);
+    });
   }
-  
-  function updateScoreDisplay(state) {
-    if (!state) return;
-    document.getElementById('score-p1').innerText = state.p1GamesWon;
-    document.getElementById('score-p2').innerText = state.p2GamesWon;
-    const dots = document.getElementById('game-dots');
-    dots.innerHTML = '';
-    for (let i = 0; i < state.p1GamesWon + state.p2GamesWon; i++) {
-      const dot = document.createElement('span');
-      dot.style.display = 'inline-block';
-      dot.style.width = '12px';
-      dot.style.height = '12px';
-      dot.style.borderRadius = '50%';
-      dot.style.margin = '0 3px';
-      dot.style.background = i < state.p1GamesWon ? '#4f8ef7' : '#e8400a';
-      dots.appendChild(dot);
-    }
-    document.getElementById('game-counter').innerHTML = `GAME ${state.gameIndex+1}`;
+}
+
+function showStageBan(state) {
+  const container = document.getElementById('dynamic-phase');
+  const isMe = (MY_ID === state.turn);
+  const bannedList = state.bannedStages.map(s => `<span style="background:var(--surface3);padding:2px 6px;border-radius:4px;margin:2px;">${s}</span>`).join('');
+  container.innerHTML = `
+    <div class="section-title">🏛️ STAGE STRIKING</div>
+    <div class="step-indicator">${isMe ? 'Your turn to ban a stage' : 'Opponent is banning'}</div>
+    <div style="margin-bottom:1rem;"><strong>Remaining stages:</strong> <span id="remaining-stages">${state.availableStages.join(', ')}</span></div>
+    <div style="margin-bottom:1rem;"><strong>Banned:</strong> ${bannedList || 'none'}</div>
+    <div id="stage-grid" class="stage-grid"></div>
+    ${!isMe ? '<div class="wait-turn">⏳ Waiting for opponent to ban...</div>' : ''}
+  `;
+  if (isMe) {
+    const grid = document.getElementById('stage-grid');
+    state.availableStages.forEach(stage => {
+      const div = document.createElement('div');
+      div.className = 'stage-option';
+      div.innerText = stage;
+      div.onclick = () => {
+        matchSocket.emit('ban_stage', { challenge_id: CHALLENGE_ID, stage, by_player: MY_ID });
+      };
+      grid.appendChild(div);
+    });
   }
-  
-  // Liste des personnages (version courte mais suffisante)
-  const characters = [
-    {id:"mario", name:"Mario", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png"},
-    {id:"donkey_kong", name:"Donkey Kong", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png"},
-    {id:"link", name:"Link", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/link.png"},
-    {id:"samus", name:"Samus", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/samus.png"},
-    {id:"kirby", name:"Kirby", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/kirby.png"},
-    {id:"fox", name:"Fox", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/fox.png"},
-    {id:"pikachu", name:"Pikachu", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/pikachu.png"},
-    {id:"marth", name:"Marth", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/marth.png"},
-    {id:"wolf", name:"Wolf", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/wolf.png"}
-  ];
-  
-  function showCharacterSelection(state) {
-    const container = document.getElementById('dynamic-phase');
-    const isMyTurn = (MY_ID === state.turn);
-    container.innerHTML = `
-      <h3>🎮 CHOOSE YOUR CHARACTER</h3>
-      <div class="step-indicator">${isMyTurn ? 'Your turn' : `Waiting for ${state.turn === state.p1Id ? P1_NAME : P2_NAME}...`}</div>
-      <div id="char-grid" class="char-grid"></div>
-      ${!isMyTurn ? '<div class="wait-turn">⏳ Opponent is choosing...</div>' : ''}
-    `;
-    if (isMyTurn) {
-      const grid = document.getElementById('char-grid');
-      characters.forEach(c => {
-        const div = document.createElement('div');
-        div.className = 'char-option';
-        div.innerHTML = `<img src="${c.img}" style="width:44px; height:44px; object-fit:contain;"><br>${c.name}`;
-        div.onclick = () => {
-          matchSocket.emit('char_pick', { challenge_id: CHALLENGE_ID, player_id: MY_ID, char_id: c.id, char_name: c.name });
-        };
-        grid.appendChild(div);
-      });
-    }
+}
+
+function showStagePick(state) {
+  const container = document.getElementById('dynamic-phase');
+  const isMe = (MY_ID === state.turn);
+  const playerName = (state.turn === state.p1Id) ? P1_NAME : P2_NAME;
+  container.innerHTML = `
+    <div class="section-title">🎯 CHOOSE THE STAGE</div>
+    <div class="step-indicator">${isMe ? 'Your turn' : `Waiting for ${playerName} to pick...`}</div>
+    <div style="margin-bottom:1rem;"><strong>Available stages:</strong> ${state.availableStages.join(', ')}</div>
+    <div id="stage-grid" class="stage-grid"></div>
+    ${!isMe ? '<div class="wait-turn">⏳ Opponent is choosing...</div>' : ''}
+  `;
+  if (isMe) {
+    const grid = document.getElementById('stage-grid');
+    state.availableStages.forEach(stage => {
+      const div = document.createElement('div');
+      div.className = 'stage-option';
+      div.innerText = stage;
+      div.onclick = () => {
+        matchSocket.emit('pick_stage', { challenge_id: CHALLENGE_ID, stage });
+      };
+      grid.appendChild(div);
+    });
   }
-  
-  function showStageBan(state) {
-    const container = document.getElementById('dynamic-phase');
-    const isMyTurn = (MY_ID === state.turn);
-    container.innerHTML = `
-      <h3>🏛️ STAGE STRIKING</h3>
-      <div><strong>Remaining:</strong> ${state.availableStages.join(', ')}</div>
-      <div><strong>Banned:</strong> ${state.bannedStages.join(', ') || 'none'}</div>
-      <div id="stage-grid" class="stage-grid"></div>
-      ${!isMyTurn ? '<div class="wait-turn">⏳ Waiting for opponent to ban...</div>' : ''}
-    `;
-    if (isMyTurn) {
-      const grid = document.getElementById('stage-grid');
-      state.availableStages.forEach(stage => {
-        const btn = document.createElement('button');
-        btn.className = 'stage-option';
-        btn.innerText = stage;
-        btn.onclick = () => {
-          matchSocket.emit('ban_stage', { challenge_id: CHALLENGE_ID, stage, by_player: MY_ID });
-        };
-        grid.appendChild(btn);
-      });
-    }
-  }
-  
-  function showStagePick(state) {
-    const container = document.getElementById('dynamic-phase');
-    const isMyTurn = (MY_ID === state.turn);
-    container.innerHTML = `
-      <h3>🎯 CHOOSE THE STAGE</h3>
-      <div><strong>Available:</strong> ${state.availableStages.join(', ')}</div>
-      <div id="stage-grid" class="stage-grid"></div>
-      ${!isMyTurn ? '<div class="wait-turn">⏳ Waiting for opponent to pick...</div>' : ''}
-    `;
-    if (isMyTurn) {
-      const grid = document.getElementById('stage-grid');
-      state.availableStages.forEach(stage => {
-        const btn = document.createElement('button');
-        btn.className = 'stage-option';
-        btn.innerText = stage;
-        btn.onclick = () => {
-          matchSocket.emit('pick_stage', { challenge_id: CHALLENGE_ID, stage });
-        };
-        grid.appendChild(btn);
-      });
-    }
-  }
-  
-  function showGamePlay(state) {
-    const container = document.getElementById('dynamic-phase');
-    container.innerHTML = `
-      <h3>⚔ GAME ${state.gameIndex+1}</h3>
-      <div><strong>Stage:</strong> ${state.finalStage}</div>
-      <div id="game-controls"></div>
-    `;
-    const controls = document.getElementById('game-controls');
-    if (!state.pendingProposal) {
-      controls.innerHTML = `
-        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1rem;">
-          <button class="btn-primary" onclick="proposeWinner('${state.p1Id}')">🏆 ${P1_NAME} wins</button>
-          <button class="btn-primary" onclick="proposeWinner('${state.p2Id}')">🏆 ${P2_NAME} wins</button>
+}
+
+function showGamePlay(state) {
+  const container = document.getElementById('dynamic-phase');
+  const maxGames = MAX_WINS * 2 - 1;
+  container.innerHTML = `
+    <div class="section-title">⚔ GAME ${state.gameIndex+1} / ${maxGames}</div>
+    <div class="game-card">
+      <div class="game-header"><span>Stage: ${state.finalStage || '??'}</span><span>Best of ${MAX_WINS*2-1}</span></div>
+      <div id="game-status"></div>
+      ${!state.pendingProposal ? `
+        <div class="propose-buttons">
+          <button class="btn btn-primary" onclick="proposeWinner('${state.p1Id}')">🏆 ${P1_NAME} wins this game</button>
+          <button class="btn btn-primary" onclick="proposeWinner('${state.p2Id}')">🏆 ${P2_NAME} wins this game</button>
         </div>
-      `;
+        <div class="submit-hint">Click the winner of this game – opponent will confirm.</div>
+      ` : `
+        <div class="confirm-box">
+          <strong>Proposed result:</strong> ${state.pendingProposal.winner_id === state.p1Id ? P1_NAME : P2_NAME} wins Game ${state.gameIndex+1}<br>
+          <em>Waiting for opponent confirmation...</em>
+        </div>
+      `}
+    </div>
+  `;
+  if (state.pendingProposal && state.pendingProposal.byPlayerId !== MY_ID) {
+    const statusDiv = document.getElementById('game-status');
+    statusDiv.innerHTML = `
+      <div style="background:var(--surface3);padding:1rem;border-radius:8px;margin-top:1rem;">
+        <strong>Opponent claims ${state.pendingProposal.winner_id === state.p1Id ? P1_NAME : P2_NAME} won Game ${state.gameIndex+1}.</strong><br>
+        Is that correct?
+        <div style="display:flex;gap:1rem;margin-top:1rem;">
+          <button class="btn btn-success" onclick="confirmGame()">✅ Yes, confirm</button>
+          <button class="btn btn-danger" onclick="contestGame()">❌ No, contest</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function proposeWinner(winnerId) {
+  matchSocket.emit('propose_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, winner_id: winnerId });
+}
+function confirmGame() {
+  matchSocket.emit('confirm_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, accepted: true });
+}
+function contestGame() {
+  matchSocket.emit('confirm_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, accepted: false });
+}
+
+async function finishSet(winnerId) {
+  if (setFinished) return;
+  setFinished = true;
+  const scoreStr = (winnerId === P1_ID) ? `${MAX_WINS}-${currentState.p2GamesWon}` : `${currentState.p1GamesWon}-${MAX_WINS}`;
+  try {
+    const res = await fetch(`/result/${CHALLENGE_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ winner_id: winnerId, score: scoreStr })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showWinnerAnnouncement(winnerId, scoreStr, data.elo_change);
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     } else {
-      if (state.pendingProposal.byPlayerId !== MY_ID) {
-        controls.innerHTML = `
-          <div class="wait-turn" style="background: #16162a; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-            <strong>${state.pendingProposal.winner_id === state.p1Id ? P1_NAME : P2_NAME}</strong> claimed the win.<br>
-            Is this correct?
-            <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 0.8rem;">
-              <button class="btn-success" onclick="confirmGame()">✅ Yes, confirm</button>
-              <button class="btn-danger" onclick="contestGame()">❌ No, contest</button>
-            </div>
-          </div>
-        `;
-      } else {
-        controls.innerHTML = `<div class="wait-turn">⏳ Waiting for opponent to confirm...</div>`;
-      }
+      showToast(data.error || 'Error submitting result', false);
     }
+  } catch(e) { showToast('Network error', false); }
+}
+
+function showWinnerAnnouncement(winnerId, score, eloChange) {
+  const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
+  document.getElementById('winner-name-big').innerText = name;
+  document.getElementById('winner-score-big').innerText = score;
+  const eloLine = document.getElementById('winner-elo-line');
+  if (eloChange) {
+    const iWon = (winnerId === MY_ID);
+    eloLine.innerHTML = iWon ? `<span style="color:var(--green);font-size:2rem;">+${eloChange} ELO 🏆</span>` : `<span style="color:var(--red);font-size:2rem;">-${eloChange} ELO</span>`;
   }
+  document.getElementById('winner-announcement').classList.add('show');
+}
+
+// ---------- Rendu principal ----------
+function renderPhase(state) {
+  if (!state) return;
+  currentState = state;
+  updateScoreDisplay(state);
   
-  function proposeWinner(winnerId) {
-    matchSocket.emit('propose_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, winner_id: winnerId });
-  }
-  function confirmGame() {
-    matchSocket.emit('confirm_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, accepted: true });
-  }
-  function contestGame() {
-    matchSocket.emit('confirm_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, accepted: false });
-  }
-  
-  async function finishSet(winnerId) {
-    if (setFinished) return;
-    setFinished = true;
-    const scoreStr = (winnerId === P1_ID) ? `${MAX_WINS}-${currentState.p2GamesWon}` : `${currentState.p1GamesWon}-${MAX_WINS}`;
-    try {
-      const res = await fetch(`/result/${CHALLENGE_ID}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ winner_id: winnerId, score: scoreStr })
-      });
-      const data = await res.json();
-      if (data.success) {
-        document.getElementById('winner-name').innerText = winnerId === P1_ID ? P1_NAME : P2_NAME;
-        document.getElementById('winner-score').innerText = scoreStr;
-        if (data.elo_change) document.getElementById('winner-elo').innerHTML = `+${data.elo_change} ELO 🏆`;
-        document.getElementById('winner-announcement').classList.add('show');
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4000);
-      } else {
-        showToast(data.error || 'Error submitting result', false);
-      }
-    } catch(e) { showToast('Network error', false); }
-  }
-  
-  function renderPhase(state) {
-    if (!state) return;
-    currentState = state;
-    updateScoreDisplay(state);
-    if (state.setFinished) {
-      if (!setFinished) finishSet(state.p1GamesWon === MAX_WINS ? state.p1Id : state.p2Id);
-      return;
+  // Vérifier la fin du set en premier
+  if (state.setFinished) {
+    if (!setFinished) {
+      const winnerId = state.p1GamesWon === MAX_WINS ? state.p1Id : state.p2Id;
+      finishSet(winnerId);
     }
-    if (state.phase === 'character_p1' || state.phase === 'character_p2') showCharacterSelection(state);
-    else if (state.phase === 'stage_ban') showStageBan(state);
-    else if (state.phase === 'stage_pick') showStagePick(state);
-    else if (state.phase === 'game_play') showGamePlay(state);
+    return;
   }
-  
-  function initSocket() {
-    matchSocket = io({ transports: ['websocket'] });
-    matchSocket.on('connect', () => {
-      console.log('Socket connected');
-      matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
-      matchSocket.emit('join_user', {});
-    });
-    matchSocket.on('match_state', renderPhase);
-    matchSocket.on('char_picked', (data) => showToast(`${data.char_name} picked`));
-    matchSocket.on('stage_banned', (data) => showToast(`${data.stage} banned`));
-    matchSocket.on('stage_picked', (data) => showToast(`Stage: ${data.stage}`));
-    matchSocket.on('game_proposed', () => showToast(`Game result proposed, waiting for opponent`));
-    matchSocket.on('game_confirmed', (data) => {
-      if (data.accepted) showToast(`Game ${data.game_index+1} confirmed`);
-      else showToast(`Game contested, propose again`, false);
-    });
-    matchSocket.on('disconnect', () => showToast('Disconnected from server', false));
+
+  if (state.phase === 'character_p1' || state.phase === 'character_p2') {
+    showCharacterSelection(state);
+  } else if (state.phase === 'stage_ban') {
+    showStageBan(state);
+  } else if (state.phase === 'stage_pick') {
+    showStagePick(state);
+  } else if (state.phase === 'game_play') {
+    showGamePlay(state);
   }
-  
+}
+
+// ---------- Socket.IO ----------
+function initMatchSocket() {
+  matchSocket = io({ transports: ['websocket'] });
+  matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
+  matchSocket.emit('join_user', {});
+
+  matchSocket.on('match_state', renderPhase);
+
+  matchSocket.on('char_picked', (data) => {
+    showToast(`${data.char_name} picked by ${data.player_id === P1_ID ? P1_NAME : P2_NAME}`);
+  });
+  matchSocket.on('stage_banned', (data) => {
+    showToast(`${data.stage} banned by ${data.by_player === P1_ID ? P1_NAME : P2_NAME}`);
+  });
+  matchSocket.on('stage_picked', (data) => {
+    showToast(`Stage selected: ${data.stage}`);
+  });
+  matchSocket.on('game_proposed', (data) => {
+    showToast(`Game ${data.game_index+1} result proposed. Waiting for confirmation.`);
+  });
+  matchSocket.on('game_confirmed', (data) => {
+    if (data.accepted) {
+      if (!data.setFinished) {
+        showToast(`Game ${data.game_index+1} confirmed!`);
+      }
+    } else {
+      showToast(`Game ${data.game_index+1} contested – propose again.`, false);
+    }
+  });
+
+  matchSocket.on('chat_message', chatReceive);
+  matchSocket.on('chat_history', (msgs) => { msgs.forEach(chatReceive); });
+}
+
+// ---------- Chat ----------
+function chatSend() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  matchSocket.emit('chat_message', { challenge_id: CHALLENGE_ID, text });
+  input.value = '';
+}
+function chatReceive(data) {
+  const msgsDiv = document.getElementById('chat-messages');
+  const empty = document.querySelector('#chat-messages .chat-empty');
+  if (empty) empty.remove();
+  const isMine = data.uid === MY_ID;
+  const div = document.createElement('div');
+  div.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
+  const d = new Date(data.ts);
+  const time = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  div.innerHTML = `<div class="chat-msg-name">${escapeHtml(data.name)}</div><div class="chat-msg-bubble">${escapeHtml(data.text)}</div><div class="chat-msg-time">${time}</div>`;
+  msgsDiv.appendChild(div);
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]); }
+
+// ---------- Initialisation ----------
+document.addEventListener('DOMContentLoaded', () => {
   if (IS_STOCKS) {
-    document.getElementById('dynamic-phase').innerHTML = '<div>Mode STOCKS non supporté dans cette version. Utilisez BO1/BO3/BO5.</div>';
-  } else if (CHALLENGE_ID && CHALLENGE_ID !== "") {
-    initSocket();
+    document.getElementById('dynamic-phase').innerHTML = `<div class="section-title">STOCKS MODE</div><p>Mode stocks – utilisez l'interface classique.</p>`;
+    showToast("Mode STOCKS – interface classique.", false);
+  } else {
+    initMatchSocket();
   }
-  
-  // Exposer les fonctions globalement pour les boutons onclick
-  window.proposeWinner = proposeWinner;
-  window.confirmGame = confirmGame;
-  window.contestGame = contestGame;
+  document.getElementById('chat-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') chatSend(); });
+});
+
+// Exposer les fonctions globalement pour les boutons onclick
+window.proposeWinner = proposeWinner;
+window.confirmGame = confirmGame;
+window.contestGame = contestGame;
 </script>
+<script src="/static/notifications.js"></script>
 </body>
 </html>
