@@ -18,13 +18,13 @@
       --red-glow: rgba(232,64,10,0.4);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
+ 
     body {
       background: var(--bg); color: var(--text);
       font-family: 'Rajdhani', sans-serif; min-height: 100vh;
       overflow-x: hidden;
     }
-
+ 
     /* ── NAV ── */
     nav {
       display: flex; justify-content: space-between; align-items: center;
@@ -46,7 +46,7 @@
     .btn-success:hover { background: var(--green); color: #0a0a0f; }
     .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
     .btn-danger:hover { background: var(--red); color: white; }
-
+ 
     /* ── ARENA BACKGROUND ── */
     .arena {
       min-height: calc(100vh - 65px);
@@ -58,7 +58,7 @@
         radial-gradient(ellipse at 50% 0%, rgba(255,128,0,0.04) 0%, transparent 50%);
       position: relative; overflow: hidden;
     }
-
+ 
     /* Sparks background (pure CSS) */
     .arena::before {
       content: '';
@@ -72,7 +72,7 @@
         radial-gradient(1.5px 1.5px at 60% 80%, rgba(120,170,255,0.5) 0%, transparent 100%);
       pointer-events: none;
     }
-
+ 
     /* ── FORMAT BADGE ── */
     .format-badge {
       font-family: 'Bebas Neue', sans-serif;
@@ -82,7 +82,7 @@
       background: rgba(255,128,0,0.08);
       margin-bottom: 1.5rem;
     }
-
+ 
     /* ── VS ARENA ── */
     .vs-arena {
       display: grid; grid-template-columns: 1fr auto 1fr;
@@ -90,13 +90,13 @@
       width: 100%; max-width: 860px;
       margin-bottom: 2.5rem; position: relative;
     }
-
+ 
     .fighter-side {
       display: flex; flex-direction: column; align-items: center;
       gap: 1rem; padding: 2rem 1.5rem;
       position: relative;
     }
-
+ 
     .fighter-side.blue-side {
       background: linear-gradient(135deg, rgba(79,142,247,0.08) 0%, transparent 70%);
       border: 1px solid rgba(79,142,247,0.2); border-right: none;
@@ -107,7 +107,7 @@
       border: 1px solid rgba(232,64,10,0.2); border-left: none;
       border-radius: 0 12px 12px 0;
     }
-
+ 
     /* Corner accent lines like the image */
     .fighter-side.blue-side::before {
       content: '';
@@ -133,7 +133,7 @@
       height: 3px; width: 60px;
       background: linear-gradient(to left, var(--accent), transparent);
     }
-
+ 
     .fighter-avatar {
       width: 80px; height: 80px; border-radius: 50%;
       border: 3px solid rgba(79,142,247,0.5);
@@ -143,7 +143,7 @@
       border-color: rgba(232,64,10,0.5);
       box-shadow: 0 0 20px var(--red-glow);
     }
-
+ 
     .fighter-name {
       font-family: 'Bebas Neue', sans-serif;
       font-size: 1.8rem; letter-spacing: 3px; text-align: center;
@@ -155,7 +155,7 @@
     .fighter-char img {
       width: 52px; height: 52px; object-fit: contain;
     }
-
+ 
     /* Score display on fighter side */
     .fighter-score {
       font-family: 'Bebas Neue', sans-serif;
@@ -167,7 +167,7 @@
       color: var(--accent);
       text-shadow: 0 0 30px var(--red-glow);
     }
-
+ 
     /* ── VS CENTER ── */
     .vs-center {
       display: flex; flex-direction: column; align-items: center;
@@ -199,7 +199,7 @@
     }
     .game-dot.p1 { background: var(--blue); box-shadow: 0 0 8px var(--blue-glow); }
     .game-dot.p2 { background: var(--accent); box-shadow: 0 0 8px var(--red-glow); }
-
+ 
     /* ── SCORE SECTION ── */
     .score-section {
       width: 100%; max-width: 860px;
@@ -212,14 +212,14 @@
       border-radius: 12px 12px 0 0;
       background: linear-gradient(90deg, var(--blue), var(--accent));
     }
-
+ 
     .section-title {
       font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
       letter-spacing: 3px; color: var(--accent2); margin-bottom: 1.5rem;
       display: flex; align-items: center; gap: 1rem;
     }
     .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
+ 
     /* ── BO SCORE BUTTONS ── */
     .score-options {
       display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;
@@ -248,10 +248,10 @@
     .score-option.selected-p1 .score-display { color: var(--blue); }
     .score-option.selected-p2 .score-display { color: var(--accent); }
     .score-option .score-label { font-size: 0.7rem; color: var(--muted); margin-top: 0.3rem; }
-
+ 
     /* ── STOCKS MODE ── */
     .stocks-section { display: flex; flex-direction: column; gap: 1.5rem; }
-
+ 
     .game-round {
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: 10px; padding: 1.2rem;
@@ -278,7 +278,7 @@
     .game-round-result {
       font-size: 0.85rem; color: var(--green); font-weight: 700;
     }
-
+ 
     .stocks-inputs {
       display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
     }
@@ -288,7 +288,7 @@
     }
     .stock-input-label.blue-label { color: rgba(79,142,247,0.8); }
     .stock-input-label.red-label { color: rgba(232,64,10,0.8); }
-
+ 
     .stock-counter {
       display: flex; align-items: center; gap: 0.5rem;
     }
@@ -314,7 +314,7 @@
     }
     .stock-pip.filled.blue { background: var(--blue); box-shadow: 0 0 6px var(--blue-glow); }
     .stock-pip.filled.red { background: var(--accent); box-shadow: 0 0 6px var(--red-glow); }
-
+ 
     .game-confirm-btn {
       margin-top: 1rem; width: 100%;
       padding: 0.8rem; border-radius: 8px;
@@ -325,7 +325,7 @@
     }
     .game-confirm-btn:hover { background: var(--accent2); color: #0a0a0f; }
     .game-confirm-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
+ 
     /* ── STOCKS TOTALS ── */
     .stocks-totals {
       background: var(--surface2); border: 1px solid rgba(61,220,132,0.3);
@@ -342,7 +342,7 @@
     .total-box .t-lbl { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; margin-top: 0.2rem; }
     .total-box.winner .t-val { color: var(--green); }
     .total-box.loser .t-val { color: var(--red); }
-
+ 
     /* ── END MATCH BUTTON ── */
     .end-match-btn {
       display: none; width: 100%; margin-top: 1.5rem;
@@ -355,7 +355,7 @@
     }
     .end-match-btn.visible { display: block; }
     .end-match-btn:hover { background: var(--green); color: #07070f; }
-
+ 
     /* ── SUBMIT ── */
     .submit-area { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
     .submit-btn {
@@ -368,7 +368,7 @@
     .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(232,64,10,0.4); }
     .submit-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
     .submit-hint { font-size: 0.85rem; color: var(--muted); text-align: center; }
-
+ 
     /* ── TOAST ── */
     .toast {
       position: fixed; bottom: 2rem; right: 2rem;
@@ -380,7 +380,7 @@
     .toast.show { opacity: 1; transform: translateY(0); }
     .toast.success { border-color: var(--green); }
     .toast.error { border-color: var(--red); }
-
+ 
     /* ── WINNER ANNOUNCEMENT ── */
     .winner-announcement {
       display: none; position: fixed; inset: 0; z-index: 500;
@@ -395,7 +395,7 @@
       background: linear-gradient(135deg, var(--accent2), var(--accent));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .winner-score-big { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--green); letter-spacing: 4px; }
-
+ 
     /* ── MATCH CHAT — full right column ── */
     body { display: flex; flex-direction: column; }
     .page-body {
@@ -474,11 +474,11 @@
       cursor: pointer; font-size: 1rem; transition: all 0.15s;
     }
     #chat-send:hover { background: var(--accent2); color: #0a0a0f; }
-
+ 
     @media (max-width: 860px) {
       #match-chat { display: none; }
     }
-
+ 
     @media (max-width: 640px) {
       .vs-arena { grid-template-columns: 1fr; }
       .vs-center { border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; }
@@ -492,18 +492,18 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
-
+ 
 <nav>
   <a href="/" class="logo">⚔ YUZU</a>
   <div class="nav-links">
     <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
   </div>
 </nav>
-
+ 
 <div class="page-body">
 <div class="arena">
   <div class="format-badge" id="format-badge">{{ challenge.format }} — MATCH</div>
-
+ 
   <!-- ── VS ARENA ── -->
   <div class="vs-arena">
     <!-- Blue Side (Challenger) -->
@@ -524,14 +524,14 @@
       {% endif %}
       <div class="fighter-score" id="score-p1">0</div>
     </div>
-
+ 
     <!-- Center VS -->
     <div class="vs-center">
       <div class="vs-text">VS</div>
       <div class="game-counter" id="game-counter">GAME 1</div>
       <div class="game-dots" id="game-dots"></div>
     </div>
-
+ 
     <!-- Red Side (Challenged) -->
     <div class="fighter-side red-side">
       {% if challenged.avatar %}
@@ -551,10 +551,10 @@
       <div class="fighter-score" id="score-p2">0</div>
     </div>
   </div>
-
+ 
   <!-- ── SCORE INPUT SECTION ── -->
   <div class="score-section" id="score-section">
-
+ 
     <!-- BO MODES -->
     <div id="bo-section" style="display:none;">
       <div class="section-title">SELECT THE RESULT</div>
@@ -566,13 +566,13 @@
         <div class="submit-hint">Both players must confirm the result</div>
       </div>
     </div>
-
+ 
     <!-- STOCKS MODE — rendu dynamique par JS (initStocksMode → renderStocksGames) -->
     <div id="stocks-section" style="display:none;"></div>
-
+ 
   </div>
 </div><!-- /arena -->
-
+ 
 <!-- ── MATCH CHAT SIDEBAR ── -->
 <div id="match-chat">
   <div id="chat-header">
@@ -587,19 +587,19 @@
     <button id="chat-send" onclick="chatSend()" title="Send">➤</button>
   </div>
 </div>
-
+ 
 </div><!-- /page-body -->
-
+ 
 <!-- ── STOCKS RECAP (shown to player 2 after player 1 submits) ── -->
 <div class="winner-announcement" id="stocks-recap" style="flex-direction:column;gap:0;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem;max-width:480px;width:90%;position:relative;overflow:hidden;">
     <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;color:var(--accent2);text-align:center;margin-bottom:0.3rem;">MATCH SUMMARY</div>
     <div id="recap-subtitle" style="text-align:center;color:var(--muted);font-size:0.8rem;letter-spacing:2px;margin-bottom:2rem;">SUBMITTED BY YOUR OPPONENT</div>
-
+ 
     <!-- Games breakdown -->
     <div id="recap-games" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem;"></div>
-
+ 
     <!-- Totals -->
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1.2rem;margin-bottom:1.5rem;">
       <div style="display:flex;justify-content:space-around;align-items:center;">
@@ -618,7 +618,7 @@
         <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--green);" id="recap-winner-name">—</span>
       </div>
     </div>
-
+ 
     <!-- Buttons -->
     <div id="recap-my-actions" style="display:none;flex-direction:column;gap:0.8rem;">
       <div style="font-size:0.85rem;color:var(--muted);text-align:center;margin-bottom:0.3rem;">Is this result correct?</div>
@@ -638,7 +638,7 @@
     </div>
   </div>
 </div>
-
+ 
 <!-- ── WINNER ANNOUNCEMENT ── -->
 <div class="winner-announcement" id="winner-announcement">
   <div class="winner-crown">🏆</div>
@@ -648,11 +648,11 @@
   <div id="winner-elo-line" style="margin-top:0.75rem;font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;"></div>
   <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted);letter-spacing:1px;">Redirecting to dashboard…</div>
 </div>
-
+ 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
-
-
+ 
+ 
 <!-- ── STOCKS END MATCH CONFIRMATION DIALOG ── -->
 <div id="confirm-end-overlay" style="
   display:none; position:fixed; inset:0; z-index:600;
@@ -701,7 +701,7 @@ const P1_NAME      = {{ challenger.username     | tojson }};
 const P2_ID        = {{ challenge.challenged_id | tojson }};
 const P2_NAME      = {{ challenged.username     | tojson }};
 const MY_ID        = {{ user.id                 | tojson }};
-
+ 
 // ── STATE ──
 let p1Score = 0, p2Score = 0;
 let selectedResult = null;
@@ -709,17 +709,17 @@ let stockGames = [];
 let totalGames = 0;
 let matchSocket = null; // socket unique partagé — évite le double socket / reconnecting
 let matchFinished = false; // guard contre double-traitement HTTP + socket
-
+ 
 // Mode STOCKS : historique des games
 // Each entry: { p1: N, p2: N }  (cumulative medals at end of this game)
 let stockGameHistory = [];
 let currentGameMinP1 = 0; // minimum imposé = valeur fin du game précédent
 let currentGameMinP2 = 0;
-
+ 
 // ── INIT ──
 function init() {
   document.getElementById('format-badge').textContent = FORMAT + ' — MATCH';
-
+ 
   if (FORMAT === 'STOCKS') {
     document.getElementById('stocks-section').style.display = 'block';
     initStocksMode();
@@ -729,7 +729,7 @@ function init() {
   }
   updateScoreDisplay();
 }
-
+ 
 // ─────────────────────────────────────────────
 // BO MODE
 // ─────────────────────────────────────────────
@@ -737,10 +737,10 @@ function initBOMode() {
   const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
   totalGames = maxWins * 2 - 1;
   updateDots([]);
-
+ 
   const opts = document.getElementById('score-options');
   opts.innerHTML = '';
-
+ 
   // Generate all possible scores
   const results = [];
   for (let w = maxWins; w >= maxWins; w--) { // winner always hits maxWins
@@ -749,13 +749,13 @@ function initBOMode() {
       results.push({ p1w: l, p1l: w, winner: 'p2' }); // P2 wins
     }
   }
-
+ 
   // Build clean result list: p1wins-p2wins pairs
   const combos = [];
   for (let l = 0; l < maxWins; l++) {
     combos.push({ winsA: maxWins, winsB: l }); // P1 wins
   }
-
+ 
   // P1 wins options
   for (let l = 0; l < maxWins; l++) {
     const el = buildScoreOption(maxWins, l, 'p1');
@@ -767,7 +767,7 @@ function initBOMode() {
     opts.appendChild(el);
   }
 }
-
+ 
 function buildScoreOption(wWins, lLoses, winnerKey) {
   const winnerId   = winnerKey === 'p1' ? P1_ID : P2_ID;
   const winnerName = winnerKey === 'p1' ? P1_NAME : P2_NAME;
@@ -775,7 +775,7 @@ function buildScoreOption(wWins, lLoses, winnerKey) {
   const scoreStr   = winnerKey === 'p1' ? `${wWins}-${lLoses}` : `${lLoses}-${wWins}`;
   // Display: winner score shown first
   const displayScore = `${wWins} — ${lLoses}`;
-
+ 
   const div = document.createElement('div');
   div.className = 'score-option';
   div.innerHTML = `
@@ -802,12 +802,12 @@ function buildScoreOption(wWins, lLoses, winnerKey) {
   });
   return div;
 }
-
+ 
 // ─────────────────────────────────────────────
 // STOCKS MODE — saisie game par game
 // ─────────────────────────────────────────────
 let medalsP1 = 0, medalsP2 = 0;
-
+ 
 function initStocksMode() {
   stockGameHistory = [];
   currentGameMinP1 = 0;
@@ -818,7 +818,7 @@ function initStocksMode() {
   updateDots([]);
   renderStocksGames();
 }
-
+ 
 // Construit / met à jour l'affichage de tous les games + game courant
 function renderStocksGames() {
   const section = document.getElementById('stocks-section');
@@ -829,7 +829,7 @@ function renderStocksGames() {
       Enter the <strong>cumulative</strong> medals at the end of each game.<br>
       The minimum resets from the previous game total.
     </div>`;
-
+ 
   // Historique des games déjà validés
   const list = document.getElementById('stocks-games-list');
   stockGameHistory.forEach((g, i) => {
@@ -851,7 +851,7 @@ function renderStocksGames() {
       <span style="font-size:0.8rem;color:var(--green);font-weight:700;">${wName} wins</span>`;
     list.appendChild(row);
   });
-
+ 
   // Game courant
   const gameNum = stockGameHistory.length + 1;
   const block = document.getElementById('current-game-block');
@@ -889,13 +889,13 @@ function renderStocksGames() {
     <button class="end-match-btn visible" id="end-match-btn" onclick="confirmEndMatch()" style="margin-top:1rem;">
       🏆 END MATCH & SUBMIT
     </button>` : ''}`;
-
+ 
   // Sync valeurs courantes
   medalsP1 = currentGameMinP1;
   medalsP2 = currentGameMinP2;
   updateMinusButtons();
 }
-
+ 
 function changeStockGame(player, delta) {
   if (player === 'p1') {
     const newVal = medalsP1 + delta;
@@ -913,14 +913,14 @@ function changeStockGame(player, delta) {
   updateScoreDisplay();
   updateMinusButtons();
 }
-
+ 
 function updateMinusButtons() {
   const bm1 = document.getElementById('btn-p1-minus');
   const bm2 = document.getElementById('btn-p2-minus');
   if (bm1) bm1.disabled = (medalsP1 <= currentGameMinP1);
   if (bm2) bm2.disabled = (medalsP2 <= currentGameMinP2);
 }
-
+ 
 function confirmStockGame() {
   const delta1 = medalsP1 - currentGameMinP1;
   const delta2 = medalsP2 - currentGameMinP2;
@@ -943,9 +943,9 @@ function confirmStockGame() {
   }));
   renderStocksGames();
 }
-
+ 
 function changeMedals(player, delta) { changeStockGame(player, delta); } // alias compat
-
+ 
 // ─────────────────────────────────────────────
 // UI HELPERS
 // ─────────────────────────────────────────────
@@ -953,7 +953,7 @@ function updateScoreDisplay() {
   document.getElementById('score-p1').textContent = p1Score;
   document.getElementById('score-p2').textContent = p2Score;
 }
-
+ 
 function updateDots(dots) {
   const maxDots = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 3 : FORMAT === 'BO5' ? 5 : dots.length + 1;
   const container = document.getElementById('game-dots');
@@ -969,7 +969,7 @@ function updateDots(dots) {
     : dots.length;
   document.getElementById('game-counter').textContent = `GAME ${lockedCount + 1}`;
 }
-
+ 
 // ─────────────────────────────────────────────
 // SUBMIT
 // ─────────────────────────────────────────────
@@ -977,7 +977,7 @@ async function submitBO() {
   if (!selectedResult) { showToast('Select a result first!', false); return; }
   const btn = document.getElementById('submit-bo');
   btn.disabled = true; btn.textContent = 'Submitting…';
-
+ 
   try {
     const res = await fetch(`/result/${CHALLENGE_ID}`, {
       method: 'POST',
@@ -1010,12 +1010,12 @@ async function submitBO() {
     btn.disabled = false; btn.textContent = '⚔ SUBMIT RESULT';
   }
 }
-
+ 
 // ─────────────────────────────────────────────
 // RECAP & CONFIRM — all modes (BO + STOCKS)
 // ─────────────────────────────────────────────
 let pendingResult = null; // { winner_id, score, [stocks fields] }
-
+ 
 // ── MEDALS MODE: end match button ──
 function endMatch() {
   if (!stockGameHistory.length) {
@@ -1026,11 +1026,11 @@ function endMatch() {
   if (totalP1 === totalP2) {
     showToast('Tie not allowed — there must be a winner!', false); return;
   }
-
+ 
   const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
   const winnerMeds = Math.max(totalP1, totalP2);
   const loserMeds  = Math.min(totalP1, totalP2);
-
+ 
   pendingResult = {
     winner_id: winnerId,
     score: `${winnerMeds}-${loserMeds}`,
@@ -1038,7 +1038,7 @@ function endMatch() {
     loser_stocks_taken: loserMeds,
     is_stocks_mode: true
   };
-
+ 
   // Recap : liste chaque game
   const gamesDiv = document.getElementById('recap-games');
   gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
@@ -1058,7 +1058,7 @@ function endMatch() {
       <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
     </div>`;
   }).join('');
-
+ 
   populateRecapTotals(totalP1, totalP2, winnerId);
   document.getElementById('recap-subtitle').textContent = 'MEDALS — WAITING FOR CONFIRMATION';
   document.getElementById('recap-my-actions').style.display = 'none';
@@ -1066,14 +1066,14 @@ function endMatch() {
   document.getElementById('stocks-recap').classList.add('show');
   submitResult(pendingResult, false);
 }
-
+ 
 // ── BO : affiche le recap côté soumetteur ──
 function showBORecap(result, state) {
   const winnerName = result.winner_id === P1_ID ? P1_NAME : P2_NAME;
   const parts = result.score.split('-');
   const t1 = parseInt(parts[0]) || 0;
   const t2 = parseInt(parts[1]) || 0;
-
+ 
   const gamesDiv = document.getElementById('recap-games');
   gamesDiv.innerHTML = `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
@@ -1084,7 +1084,7 @@ function showBORecap(result, state) {
     </div>`;
   populateRecapTotals(t1, t2, result.winner_id);
   document.getElementById('recap-subtitle').textContent = FORMAT + ' — WAITING FOR CONFIRMATION';
-
+ 
   if (state === 'waiting') {
     document.getElementById('recap-my-actions').style.display = 'none';
     document.getElementById('recap-waiting').style.display = 'block';
@@ -1094,7 +1094,7 @@ function showBORecap(result, state) {
   }
   document.getElementById('stocks-recap').classList.add('show');
 }
-
+ 
 function populateRecapTotals(t1, t2, winnerId) {
   document.getElementById('recap-total-p1').textContent = t1;
   document.getElementById('recap-total-p2').textContent = t2;
@@ -1102,7 +1102,7 @@ function populateRecapTotals(t1, t2, winnerId) {
   document.getElementById('recap-p2-name').textContent = P2_NAME;
   document.getElementById('recap-winner-name').textContent = winnerId === P1_ID ? P1_NAME : P2_NAME;
 }
-
+ 
 // ── Soumission unifiée ──
 async function submitResult(result, isConfirm) {
   const btn = document.getElementById('end-match-btn');
@@ -1138,7 +1138,7 @@ async function submitResult(result, isConfirm) {
     if (btn) { btn.textContent = '\uD83C\uDFC6 END MATCH & SUBMIT'; }
   }
 }
-
+ 
 // ── Player 2: Confirm ──
 async function confirmRecap() {
   if (!pendingResult) return;
@@ -1146,7 +1146,7 @@ async function confirmRecap() {
   document.getElementById('recap-waiting').style.display = 'block';
   await submitResult(pendingResult, true);
 }
-
+ 
 // ── Player 2: Contest ──
 async function contestRecap() {
   if (!pendingResult) return;
@@ -1162,14 +1162,14 @@ async function contestRecap() {
   document.getElementById('stocks-recap').classList.remove('show');
   setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 2500);
 }
-
+ 
 // ── Socket.IO : socket UNIQUE créé dès le chargement ──
 let pollInterval = null;
-
+ 
 function stopPolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
-
+ 
 function startHttpFallback() {
   if (pollInterval) return;
   pollInterval = setInterval(() => {
@@ -1189,29 +1189,29 @@ function startHttpFallback() {
     }).catch(() => {});
   }, 3000);
 }
-
+ 
 // ── Connexion socket immédiate — les deux joueurs rejoignent dès le chargement ──
 // Ainsi le joueur qui attend la confirmation reçoit match_update en temps réel
 // sans avoir besoin de soumettre quoi que ce soit d'abord.
 function initMatchSocket() {
   if (matchSocket) return;
-
+ 
   matchSocket = io({ transports: ['websocket'], upgrade: false });
   window.socket = matchSocket; // exposé pour notifications.js (évite le double socket)
-
+ 
   matchSocket.on('connect', () => {
     // Rejoindre la room match ET la room user dès la connexion
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
     checkInitialState();
   });
-
+ 
   matchSocket.on('reconnect', () => {
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
     checkInitialState();
   });
-
+ 
   matchSocket.on('match_update', (d) => {
     if (!d || d.challenge_id !== CHALLENGE_ID) return; // ignorer les events d'autres matchs
     if (d.status === 'completed') {
@@ -1230,16 +1230,16 @@ function initMatchSocket() {
       }
     }
   });
-
+ 
   matchSocket.on('chat_message', (d) => { chatReceive(d); });
   matchSocket.on('chat_history', (msgs) => {
     msgs.forEach(d => chatReceive(d));
   });
 }
-
+ 
 // Alias conservé pour compatibilité avec les appels existants (submitBO, endMatch…)
 function startMatchPolling() { initMatchSocket(); }
-
+ 
 // ── Vérification au chargement ──
 function checkInitialState() {
   fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
@@ -1268,12 +1268,12 @@ function checkInitialState() {
     }
   }).catch(() => {});
 }
-
+ 
 // ── Show recap submitted by opponent ──
 function showOpponentRecap(d) {
   const report = d.report || d;
   if (!report || !report.winner_id) return;
-
+ 
   if (report.is_stocks_mode || FORMAT === 'STOCKS') {
     // Medals mode
     pendingResult = {
@@ -1312,14 +1312,14 @@ function showOpponentRecap(d) {
     populateRecapTotals(t1, t2, report.winner_id);
     document.getElementById('recap-subtitle').textContent = FORMAT + ' — SUBMITTED BY YOUR OPPONENT';
   }
-
+ 
   document.getElementById('recap-my-actions').style.display = 'flex';
   document.getElementById('recap-waiting').style.display = 'none';
   document.getElementById('stocks-recap').classList.add('show');
 }
-
-
-
+ 
+ 
+ 
 // ─────────────────────────────────────────────
 // TOAST
 // ─────────────────────────────────────────────
@@ -1331,14 +1331,14 @@ function showToast(msg, success = true) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
-
+ 
 function showWinner(winnerId, score, eloChange) {
   const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
   const iWon = winnerId === MY_ID;
-
+ 
   // Fermer le recap s'il est encore ouvert
   document.getElementById('stocks-recap').classList.remove('show');
-
+ 
   document.getElementById('winner-name-big').textContent = name;
   document.getElementById('winner-score-big').textContent = score;
   const eloLine = document.getElementById('winner-elo-line');
@@ -1357,20 +1357,20 @@ function showWinner(winnerId, score, eloChange) {
   }
   document.getElementById('winner-announcement').classList.add('show');
 }
-
+ 
 // ── Stocks end match confirmation ──
 function confirmEndMatch() {
   if (!stockGameHistory.length) { showToast('Confirm at least one game before finishing!', false); return; }
   const overlay = document.getElementById('confirm-end-overlay');
   overlay.style.display = 'flex';
 }
-
+ 
 function doEndMatch() {
   document.getElementById('confirm-end-overlay').style.display = 'none';
   endMatch();
 }
-
-
+ 
+ 
 // ─────────────────────────────────────────────
 // MATCH CHAT
 // ─────────────────────────────────────────────
@@ -1386,34 +1386,34 @@ function chatSend() {
   input.value = '';
   input.focus();
 }
-
+ 
 function chatReceive(data) {
   const empty = document.getElementById('chat-empty');
   if (empty) empty.remove();
-
+ 
   const msgs = document.getElementById('chat-messages');
   const isMine = data.uid === MY_ID;
-
+ 
   const div = document.createElement('div');
   div.className = 'chat-msg ' + (isMine ? 'mine' : 'theirs');
-
+ 
   const d = new Date(data.ts);
   const time = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
-
+ 
   div.innerHTML = `
     <div class="chat-msg-name">${escChatHtml(data.name)}</div>
     <div class="chat-msg-bubble">${escChatHtml(data.text)}</div>
     <div class="chat-msg-time">${time}</div>`;
-
+ 
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
-
+ 
 function escChatHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-
+ 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
@@ -1425,7 +1425,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initMatchSocket();
 });
 </script>
-
+ 
 <script src="/static/notifications.js"></script>
 </body>
 </html>
