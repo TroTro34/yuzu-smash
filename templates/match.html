@@ -557,13 +557,12 @@
 
     <!-- BO MODES -->
     <div id="bo-section" style="display:none;">
-      <div class="section-title">SELECT THE RESULT</div>
       <div class="score-options" id="score-options"></div>
       <div class="submit-area">
-        <button class="submit-btn" id="submit-bo" onclick="submitBO()" disabled>
+        <button class="submit-btn" id="submit-bo" onclick="submitBO()" disabled style="display:none;">
           ⚔ SUBMIT RESULT
         </button>
-        <div class="submit-hint">Both players must confirm the result</div>
+        <div class="submit-hint" id="submit-hint-bo" style="display:none;">Both players must confirm the result</div>
       </div>
     </div>
 
@@ -731,76 +730,479 @@ function init() {
 }
 
 // ─────────────────────────────────────────────
-// BO MODE
+// SMASH DATA — Characters & Stages
 // ─────────────────────────────────────────────
+const SSBU_CHARACTERS = [
+  "mario","donkey_kong","link","samus","dark_samus","yoshi","kirby","fox","pikachu",
+  "luigi","ness","captain_falcon","jigglypuff","peach","daisy","bowser","ice_climbers",
+  "sheik","zelda","dr_mario","pichu","falco","marth","lucina","young_link","ganondorf",
+  "mewtwo","roy","chrom","mr_game_and_watch","meta_knight","pit","dark_pit","zero_suit_samus",
+  "wario","snake","ike","pokemon_trainer","diddy_kong","lucas","sonic","king_dedede",
+  "olimar","lucario","rob","toon_link","wolf","villager","mega_man","wii_fit_trainer",
+  "rosalina","little_mac","greninja","mii_brawler","mii_swordfighter","mii_gunner",
+  "palutena","pac_man","robin","shulk","bowser_jr","duck_hunt","ryu","ken","cloud",
+  "corrin","bayonetta","inkling","ridley","simon","richter","king_k_rool","isabelle",
+  "incineroar","piranha_plant","joker","hero","banjo_kazooie","terry","byleth",
+  "min_min","steve","sephiroth","pyra_mythra","kazuya","sora"
+];
+
+const STARTER_STAGES = [
+  { id: "battlefield",      name: "Battlefield" },
+  { id: "small_battlefield",name: "Small BF" },
+  { id: "final_destination",name: "Final Destination" },
+  { id: "hollow_bastion",   name: "Hollow Bastion" },
+  { id: "pokemon_stadium_2",name: "Pokémon Stadium 2" },
+];
+
+const COUNTERPICK_STAGES = [
+  { id: "town_and_city",    name: "Town & City" },
+  { id: "smashville",       name: "Smashville" },
+  { id: "kalos_pokemon_league", name: "Kalos" },
+  { id: "northern_cave",    name: "Northern Cave" },
+  { id: "yoshi_story",      name: "Yoshi's Story" },
+  { id: "lylat_cruise",     name: "Lylat Cruise" },
+];
+
+const ALL_STAGES = [...STARTER_STAGES, ...COUNTERPICK_STAGES];
+
+// ─────────────────────────────────────────────
+// BO MODE — start.gg style: char select + stage ban per game
+// ─────────────────────────────────────────────
+
+// boState: tracks the full BO flow
+let boState = {
+  maxWins: 0,
+  games: [],          // [{p1char, p2char, stage, winner, p1Score, p2Score}]
+  currentGame: 1,
+  phase: 'char_select', // 'char_select' | 'stage_ban' | 'game_result'
+  p1Char: null,
+  p2Char: null,
+  bannedStages: [],
+  selectedStage: null,
+  // who won previous game (for DSR / counterpick logic)
+  prevWinner: null,
+};
+
 function initBOMode() {
   const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
   totalGames = maxWins * 2 - 1;
+  boState = {
+    maxWins,
+    games: [],
+    currentGame: 1,
+    phase: 'char_select',
+    p1Char: null, p2Char: null,
+    bannedStages: [],
+    selectedStage: null,
+    prevWinner: null,
+  };
   updateDots([]);
+  renderBOPhase();
+}
 
-  const opts = document.getElementById('score-options');
-  opts.innerHTML = '';
+function renderBOPhase() {
+  const section = document.getElementById('bo-section');
+  section.style.display = 'block';
+  document.getElementById('score-options').innerHTML = '';
 
-  // Generate all possible scores
-  const results = [];
-  for (let w = maxWins; w >= maxWins; w--) { // winner always hits maxWins
-    for (let l = 0; l < maxWins; l++) {
-      results.push({ p1w: w, p1l: l, winner: 'p1' }); // P1 wins
-      results.push({ p1w: l, p1l: w, winner: 'p2' }); // P2 wins
-    }
+  if (boState.phase === 'char_select') renderCharSelect(section);
+  else if (boState.phase === 'stage_ban')   renderStageBan(section);
+  else if (boState.phase === 'game_result') renderGameResult(section);
+}
+
+// ── PHASE 1 : Character selection ──
+function renderCharSelect(section) {
+  const container = document.getElementById('score-options');
+  const isGame1 = boState.currentGame === 1;
+  const prevWinnerName = boState.prevWinner === 'p1' ? P1_NAME : P2_NAME;
+
+  container.innerHTML = `
+    <div style="width:100%;">
+      <div class="section-title">GAME ${boState.currentGame} — CHARACTER SELECT</div>
+      ${!isGame1 ? `<div style="text-align:center;color:var(--muted);font-size:0.82rem;margin-bottom:1.2rem;letter-spacing:1px;">
+        ${prevWinnerName} won game ${boState.currentGame-1} — both players pick their character
+      </div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+        ${buildCharPanel('p1', P1_NAME, 'blue')}
+        ${buildCharPanel('p2', P2_NAME, 'red')}
+      </div>
+      <button onclick="confirmCharSelect()" id="btn-confirm-chars"
+        style="width:100%;padding:1rem;border-radius:8px;
+          border:2px solid var(--accent2);background:rgba(255,128,0,0.1);
+          color:var(--accent2);font-family:'Bebas Neue',sans-serif;
+          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;opacity:0.4;pointer-events:none;"
+        disabled>
+        CONFIRM CHARACTERS →
+      </button>
+    </div>`;
+
+  // Re-bind after render
+  bindCharPanelEvents();
+}
+
+function buildCharPanel(player, name, color) {
+  const selected = player === 'p1' ? boState.p1Char : boState.p2Char;
+  const colorVar = color === 'blue' ? 'var(--blue)' : 'var(--accent)';
+  return `
+    <div style="background:var(--surface2);border:1px solid ${colorVar}33;border-radius:10px;padding:1rem;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;
+        color:${colorVar};margin-bottom:0.8rem;text-align:center;">${name}</div>
+      <div id="char-selected-${player}" style="text-align:center;min-height:60px;display:flex;align-items:center;justify-content:center;flex-direction:column;margin-bottom:0.8rem;">
+        ${selected
+          ? `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${selected}.png"
+              onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain;">
+             <div style="font-size:0.75rem;color:${colorVar};letter-spacing:1px;margin-top:0.3rem;text-transform:capitalize;">
+               ${selected.replace(/_/g,' ')}
+             </div>`
+          : `<div style="color:var(--muted);font-size:0.8rem;letter-spacing:1px;">No character selected</div>`
+        }
+      </div>
+      <input type="text" id="char-search-${player}"
+        placeholder="Search character…"
+        style="width:100%;background:var(--surface3);border:1px solid var(--border);
+          border-radius:6px;padding:0.4rem 0.7rem;color:var(--text);
+          font-family:'Rajdhani',sans-serif;font-size:0.85rem;outline:none;margin-bottom:0.5rem;"
+        oninput="filterChars('${player}', this.value)">
+      <div id="char-grid-${player}"
+        style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px;max-height:160px;overflow-y:auto;">
+        ${buildCharGrid(player, '')}
+      </div>
+    </div>`;
+}
+
+function buildCharGrid(player, filter) {
+  const selected = player === 'p1' ? boState.p1Char : boState.p2Char;
+  const filtered = SSBU_CHARACTERS.filter(c =>
+    !filter || c.replace(/_/g,' ').includes(filter.toLowerCase())
+  );
+  return filtered.map(c => {
+    const isSelected = selected === c;
+    return `<div onclick="selectChar('${player}','${c}')"
+      title="${c.replace(/_/g,' ')}"
+      style="cursor:pointer;border-radius:4px;padding:2px;transition:all 0.15s;
+        border:2px solid ${isSelected ? (player==='p1' ? 'var(--blue)' : 'var(--accent)') : 'transparent'};
+        background:${isSelected ? (player==='p1' ? 'rgba(79,142,247,0.2)' : 'rgba(232,64,10,0.2)') : 'transparent'};">
+      <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c}.png"
+        onerror="this.parentNode.style.display='none'"
+        style="width:100%;aspect-ratio:1;object-fit:contain;display:block;">
+    </div>`;
+  }).join('');
+}
+
+function bindCharPanelEvents() {}
+
+function filterChars(player, val) {
+  const grid = document.getElementById(`char-grid-${player}`);
+  if (grid) grid.innerHTML = buildCharGrid(player, val);
+}
+
+function selectChar(player, charId) {
+  if (player === 'p1') boState.p1Char = charId;
+  else boState.p2Char = charId;
+
+  // Re-render selected display
+  const colorVar = player === 'p1' ? 'var(--blue)' : 'var(--accent)';
+  const displayEl = document.getElementById(`char-selected-${player}`);
+  if (displayEl) {
+    displayEl.innerHTML = `
+      <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${charId}.png"
+        onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain;">
+      <div style="font-size:0.75rem;color:${colorVar};letter-spacing:1px;margin-top:0.3rem;text-transform:capitalize;">
+        ${charId.replace(/_/g,' ')}
+      </div>`;
   }
+  // Re-render grid to update selection highlight
+  const grid = document.getElementById(`char-grid-${player}`);
+  const searchEl = document.getElementById(`char-search-${player}`);
+  if (grid) grid.innerHTML = buildCharGrid(player, searchEl ? searchEl.value : '');
 
-  // Build clean result list: p1wins-p2wins pairs
-  const combos = [];
-  for (let l = 0; l < maxWins; l++) {
-    combos.push({ winsA: maxWins, winsB: l }); // P1 wins
-  }
-
-  // P1 wins options
-  for (let l = 0; l < maxWins; l++) {
-    const el = buildScoreOption(maxWins, l, 'p1');
-    opts.appendChild(el);
-  }
-  // P2 wins options
-  for (let l = 0; l < maxWins; l++) {
-    const el = buildScoreOption(maxWins, l, 'p2');
-    opts.appendChild(el);
+  // Enable confirm button if both selected
+  const btn = document.getElementById('btn-confirm-chars');
+  if (btn && boState.p1Char && boState.p2Char) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
   }
 }
 
-function buildScoreOption(wWins, lLoses, winnerKey) {
-  const winnerId   = winnerKey === 'p1' ? P1_ID : P2_ID;
-  const winnerName = winnerKey === 'p1' ? P1_NAME : P2_NAME;
-  const loserName  = winnerKey === 'p1' ? P2_NAME : P1_NAME;
-  const scoreStr   = winnerKey === 'p1' ? `${wWins}-${lLoses}` : `${lLoses}-${wWins}`;
-  // Display: winner score shown first
-  const displayScore = `${wWins} — ${lLoses}`;
+function confirmCharSelect() {
+  if (!boState.p1Char || !boState.p2Char) return;
+  boState.phase = 'stage_ban';
+  boState.bannedStages = [];
+  boState.selectedStage = null;
+  renderBOPhase();
+}
 
-  const div = document.createElement('div');
-  div.className = 'score-option';
-  div.innerHTML = `
-    <div class="winner-name">${winnerName} wins</div>
-    <div class="score-display">${displayScore}</div>
-    <div class="score-label">${loserName}: ${lLoses} game${lLoses !== 1 ? 's' : ''}</div>
-  `;
-  div.addEventListener('click', () => {
-    document.querySelectorAll('.score-option').forEach(o => {
-      o.classList.remove('selected-p1','selected-p2');
-    });
-    div.classList.add(winnerKey === 'p1' ? 'selected-p1' : 'selected-p2');
-    selectedResult = { winner_id: winnerId, score: scoreStr };
-    // Update live scores
-    if (winnerKey === 'p1') { p1Score = wWins; p2Score = lLoses; }
-    else { p1Score = lLoses; p2Score = wWins; }
-    updateScoreDisplay();
-    // Update dots
-    const dots = [];
-    for (let i = 0; i < wWins; i++) dots.push(winnerKey === 'p1' ? 'p1' : 'p2');
-    for (let i = 0; i < lLoses; i++) dots.push(winnerKey === 'p1' ? 'p2' : 'p1');
-    updateDots(dots);
-    document.getElementById('submit-bo').disabled = false;
+// ── PHASE 2 : Stage ban ──
+// Game 1 → ban from starters (each player bans 1, then pick from remaining)
+// Game 2+ → loser picks stage, winner can DSR (can't repick their last winning stage)
+function renderStageBan(section) {
+  const container = document.getElementById('score-options');
+  const isGame1 = boState.currentGame === 1;
+
+  // Determine stage pool and ban rules
+  const pool = isGame1 ? STARTER_STAGES : ALL_STAGES;
+  // Number of bans: game1 → each player bans 1 (2 total), then stage pick
+  // Game 2+ → winner of prev game bans 1 stage, then loser counterpicks
+  const totalBansNeeded = isGame1 ? 2 : 1;
+  const currentBans = boState.bannedStages.length;
+  const bansDone = currentBans >= totalBansNeeded;
+
+  // DSR: winner of previous game can't pick their last winning stage
+  let dsrBlockedStage = null;
+  if (!isGame1 && boState.games.length > 0) {
+    const lastGame = boState.games[boState.games.length - 1];
+    if (lastGame.winner === 'p1') dsrBlockedStage = lastGame.stage;
+    else if (lastGame.winner === 'p2') dsrBlockedStage = lastGame.stage;
+  }
+
+  // Who is currently banning?
+  let bannerName = '';
+  if (!bansDone) {
+    if (isGame1) {
+      bannerName = currentBans === 0 ? P1_NAME : P2_NAME;
+    } else {
+      // Winner of prev game bans
+      bannerName = boState.prevWinner === 'p1' ? P1_NAME : P2_NAME;
+    }
+  }
+
+  // Who is picking (loser counterpicks on game 2+, or both agree on game 1)?
+  const pickerName = isGame1 ? 'Both players agree on' : (boState.prevWinner === 'p1' ? P2_NAME : P1_NAME);
+
+  container.innerHTML = `
+    <div style="width:100%;">
+      <div class="section-title">GAME ${boState.currentGame} — STAGE ${bansDone ? 'SELECT' : 'BAN'}</div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        ${boState.bannedStages.map(s => `
+          <span style="background:rgba(255,85,85,0.12);border:1px solid rgba(255,85,85,0.3);
+            border-radius:4px;padding:0.2rem 0.7rem;font-size:0.78rem;color:var(--red);letter-spacing:1px;">
+            🚫 ${ALL_STAGES.find(x=>x.id===s)?.name||s}
+          </span>`).join('')}
+        ${dsrBlockedStage && !boState.bannedStages.includes(dsrBlockedStage) ? `
+          <span style="background:rgba(255,128,0,0.1);border:1px solid rgba(255,128,0,0.3);
+            border-radius:4px;padding:0.2rem 0.7rem;font-size:0.78rem;color:var(--accent2);letter-spacing:1px;">
+            🔒 DSR: ${ALL_STAGES.find(x=>x.id===dsrBlockedStage)?.name||dsrBlockedStage}
+          </span>` : ''}
+      </div>
+      ${!bansDone ? `
+        <div style="text-align:center;color:var(--muted);font-size:0.82rem;margin-bottom:1rem;letter-spacing:1px;">
+          <strong style="color:var(--text);">${bannerName}</strong> — ban a stage (${currentBans+1}/${totalBansNeeded})
+        </div>` : `
+        <div style="text-align:center;color:var(--muted);font-size:0.82rem;margin-bottom:1rem;letter-spacing:1px;">
+          <strong style="color:var(--text);">${pickerName}</strong> — select the stage to play on
+        </div>`}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.6rem;margin-bottom:1.5rem;">
+        ${pool.map(s => {
+          const isBanned = boState.bannedStages.includes(s.id) || s.id === dsrBlockedStage;
+          const isSelected = boState.selectedStage === s.id;
+          const isStarter = STARTER_STAGES.find(x=>x.id===s.id);
+          return `<div onclick="${isBanned ? '' : `stageTileClick('${s.id}','${bansDone}')`}"
+            style="border-radius:8px;padding:0.75rem 0.5rem;text-align:center;cursor:${isBanned?'not-allowed':'pointer'};
+              transition:all 0.15s;position:relative;
+              background:${isBanned ? 'rgba(0,0,0,0.5)' : isSelected ? 'rgba(79,142,247,0.15)' : 'var(--surface2)'};
+              border:2px solid ${isBanned ? 'rgba(255,85,85,0.2)' : isSelected ? 'var(--blue)' : 'var(--border)'};
+              opacity:${isBanned ? '0.5' : '1'};">
+            <div style="font-size:0.82rem;font-weight:700;letter-spacing:0.5px;
+              color:${isBanned ? 'var(--red)' : isSelected ? 'var(--blue)' : 'var(--text)'};">
+              ${isBanned ? '🚫 ' : isSelected ? '✅ ' : ''}${s.name}
+            </div>
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
+              ${isStarter ? 'STARTER' : 'COUNTERPICK'}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${bansDone ? `
+        <button onclick="confirmStageSelect()" id="btn-confirm-stage"
+          ${boState.selectedStage ? '' : 'disabled'}
+          style="width:100%;padding:1rem;border-radius:8px;
+            border:2px solid var(--accent2);background:rgba(255,128,0,0.1);
+            color:var(--accent2);font-family:'Bebas Neue',sans-serif;
+            font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
+            opacity:${boState.selectedStage ? '1' : '0.4'};">
+          PLAY ON ${boState.selectedStage ? (ALL_STAGES.find(x=>x.id===boState.selectedStage)?.name||'?').toUpperCase() : '?'} →
+        </button>` : ''}
+    </div>`;
+}
+
+function stageTileClick(stageId, isPicking) {
+  if (isPicking === 'true' || isPicking === true) {
+    boState.selectedStage = stageId;
+  } else {
+    // Banning
+    if (!boState.bannedStages.includes(stageId)) {
+      boState.bannedStages.push(stageId);
+    }
+    const isGame1 = boState.currentGame === 1;
+    const totalBansNeeded = isGame1 ? 2 : 1;
+    if (boState.bannedStages.length >= totalBansNeeded) {
+      // Switch to picking
+    }
+  }
+  renderBOPhase();
+}
+
+function confirmStageSelect() {
+  if (!boState.selectedStage) return;
+  boState.phase = 'game_result';
+  renderBOPhase();
+}
+
+// ── PHASE 3 : Game result ──
+function renderGameResult(section) {
+  const container = document.getElementById('score-options');
+  const stage = ALL_STAGES.find(s=>s.id===boState.selectedStage);
+
+  container.innerHTML = `
+    <div style="width:100%;">
+      <div class="section-title">GAME ${boState.currentGame} — RESULT</div>
+
+      <!-- Stage & characters recap -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+        padding:1rem 1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.8rem;">
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${boState.p1Char}.png"
+            onerror="this.style.display='none'" style="width:40px;height:40px;object-fit:contain;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:1rem;color:var(--blue);">${P1_NAME}</span>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.65rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.2rem;">STAGE</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--accent2);">${stage?.name||'?'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:1rem;color:var(--accent);">${P2_NAME}</span>
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${boState.p2Char}.png"
+            onerror="this.style.display='none'" style="width:40px;height:40px;object-fit:contain;">
+        </div>
+      </div>
+
+      <!-- Winner buttons -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+        <div id="result-p1" onclick="selectGameWinner('p1')"
+          style="border-radius:10px;padding:1.5rem 1rem;text-align:center;cursor:pointer;
+            transition:all 0.2s;background:var(--surface2);border:2px solid var(--border);">
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${boState.p1Char}.png"
+            onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain;margin-bottom:0.4rem;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--blue);letter-spacing:2px;">${P1_NAME}</div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem;text-transform:capitalize;">${boState.p1Char.replace(/_/g,' ')}</div>
+        </div>
+        <div id="result-p2" onclick="selectGameWinner('p2')"
+          style="border-radius:10px;padding:1.5rem 1rem;text-align:center;cursor:pointer;
+            transition:all 0.2s;background:var(--surface2);border:2px solid var(--border);">
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${boState.p2Char}.png"
+            onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain;margin-bottom:0.4rem;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--accent);letter-spacing:2px;">${P2_NAME}</div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem;text-transform:capitalize;">${boState.p2Char.replace(/_/g,' ')}</div>
+        </div>
+      </div>
+
+      <button onclick="confirmGameResult()" id="btn-confirm-game"
+        disabled style="width:100%;padding:1rem;border-radius:8px;
+          border:2px solid var(--green);background:rgba(61,220,132,0.08);
+          color:var(--green);font-family:'Bebas Neue',sans-serif;
+          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;opacity:0.4;">
+        CONFIRM GAME ${boState.currentGame} RESULT
+      </button>
+    </div>`;
+
+  boState._gameWinner = null;
+}
+
+let _selectedGameWinner = null;
+function selectGameWinner(player) {
+  _selectedGameWinner = player;
+  const p1El = document.getElementById('result-p1');
+  const p2El = document.getElementById('result-p2');
+  if (player === 'p1') {
+    p1El.style.borderColor = 'var(--blue)';
+    p1El.style.background = 'rgba(79,142,247,0.12)';
+    p2El.style.borderColor = 'var(--border)';
+    p2El.style.background = 'var(--surface2)';
+  } else {
+    p2El.style.borderColor = 'var(--accent)';
+    p2El.style.background = 'rgba(232,64,10,0.12)';
+    p1El.style.borderColor = 'var(--border)';
+    p1El.style.background = 'var(--surface2)';
+  }
+  const btn = document.getElementById('btn-confirm-game');
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+}
+
+function confirmGameResult() {
+  if (!_selectedGameWinner) return;
+  const winner = _selectedGameWinner;
+
+  // Record game
+  boState.games.push({
+    p1char: boState.p1Char,
+    p2char: boState.p2Char,
+    stage:  boState.selectedStage,
+    winner,
   });
-  return div;
+
+  // Update scores
+  if (winner === 'p1') p1Score++;
+  else p2Score++;
+  updateScoreDisplay();
+
+  // Update dots
+  updateDots(boState.games.map(g => g.winner));
+
+  boState.prevWinner = winner;
+
+  // Check if BO is over
+  if (p1Score >= boState.maxWins || p2Score >= boState.maxWins) {
+    // Build score string and submit
+    const finalWinnerId = p1Score >= boState.maxWins ? P1_ID : P2_ID;
+    const scoreStr = `${p1Score}-${p2Score}`;
+    selectedResult = { winner_id: finalWinnerId, score: scoreStr };
+
+    // Show final game summary in bo-section before submit button
+    document.getElementById('score-options').innerHTML = `
+      <div style="width:100%;text-align:center;">
+        <div class="section-title">MATCH COMPLETE</div>
+        ${buildGamesHistory()}
+        <div style="margin-top:1rem;font-family:'Bebas Neue',sans-serif;font-size:2rem;
+          color:${p1Score>p2Score?'var(--blue)':'var(--accent)'};letter-spacing:3px;">
+          ${p1Score>p2Score?P1_NAME:P2_NAME} WINS ${p1Score}-${p2Score}
+        </div>
+      </div>`;
+    document.getElementById('submit-bo').disabled = false;
+    document.getElementById('submit-bo').style.display = 'block';
+    document.getElementById('submit-hint-bo').style.display = 'block';
+    return;
+  }
+
+  // Next game — reset char/stage, keep scores
+  boState.currentGame++;
+  boState.phase = 'char_select';
+  boState.p1Char = null;
+  boState.p2Char = null;
+  boState.bannedStages = [];
+  boState.selectedStage = null;
+  renderBOPhase();
+}
+
+function buildGamesHistory() {
+  return `<div style="display:flex;flex-direction:column;gap:0.5rem;margin:1rem 0;">
+    ${boState.games.map((g,i) => {
+      const stageName = ALL_STAGES.find(s=>s.id===g.stage)?.name||g.stage;
+      const wName = g.winner==='p1'?P1_NAME:P2_NAME;
+      const wColor = g.winner==='p1'?'var(--blue)':'var(--accent)';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;
+        background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;gap:0.5rem;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;min-width:60px;">GAME ${i+1}</span>
+        <div style="display:flex;align-items:center;gap:0.4rem;">
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${g.p1char}.png" onerror="this.style.display='none'" style="width:28px;height:28px;object-fit:contain;">
+          <span style="font-size:0.7rem;color:var(--muted);">vs</span>
+          <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${g.p2char}.png" onerror="this.style.display='none'" style="width:28px;height:28px;object-fit:contain;">
+        </div>
+        <span style="font-size:0.72rem;color:var(--muted);letter-spacing:0.5px;">${stageName}</span>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:0.9rem;color:${wColor};letter-spacing:1px;">${wName}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 // ─────────────────────────────────────────────
