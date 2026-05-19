@@ -38,17 +38,11 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
 
-// Sessions — MemoryStore warning silenced (WEB_CONCURRENCY=1 on Render, single process = no real risk)
-const _MemStore = session.MemoryStore;
-const _store    = new _MemStore();
-const _origOn   = _store.on.bind(_store);
-_store.on = (ev, fn) => ev === 'disconnect' ? _store : _origOn(ev, fn);
-
+// Sessions
 const sessionMiddleware = session({
   secret: SECRET_KEY,
   resave: false,
   saveUninitialized: false,
-  store: _store,
   cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
 });
 app.use(sessionMiddleware);
@@ -71,7 +65,7 @@ const env = nunjucks.configure(path.join(__dirname, 'templates'), {
 });
 
 // Filtre tojson pour compatibilité Jinja
-env.addFilter('tojson', (val) => JSON.stringify(val));
+env.addFilter('tojson', function(val) { return new nunjucks.runtime.SafeString(JSON.stringify(val)); });
 env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
 env.addFilter('int', (val) => parseInt(val, 10));
 env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
