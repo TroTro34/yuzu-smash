@@ -38,11 +38,17 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
 
-// Sessions
+// Sessions — MemoryStore warning silenced (WEB_CONCURRENCY=1 on Render, single process = no real risk)
+const _MemStore = session.MemoryStore;
+const _store    = new _MemStore();
+const _origOn   = _store.on.bind(_store);
+_store.on = (ev, fn) => ev === 'disconnect' ? _store : _origOn(ev, fn);
+
 const sessionMiddleware = session({
   secret: SECRET_KEY,
   resave: false,
   saveUninitialized: false,
+  store: _store,
   cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
 });
 app.use(sessionMiddleware);
