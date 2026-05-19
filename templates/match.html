@@ -488,195 +488,7 @@
       .vs-text { font-size: 2.5rem; }
       .score-option { min-width: 120px; }
     }
-    /* ── COMPETITIVE BO FLOW ── */
-    .comp-step { animation: stepIn 0.3s ease; }
-    @keyframes stepIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .comp-hint {
-      font-size: 0.9rem; color: var(--muted); letter-spacing: 1px;
-      text-align: center; margin-bottom: 1.2rem;
-      padding: 0.6rem 1rem; background: var(--surface2);
-      border-radius: 6px; border: 1px solid var(--border);
-    }
-    .comp-hint strong { color: var(--accent2); }
-
-    /* ── STAGES GRID ── */
-    .stages-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-      gap: 0.7rem; margin-bottom: 1rem;
-    }
-    .stage-card {
-      border-radius: 10px; overflow: hidden;
-      border: 2px solid var(--border); background: var(--surface2);
-      cursor: pointer; transition: all 0.18s; position: relative;
-      text-align: center;
-    }
-    .stage-card:hover:not(.banned):not(.locked-stage) {
-      border-color: var(--accent2); transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(255,128,0,0.15);
-    }
-    .stage-card.selected-ban {
-      border-color: var(--red); background: rgba(255,85,85,0.1);
-      box-shadow: 0 0 14px rgba(255,85,85,0.2);
-    }
-    .stage-card.banned {
-      border-color: rgba(255,85,85,0.2); opacity: 0.38;
-      cursor: not-allowed; background: rgba(0,0,0,0.3);
-    }
-    .stage-card.banned::after {
-      content: '✕'; position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 2rem; color: var(--red); background: rgba(0,0,0,0.55);
-      font-weight: 900;
-    }
-    .stage-card.locked-stage {
-      border-color: var(--green); background: rgba(61,220,132,0.08);
-      box-shadow: 0 0 14px rgba(61,220,132,0.2); cursor: default;
-    }
-    .stage-card.picked-stage {
-      border-color: var(--blue); background: rgba(79,142,247,0.1);
-    }
-    .stage-img {
-      width: 100%; height: 72px; object-fit: cover;
-      background: var(--surface3);
-    }
-    .stage-name {
-      font-family: 'Bebas Neue', sans-serif; font-size: 0.78rem;
-      letter-spacing: 1.5px; padding: 0.4rem 0.3rem;
-      color: var(--text);
-    }
-    .stage-type-badge {
-      position: absolute; top: 4px; right: 4px;
-      font-size: 0.55rem; letter-spacing: 1px; font-weight: 700;
-      padding: 1px 5px; border-radius: 2px;
-      background: rgba(255,128,0,0.85); color: #fff;
-    }
-    .stage-type-badge.starter { background: rgba(61,220,132,0.85); }
-
-    .banned-stages-recap {
-      font-size: 0.8rem; letter-spacing: 1px; margin-top: 0.5rem;
-      padding: 0.5rem 0.8rem; background: rgba(255,85,85,0.06);
-      border: 1px solid rgba(255,85,85,0.2); border-radius: 6px;
-    }
-    .banned-label { color: var(--red); font-weight: 700; margin-right: 0.4rem; }
-
-    /* ── CHAR PICKERS ── */
-    .char-pickers {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    .char-picker-side {
-      background: var(--surface2); border-radius: 10px;
-      padding: 1rem; border: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 0.7rem;
-    }
-    .char-picker-side.blue-picker { border-color: rgba(79,142,247,0.3); }
-    .char-picker-side.red-picker  { border-color: rgba(232,64,10,0.3); }
-    .char-picker-label {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
-      letter-spacing: 2px; color: var(--blue); text-align: center;
-    }
-    .char-picker-side.red-picker .char-picker-label { color: var(--accent); }
-    .char-input {
-      background: var(--surface3); border: 1px solid var(--border);
-      border-radius: 6px; padding: 0.5rem 0.75rem;
-      color: var(--text); font-family: 'Rajdhani', sans-serif;
-      font-size: 0.95rem; font-weight: 700; outline: none;
-      transition: border-color 0.15s; width: 100%;
-      letter-spacing: 1px;
-    }
-    .char-input:focus { border-color: var(--accent2); }
-    .char-preview {
-      text-align: center; min-height: 60px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .char-preview img { width: 52px; height: 52px; object-fit: contain; }
-    .char-preview .char-placeholder {
-      color: var(--muted); font-size: 0.75rem; letter-spacing: 1px;
-    }
-    .char-locked-badge {
-      background: rgba(61,220,132,0.15); border: 1px solid rgba(61,220,132,0.3);
-      color: var(--green); border-radius: 5px; padding: 0.3rem 0.6rem;
-      font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; text-align: center;
-    }
-
-    /* ── STAGE BANNER (shows in char & result step) ── */
-    .comp-stage-banner {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 1rem;
-      display: flex; align-items: center; gap: 0.8rem;
-    }
-    .comp-stage-banner .csb-icon { font-size: 1.2rem; }
-    .comp-stage-banner .csb-text { font-size: 0.8rem; }
-    .comp-stage-banner .csb-name {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
-      letter-spacing: 2px; color: var(--accent2);
-    }
-
-    /* ── CHARS IN RESULT STEP ── */
-    .comp-chars-display {
-      display: flex; align-items: center; justify-content: center;
-      gap: 1.5rem; margin-bottom: 1rem;
-    }
-    .comp-char-box { text-align: center; }
-    .comp-char-box img { width: 44px; height: 44px; object-fit: contain; }
-    .comp-char-box .cc-name {
-      font-size: 0.75rem; color: var(--muted); letter-spacing: 1px;
-    }
-    .comp-char-box .cc-char {
-      font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem;
-      letter-spacing: 1.5px; color: var(--text);
-    }
-
-    /* ── GAMES RECAP LIST ── */
-    .bo-game-recap-row {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 0.8rem 1rem;
-      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-    }
-    .bo-game-recap-row .bgr-num {
-      font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem;
-      letter-spacing: 2px; color: var(--muted); min-width: 48px;
-    }
-    .bo-game-recap-row .bgr-stage {
-      font-size: 0.72rem; color: var(--muted); flex: 1;
-    }
-    .bo-game-recap-row .bgr-chars {
-      display: flex; align-items: center; gap: 0.4rem;
-    }
-    .bo-game-recap-row .bgr-chars img { width: 26px; height: 26px; object-fit: contain; }
-    .bo-game-recap-row .bgr-winner {
-      font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem;
-      letter-spacing: 1.5px; padding: 0.2rem 0.6rem;
-      border-radius: 4px;
-    }
-    .bgr-winner.p1-win { color: var(--blue); border: 1px solid rgba(79,142,247,0.3); }
-    .bgr-winner.p2-win { color: var(--accent); border: 1px solid rgba(232,64,10,0.3); }
-
-    /* Progress bar */
-    .comp-progress {
-      display: flex; align-items: center; gap: 0.5rem;
-      margin-bottom: 1.5rem; padding: 0.75rem 1rem;
-      background: var(--surface2); border-radius: 8px; border: 1px solid var(--border);
-    }
-    .comp-progress-step {
-      font-size: 0.7rem; letter-spacing: 1.5px; color: var(--muted);
-      padding: 0.2rem 0.6rem; border-radius: 3px; border: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    .comp-progress-step.active {
-      color: var(--accent2); border-color: var(--accent2);
-      background: rgba(255,128,0,0.08);
-    }
-    .comp-progress-step.done {
-      color: var(--green); border-color: rgba(61,220,132,0.3);
-      background: rgba(61,220,132,0.05);
-    }
-    .comp-progress-sep { color: var(--border); font-size: 0.75rem; }
-  
+  </style>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
@@ -743,63 +555,16 @@
   <!-- ── SCORE INPUT SECTION ── -->
   <div class="score-section" id="score-section">
 
-    <!-- BO MODES — Format compétitif starts.gg -->
+    <!-- BO MODES -->
     <div id="bo-section" style="display:none;">
-
-      <!-- ── ÉTAPE 0 : BAN DE STAGES ── -->
-      <div id="step-ban" class="comp-step">
-        <div class="section-title" id="ban-title">⚔ STAGE STRIKING</div>
-        <div class="comp-hint" id="ban-hint">Loading…</div>
-        <div class="stages-grid" id="stages-grid"></div>
-        <div class="banned-stages-recap" id="banned-recap" style="display:none;">
-          <span class="banned-label">BANNED:</span>
-          <span id="banned-list"></span>
-        </div>
-        <div class="submit-area" style="margin-top:1rem;">
-          <button class="submit-btn" id="confirm-ban-btn" onclick="confirmBan()" disabled>
-            CONFIRM BAN
-          </button>
-        </div>
+      <div class="section-title">SELECT THE RESULT</div>
+      <div class="score-options" id="score-options"></div>
+      <div class="submit-area">
+        <button class="submit-btn" id="submit-bo" onclick="submitBO()" disabled>
+          ⚔ SUBMIT RESULT
+        </button>
+        <div class="submit-hint">Both players must confirm the result</div>
       </div>
-
-      <!-- ── ÉTAPE 1 : PICK DE PERSO ── -->
-      <div id="step-char" class="comp-step" style="display:none;">
-        <div class="section-title">🎮 CHARACTER SELECT</div>
-        <div class="comp-hint" id="char-hint">Both players, pick your character for this game</div>
-        <div class="char-pickers" id="char-pickers"></div>
-        <div class="comp-stage-banner" id="selected-stage-banner"></div>
-        <div class="submit-area" style="margin-top:1rem;">
-          <button class="submit-btn" id="confirm-char-btn" onclick="confirmCharPick()" disabled>
-            LOCK IN CHARACTERS
-          </button>
-        </div>
-      </div>
-
-      <!-- ── ÉTAPE 2 : RÉSULTAT DU GAME ── -->
-      <div id="step-result" class="comp-step" style="display:none;">
-        <div class="section-title" id="result-title">GAME <span id="result-game-num">1</span> — WHO WON?</div>
-        <div class="comp-stage-banner" id="result-stage-banner"></div>
-        <div class="comp-chars-display" id="result-chars-display"></div>
-        <div class="score-options" id="score-options"></div>
-        <div class="submit-area" style="margin-top:1rem;">
-          <button class="submit-btn" id="confirm-result-btn" onclick="confirmGameResult()" disabled>
-            CONFIRM RESULT
-          </button>
-        </div>
-      </div>
-
-      <!-- ── ÉTAPE 3 : RECAP FINAL BO ── -->
-      <div id="step-final" class="comp-step" style="display:none;">
-        <div class="section-title">📋 MATCH SUMMARY</div>
-        <div id="bo-games-recap" style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.5rem;"></div>
-        <div class="submit-area">
-          <button class="submit-btn" id="submit-bo" onclick="submitBO()">
-            ⚔ SUBMIT FINAL RESULT
-          </button>
-          <div class="submit-hint">Both players must confirm the result</div>
-        </div>
-      </div>
-
     </div>
 
     <!-- STOCKS MODE — rendu dynamique par JS (initStocksMode → renderStocksGames) -->
@@ -929,13 +694,13 @@
 </div>
 <script>
 // ── CONFIG (injected by Flask) ──
-const CHALLENGE_ID = "{{ challenge.id }}";
-const FORMAT       = "{{ challenge.format }}";
-const P1_ID        = "{{ challenge.challenger_id }}";
-const P1_NAME      = "{{ challenger.username }}";
-const P2_ID        = "{{ challenge.challenged_id }}";
-const P2_NAME      = "{{ challenged.username }}";
-const MY_ID        = "{{ user.id }}";
+const CHALLENGE_ID = {{ challenge.id           | tojson }};
+const FORMAT       = {{ challenge.format        | tojson }};
+const P1_ID        = {{ challenge.challenger_id | tojson }};
+const P1_NAME      = {{ challenger.username     | tojson }};
+const P2_ID        = {{ challenge.challenged_id | tojson }};
+const P2_NAME      = {{ challenged.username     | tojson }};
+const MY_ID        = {{ user.id                 | tojson }};
 
 // ── STATE ──
 let p1Score = 0, p2Score = 0;
@@ -965,409 +730,77 @@ function init() {
   updateScoreDisplay();
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// BO MODE — FORMAT COMPÉTITIF STARTS.GG
-// Flow: Stage Strike → Char Pick → Game Result → (loop) → Recap Final
-// ═══════════════════════════════════════════════════════════════════
-
-// ── STAGES (format starts.gg Ultimate) ──
-const STARTER_STAGES = [
-  { id: 'battlefield',        name: 'Battlefield',       img: 'https://www.smashbros.com/assets_v2/img/stage/main/battlefield_s.jpg' },
-  { id: 'final_destination',  name: 'Final Destination', img: 'https://www.smashbros.com/assets_v2/img/stage/main/final_destination_s.jpg' },
-  { id: 'pokemon_stadium_2',  name: 'Pokémon Stadium 2', img: 'https://www.smashbros.com/assets_v2/img/stage/main/pokemon_stadium_2_s.jpg' },
-  { id: 'smashville',         name: 'Smashville',        img: 'https://www.smashbros.com/assets_v2/img/stage/main/smashville_s.jpg' },
-  { id: 'town_and_city',      name: 'Town & City',       img: 'https://www.smashbros.com/assets_v2/img/stage/main/totown_s.jpg' },
-];
-const COUNTERPICK_STAGES = [
-  { id: 'hollow_bastion',     name: 'Hollow Bastion',    img: 'https://www.smashbros.com/assets_v2/img/stage/main/hollow_bastion_s.jpg' },
-  { id: 'small_battlefield',  name: 'Small Battlefield', img: 'https://www.smashbros.com/assets_v2/img/stage/main/small_battlefield_s.jpg' },
-  { id: 'kalos',              name: 'Kalos P.L.',        img: 'https://www.smashbros.com/assets_v2/img/stage/main/kalos_pokemon_league_s.jpg' },
-  { id: 'northern_cave',      name: 'Northern Cave',     img: 'https://www.smashbros.com/assets_v2/img/stage/main/northern_cave_s.jpg' },
-];
-const ALL_STAGES = [...STARTER_STAGES, ...COUNTERPICK_STAGES];
-
-// ── BO COMPETITIVE STATE ──
-let boMaxWins     = 1;   // wins needed (1=BO1, 2=BO3, 3=BO5)
-let boGameNum     = 1;   // game en cours (1-based)
-let boGames       = [];  // historique: [{stage, p1char, p2char, winner_id}]
-let boBannedStages = []; // stages bannis (array d'ids)
-let boSelectedBans = []; // bans sélectionnés par l'user local (pas encore confirmés)
-let boSelectedChar = { p1: '', p2: '' }; // chars pick en cours
-let boCurrentStage = null; // stage sélectionné pour le game courant
-let boCurrentWinner = null; // winner_id du game courant
-
-// ── SMASH CHARS list (slug starts.gg) ──
-const SMASH_CHARS = [
-  'mario','donkey_kong','link','samus','dark_samus','yoshi','kirby','fox','pikachu','luigi',
-  'ness','captain_falcon','jigglypuff','peach','daisy','bowser','ice_climbers','sheik','zelda',
-  'dr_mario','pichu','falco','marth','lucina','young_link','ganondorf','mewtwo','roy','chroy',
-  'mr_game_and_watch','meta_knight','pit','dark_pit','zero_suit_samus','wario','snake','ike',
-  'pokemon_trainer','diddy_kong','lucas','sonic','king_dedede','olimar','lucario','rob',
-  'toon_link','wolf','villager','mega_man','wii_fit_trainer','rosalina_and_luma','little_mac',
-  'greninja','mii_brawler','mii_swordfighter','mii_gunner','palutena','pac_man','robin','shulk',
-  'bowser_jr','duck_hunt','ryu','ken','cloud','corrin','bayonetta','inkling','ridley','simon',
-  'richter','king_k_rool','isabelle','incineroar','piranha_plant','joker','hero','banjo_kazooie',
-  'terry','byleth','min_min','steve','sephiroth','pyra_mythra','kazuya','sora',
-];
-
+// ─────────────────────────────────────────────
+// BO MODE
+// ─────────────────────────────────────────────
 function initBOMode() {
-  boMaxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
-  totalGames = boMaxWins * 2 - 1;
-  boGameNum = 1;
-  boGames = [];
-  boBannedStages = [];
-  boSelectedBans = [];
-  boCurrentStage = null;
-  boCurrentWinner = null;
+  const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
+  totalGames = maxWins * 2 - 1;
   updateDots([]);
-  startBanPhase();
-}
 
-// ─────────────────────────────────────────────
-// PHASE 1 — STAGE STRIKING / BAN
-// ─────────────────────────────────────────────
-function startBanPhase() {
-  showStep('ban');
-  boBannedStages = [];
-  boSelectedBans = [];
-  boCurrentStage = null;
-
-  const isFirstGame = boGames.length === 0;
-  const stagesPool = isFirstGame ? STARTER_STAGES : ALL_STAGES;
-
-  // Nombre de bans selon le format et le game
-  // Game 1 : strike DS (6→5 starters) → BO1 random, BO3/BO5 each strike 2-3 then random
-  // Games suivants : loser picks (counterpick), winner bans 1-2 stages
-  let bansNeeded, banInstructions;
-  if (isFirstGame) {
-    // DS : P1 ban 1, P2 ban 1, P2 ban 1, P1 ban 1 → stage restante (si BO3/BO5)
-    // BO1 simplifié : chacun ban 2, reste 1
-    bansNeeded = FORMAT === 'BO1' ? 4 : FORMAT === 'BO3' ? 3 : 2;
-    banInstructions = `Strike ${bansNeeded} stage${bansNeeded>1?'s':''} — the remaining stage will be played`;
-  } else {
-    // Counterpick : winner bans 1 ou 2, loser picks
-    bansNeeded = boMaxWins >= 2 ? 2 : 1;
-    const lastGame = boGames[boGames.length - 1];
-    const winnerName = lastGame.winner_id === P1_ID ? P1_NAME : P2_NAME;
-    banInstructions = `${winnerName} — ban ${bansNeeded} stage${bansNeeded>1?'s':''} before the loser picks`;
-  }
-
-  document.getElementById('ban-title').textContent = isFirstGame ? '⚔ STAGE STRIKING — GAME 1' : `⚔ COUNTERPICK BAN — GAME ${boGames.length+1}`;
-  document.getElementById('ban-hint').innerHTML = banInstructions;
-  document.getElementById('banned-recap').style.display = 'none';
-  document.getElementById('confirm-ban-btn').disabled = true;
-
-  // Render stages
-  renderStagesGrid(stagesPool, bansNeeded);
-}
-
-function renderStagesGrid(pool, bansNeeded) {
-  const grid = document.getElementById('stages-grid');
-  grid.innerHTML = '';
-  pool.forEach(stage => {
-    const card = document.createElement('div');
-    card.className = 'stage-card';
-    card.dataset.id = stage.id;
-    card.innerHTML = `
-      <img class="stage-img" src="${stage.img}" onerror="this.style.background='var(--surface3)'" alt="${stage.name}">
-      <div class="stage-name">${stage.name}</div>
-      ${STARTER_STAGES.find(s=>s.id===stage.id)
-        ? '<span class="stage-type-badge starter">STARTER</span>'
-        : '<span class="stage-type-badge">COUNTER</span>'}`;
-    card.addEventListener('click', () => toggleStageBan(stage, card, bansNeeded, pool));
-    grid.appendChild(card);
-  });
-}
-
-function toggleStageBan(stage, card, bansNeeded, pool) {
-  const idx = boSelectedBans.indexOf(stage.id);
-  if (idx !== -1) {
-    // Dé-sélectionner
-    boSelectedBans.splice(idx, 1);
-    card.classList.remove('selected-ban');
-  } else {
-    if (boSelectedBans.length >= bansNeeded) {
-      // Dé-sélectionner le premier
-      const oldId = boSelectedBans.shift();
-      const oldCard = document.querySelector(`.stage-card[data-id="${oldId}"]`);
-      if (oldCard) oldCard.classList.remove('selected-ban');
-    }
-    boSelectedBans.push(stage.id);
-    card.classList.add('selected-ban');
-  }
-  updateBanUI(bansNeeded, pool);
-}
-
-function updateBanUI(bansNeeded, pool) {
-  const btn = document.getElementById('confirm-ban-btn');
-  const recap = document.getElementById('banned-recap');
-  const ready = boSelectedBans.length === bansNeeded;
-  btn.disabled = !ready;
-
-  if (boSelectedBans.length > 0) {
-    recap.style.display = 'block';
-    const names = boSelectedBans.map(id => {
-      const s = pool.find(x => x.id === id);
-      return s ? s.name : id;
-    });
-    document.getElementById('banned-list').textContent = names.join(', ');
-  } else {
-    recap.style.display = 'none';
-  }
-
-  // Preview which stage survives if all bans selected
-  if (ready) {
-    const remaining = pool.filter(s => !boSelectedBans.includes(s.id));
-    const stageText = remaining.length === 1
-      ? `→ Stage: <strong>${remaining[0].name}</strong>`
-      : `→ ${remaining.length} stages remaining`;
-    document.getElementById('ban-hint').innerHTML =
-      document.getElementById('ban-hint').innerHTML.split('→')[0] + stageText;
-  }
-}
-
-function confirmBan() {
-  // Determine stage to play
-  const isFirstGame = boGames.length === 0;
-  const pool = isFirstGame ? STARTER_STAGES : ALL_STAGES;
-  boBannedStages = [...boSelectedBans];
-
-  const remaining = pool.filter(s => !boBannedStages.includes(s.id));
-  if (remaining.length === 1) {
-    boCurrentStage = remaining[0];
-    startCharPickPhase();
-  } else if (remaining.length > 1) {
-    // Loser picks from remaining (counterpick) — afficher sélection de stage
-    showStagePickFromRemaining(remaining);
-  } else {
-    showToast('Erreur : aucun stage restant !', false);
-  }
-}
-
-function showStagePickFromRemaining(remaining) {
-  // Replace la grille par le pick de stage du loser
-  document.getElementById('ban-title').textContent = '🎯 LOSER PICKS STAGE';
-  const lastGame = boGames[boGames.length - 1];
-  const loserName = lastGame.winner_id === P1_ID ? P2_NAME : P1_NAME;
-  document.getElementById('ban-hint').innerHTML = `<strong>${loserName}</strong> — pick your counterpick stage`;
-  document.getElementById('banned-recap').style.display = 'none';
-
-  const grid = document.getElementById('stages-grid');
-  grid.innerHTML = '';
-  let pickedStage = null;
-
-  remaining.forEach(stage => {
-    const card = document.createElement('div');
-    card.className = 'stage-card';
-    card.dataset.id = stage.id;
-    card.innerHTML = `
-      <img class="stage-img" src="${stage.img}" onerror="this.style.background='var(--surface3)'" alt="${stage.name}">
-      <div class="stage-name">${stage.name}</div>
-      ${STARTER_STAGES.find(s=>s.id===stage.id)
-        ? '<span class="stage-type-badge starter">STARTER</span>'
-        : '<span class="stage-type-badge">COUNTER</span>'}`;
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.stage-card').forEach(c => c.classList.remove('picked-stage'));
-      card.classList.add('picked-stage');
-      pickedStage = stage;
-      document.getElementById('confirm-ban-btn').textContent = `PLAY ON ${stage.name.toUpperCase()}`;
-      document.getElementById('confirm-ban-btn').disabled = false;
-      document.getElementById('confirm-ban-btn').onclick = () => {
-        boCurrentStage = pickedStage;
-        startCharPickPhase();
-      };
-    });
-    grid.appendChild(card);
-  });
-  document.getElementById('confirm-ban-btn').textContent = 'PICK A STAGE';
-  document.getElementById('confirm-ban-btn').disabled = true;
-}
-
-// ─────────────────────────────────────────────
-// PHASE 2 — CHARACTER PICK
-// ─────────────────────────────────────────────
-function startCharPickPhase() {
-  showStep('char');
-  boSelectedChar = { p1: '', p2: '' };
-  document.getElementById('confirm-char-btn').disabled = true;
-
-  // Stage banner
-  if (boCurrentStage) {
-    document.getElementById('selected-stage-banner').innerHTML = `
-      <span class="csb-icon">🗺️</span>
-      <div class="csb-text"><div style="font-size:0.68rem;color:var(--muted);letter-spacing:1px;">STAGE</div>
-      <div class="csb-name">${boCurrentStage.name}</div></div>`;
-    document.getElementById('selected-stage-banner').style.display = 'flex';
-  }
-
-  document.getElementById('char-hint').innerHTML =
-    `Both players, pick your character for <strong>Game ${boGames.length + 1}</strong>`;
-
-  // Build char pickers
-  const pickers = document.getElementById('char-pickers');
-  pickers.innerHTML = `
-    <div class="char-picker-side blue-picker">
-      <div class="char-picker-label">${P1_NAME}</div>
-      <input class="char-input" id="char-input-p1" type="text" placeholder="Type character…" autocomplete="off" list="char-datalist-p1">
-      <datalist id="char-datalist-p1">${SMASH_CHARS.map(c=>`<option value="${c}">`).join('')}</datalist>
-      <div class="char-preview" id="char-preview-p1"><span class="char-placeholder">No character yet</span></div>
-    </div>
-    <div class="char-picker-side red-picker">
-      <div class="char-picker-label">${P2_NAME}</div>
-      <input class="char-input" id="char-input-p2" type="text" placeholder="Type character…" autocomplete="off" list="char-datalist-p2">
-      <datalist id="char-datalist-p2">${SMASH_CHARS.map(c=>`<option value="${c}">`).join('')}</datalist>
-      <div class="char-preview" id="char-preview-p2"><span class="char-placeholder">No character yet</span></div>
-    </div>`;
-
-  document.getElementById('char-input-p1').addEventListener('input', e => updateCharPreview('p1', e.target.value.trim().toLowerCase().replace(/ /g,'_')));
-  document.getElementById('char-input-p2').addEventListener('input', e => updateCharPreview('p2', e.target.value.trim().toLowerCase().replace(/ /g,'_')));
-}
-
-function updateCharPreview(player, slug) {
-  boSelectedChar[player] = slug;
-  const preview = document.getElementById(`char-preview-${player}`);
-  if (slug) {
-    preview.innerHTML = `<img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${slug}.png"
-      onerror="this.parentElement.innerHTML='<span class=\\'char-placeholder\\'>Unknown character</span>'" alt="${slug}">`;
-  } else {
-    preview.innerHTML = `<span class="char-placeholder">No character yet</span>`;
-  }
-  document.getElementById('confirm-char-btn').disabled = !(boSelectedChar.p1 && boSelectedChar.p2);
-}
-
-function confirmCharPick() {
-  if (!boSelectedChar.p1 || !boSelectedChar.p2) {
-    showToast('Both players must pick a character!', false); return;
-  }
-  startResultPhase();
-}
-
-// ─────────────────────────────────────────────
-// PHASE 3 — RÉSULTAT DU GAME
-// ─────────────────────────────────────────────
-function startResultPhase() {
-  showStep('result');
-  boCurrentWinner = null;
-  const gameNum = boGames.length + 1;
-  document.getElementById('result-game-num').textContent = gameNum;
-  document.getElementById('confirm-result-btn').disabled = true;
-
-  // Stage banner
-  if (boCurrentStage) {
-    document.getElementById('result-stage-banner').innerHTML = `
-      <span class="csb-icon">🗺️</span>
-      <div class="csb-text"><div style="font-size:0.68rem;color:var(--muted);letter-spacing:1px;">STAGE</div>
-      <div class="csb-name">${boCurrentStage.name}</div></div>`;
-    document.getElementById('result-stage-banner').style.display = 'flex';
-  }
-
-  // Chars display
-  const charUrl = c => `https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c}.png`;
-  document.getElementById('result-chars-display').innerHTML = `
-    <div class="comp-char-box">
-      <img src="${charUrl(boSelectedChar.p1)}" onerror="this.style.display='none'" alt="${boSelectedChar.p1}">
-      <div class="cc-name">${P1_NAME}</div>
-      <div class="cc-char">${boSelectedChar.p1.replace(/_/g,' ')}</div>
-    </div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--muted);letter-spacing:3px;">VS</div>
-    <div class="comp-char-box">
-      <img src="${charUrl(boSelectedChar.p2)}" onerror="this.style.display='none'" alt="${boSelectedChar.p2}">
-      <div class="cc-name">${P2_NAME}</div>
-      <div class="cc-char">${boSelectedChar.p2.replace(/_/g,' ')}</div>
-    </div>`;
-
-  // Winner buttons
   const opts = document.getElementById('score-options');
   opts.innerHTML = '';
-  [{ key: 'p1', id: P1_ID, name: P1_NAME }, { key: 'p2', id: P2_ID, name: P2_NAME }].forEach(p => {
-    const div = document.createElement('div');
-    div.className = 'score-option';
-    div.innerHTML = `
-      <div class="winner-name">${p.name} wins</div>
-      <div class="score-display" style="font-size:2rem;">🏆</div>
-      <div class="score-label">Game ${gameNum}</div>`;
-    div.addEventListener('click', () => {
-      document.querySelectorAll('.score-option').forEach(o => o.classList.remove('selected-p1','selected-p2'));
-      div.classList.add(p.key === 'p1' ? 'selected-p1' : 'selected-p2');
-      boCurrentWinner = p.id;
-      document.getElementById('confirm-result-btn').disabled = false;
+
+  // Generate all possible scores
+  const results = [];
+  for (let w = maxWins; w >= maxWins; w--) { // winner always hits maxWins
+    for (let l = 0; l < maxWins; l++) {
+      results.push({ p1w: w, p1l: l, winner: 'p1' }); // P1 wins
+      results.push({ p1w: l, p1l: w, winner: 'p2' }); // P2 wins
+    }
+  }
+
+  // Build clean result list: p1wins-p2wins pairs
+  const combos = [];
+  for (let l = 0; l < maxWins; l++) {
+    combos.push({ winsA: maxWins, winsB: l }); // P1 wins
+  }
+
+  // P1 wins options
+  for (let l = 0; l < maxWins; l++) {
+    const el = buildScoreOption(maxWins, l, 'p1');
+    opts.appendChild(el);
+  }
+  // P2 wins options
+  for (let l = 0; l < maxWins; l++) {
+    const el = buildScoreOption(maxWins, l, 'p2');
+    opts.appendChild(el);
+  }
+}
+
+function buildScoreOption(wWins, lLoses, winnerKey) {
+  const winnerId   = winnerKey === 'p1' ? P1_ID : P2_ID;
+  const winnerName = winnerKey === 'p1' ? P1_NAME : P2_NAME;
+  const loserName  = winnerKey === 'p1' ? P2_NAME : P1_NAME;
+  const scoreStr   = winnerKey === 'p1' ? `${wWins}-${lLoses}` : `${lLoses}-${wWins}`;
+  // Display: winner score shown first
+  const displayScore = `${wWins} — ${lLoses}`;
+
+  const div = document.createElement('div');
+  div.className = 'score-option';
+  div.innerHTML = `
+    <div class="winner-name">${winnerName} wins</div>
+    <div class="score-display">${displayScore}</div>
+    <div class="score-label">${loserName}: ${lLoses} game${lLoses !== 1 ? 's' : ''}</div>
+  `;
+  div.addEventListener('click', () => {
+    document.querySelectorAll('.score-option').forEach(o => {
+      o.classList.remove('selected-p1','selected-p2');
     });
-    opts.appendChild(div);
+    div.classList.add(winnerKey === 'p1' ? 'selected-p1' : 'selected-p2');
+    selectedResult = { winner_id: winnerId, score: scoreStr };
+    // Update live scores
+    if (winnerKey === 'p1') { p1Score = wWins; p2Score = lLoses; }
+    else { p1Score = lLoses; p2Score = wWins; }
+    updateScoreDisplay();
+    // Update dots
+    const dots = [];
+    for (let i = 0; i < wWins; i++) dots.push(winnerKey === 'p1' ? 'p1' : 'p2');
+    for (let i = 0; i < lLoses; i++) dots.push(winnerKey === 'p1' ? 'p2' : 'p1');
+    updateDots(dots);
+    document.getElementById('submit-bo').disabled = false;
   });
-}
-
-function confirmGameResult() {
-  if (!boCurrentWinner) { showToast('Select the game winner!', false); return; }
-
-  // Save game
-  boGames.push({
-    stage: boCurrentStage,
-    p1char: boSelectedChar.p1,
-    p2char: boSelectedChar.p2,
-    winner_id: boCurrentWinner,
-  });
-
-  // Update scores
-  p1Score = boGames.filter(g => g.winner_id === P1_ID).length;
-  p2Score = boGames.filter(g => g.winner_id === P2_ID).length;
-  updateScoreDisplay();
-
-  // Update dots
-  const dots = boGames.map(g => g.winner_id === P1_ID ? 'p1' : 'p2');
-  updateDots(dots);
-  document.getElementById('game-counter').textContent = `GAME ${boGames.length + 1}`;
-
-  // Match fini ?
-  if (p1Score >= boMaxWins || p2Score >= boMaxWins) {
-    showFinalRecap();
-  } else {
-    // Prochain game : ban phase
-    boGameNum++;
-    startBanPhase();
-  }
-}
-
-// ─────────────────────────────────────────────
-// PHASE 4 — RECAP FINAL
-// ─────────────────────────────────────────────
-function showFinalRecap() {
-  showStep('final');
-  const winner_id = p1Score >= boMaxWins ? P1_ID : P2_ID;
-  const scoreStr = `${p1Score}-${p2Score}`;
-
-  const recapDiv = document.getElementById('bo-games-recap');
-  recapDiv.innerHTML = boGames.map((g, i) => {
-    const isP1win = g.winner_id === P1_ID;
-    const charUrl = c => `https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/${c}.png`;
-    return `<div class="bo-game-recap-row">
-      <span class="bgr-num">GAME ${i+1}</span>
-      <span class="bgr-stage">${g.stage ? g.stage.name : '—'}</span>
-      <span class="bgr-chars">
-        <img src="${charUrl(g.p1char)}" onerror="this.style.display='none'" alt="${g.p1char}">
-        <span style="color:var(--muted);font-size:0.7rem;">vs</span>
-        <img src="${charUrl(g.p2char)}" onerror="this.style.display='none'" alt="${g.p2char}">
-      </span>
-      <span class="bgr-winner ${isP1win?'p1-win':'p2-win'}">${isP1win ? P1_NAME : P2_NAME}</span>
-    </div>`;
-  }).join('');
-
-  // Préparer le result final
-  selectedResult = { winner_id, score: scoreStr };
-}
-
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
-function showStep(step) {
-  ['ban','char','result','final'].forEach(s => {
-    const el = document.getElementById(`step-${s}`);
-    if (el) el.style.display = s === step ? 'block' : 'none';
-  });
-  // Reset confirm-ban-btn handler for reuse
-  if (step === 'ban') {
-    document.getElementById('confirm-ban-btn').textContent = 'CONFIRM BAN';
-    document.getElementById('confirm-ban-btn').onclick = confirmBan;
-  }
+  return div;
 }
 
 // ─────────────────────────────────────────────
@@ -1541,7 +974,7 @@ function updateDots(dots) {
 // SUBMIT
 // ─────────────────────────────────────────────
 async function submitBO() {
-  if (!selectedResult) { showToast('No result to submit!', false); return; }
+  if (!selectedResult) { showToast('Select a result first!', false); return; }
   const btn = document.getElementById('submit-bo');
   btn.disabled = true; btn.textContent = 'Submitting…';
 
