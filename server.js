@@ -10,6 +10,7 @@ const fetch      = require('node-fetch');
 const path       = require('path');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
+
 const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
 
@@ -32,10 +33,12 @@ const MAX_STOCKS     = 8;
 const VALID_ID_RE    = /^[a-zA-Z0-9_\-]+$/;
 
 // ── APP ───────────────────────────────────────────────────────────────────────
+
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
 
+// Sessions
 const sessionMiddleware = session({
   secret: SECRET_KEY,
   resave: false,
@@ -43,23 +46,32 @@ const sessionMiddleware = session({
   cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
 });
 app.use(sessionMiddleware);
+
+// Share session with Socket.IO
 io.engine.use(sessionMiddleware);
 
+// Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Static files
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
+// Templates (Nunjucks — compatible avec les fichiers HTML Jinja2)
 const env = nunjucks.configure(path.join(__dirname, 'templates'), {
   autoescape: true,
   express: app,
   noCache: false,
 });
+
+// Filtre tojson pour compatibilité Jinja
 env.addFilter('tojson', (val) => JSON.stringify(val));
 env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
 env.addFilter('int', (val) => parseInt(val, 10));
 env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
 
 // ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
+
 function sbHeaders() {
   return {
     'apikey': SUPABASE_KEY,
@@ -127,6 +139,8 @@ async function getPlayerMatches(userId, limit = 10) {
   return merged.slice(0, limit);
 }
 
+// ── ELO ───────────────────────────────────────────────────────────────────────
+
 function calcElo(wp, lp) {
   const expected = 1 / (1 + 10 ** ((lp - wp) / 400));
   return Math.max(Math.round(ELO_K * (1 - expected)), 1);
@@ -140,6 +154,8 @@ function calcEloStocks(wp, lp, wSt, lSt) {
   return Math.max(Math.round(base * (1.0 + diffRatio * 0.5)), 1);
 }
 
+// ── VALIDATION ────────────────────────────────────────────────────────────────
+
 function validateId(v) { return v && VALID_ID_RE.test(String(v)); }
 function sanitizeStr(v, max) { return String(v || '').trim().slice(0, max); }
 function validateStocks(v) {
@@ -147,39 +163,8 @@ function validateStocks(v) {
   return (!isNaN(n) && n >= 0 && n <= MAX_STOCKS) ? n : null;
 }
 
-// ── MATCH STATE MACHINE (BO) ─────────────────────────────────────────────────
-const matchStates = new Map();
-const ALL_STAGES = [
-  "Battlefield", "Small Battlefield", "Final Destination",
-  "Pokemon Stadium 2", "Town and City", "Smashville",
-  "Hollow Bastion", "Kalos Pokémon League", "Yoshi's Story"
-];
+// ── DATA ──────────────────────────────────────────────────────────────────────
 
-function getMatchState(challengeId, p1Id, p2Id) {
-  if (!matchStates.has(challengeId)) {
-    matchStates.set(challengeId, {
-      phase: 'character_p1',
-      turn: p1Id,
-      p1Id: p1Id,
-      p2Id: p2Id,
-      p1Char: '',
-      p2Char: '',
-      availableStages: [...ALL_STAGES],
-      bannedStages: [],
-      finalStage: '',
-      gameIndex: 0,
-      gameResults: [],
-      p1GamesWon: 0,
-      p2GamesWon: 0,
-      pendingProposal: null,
-      setFinished: false,
-      banCount: 0
-    });
-  }
-  return matchStates.get(challengeId);
-}
-
-// ── DATA HELPERS ──────────────────────────────────────────────────────────────
 async function dashboardData(userId, excludeChallengeIds = []) {
   const [players, allChallenges, myMatches] = await Promise.all([
     sbGet('players', 'order=points.desc'),
@@ -225,6 +210,8 @@ async function leaderboardData() {
   return { players, recent_matches: recentMatches, lfm_posts: lfmPosts };
 }
 
+// ── SOCKET.IO EMITTERS ────────────────────────────────────────────────────────
+
 async function emitDashboardUpdate(userId, excludeChallengeIds = []) {
   try {
     const data = await dashboardData(userId, excludeChallengeIds);
@@ -247,9 +234,13 @@ async function emitMatchUpdate(challengeId, override = {}) {
       score:       override.score       ?? report?.score       ?? null,
       elo_change:  override.elo_change  ?? c.elo_change        ?? null,
     };
+    // Envoi dans la room match ET directement à chaque joueur (comme les notifications)
+    // → garanti même si un joueur a perdu sa room après reconnexion
     io.to(`match_${challengeId}`).emit('match_update', payload);
     io.to(`user_${c.challenger_id}`).emit('match_update', payload);
     io.to(`user_${c.challenged_id}`).emit('match_update', payload);
+    // Si le match vient d'être complété, exclure ce challenge du dashboard_update
+    // pour éviter la race condition Supabase (le PATCH completed pas encore lisible)
     const excludeIds = (payload.status === 'completed' || payload.status === 'disputed')
       ? [challengeId]
       : [];
@@ -264,10 +255,12 @@ async function emitLeaderboardUpdate() {
   } catch (e) { console.error('[emitLeaderboardUpdate]', e); }
 }
 
+// ── SOCKET.IO EVENTS ──────────────────────────────────────────────────────────
+
+// In-memory chat history per match (max 50 messages)
 const chatHistory = new Map();
 const CHAT_MAX = 50;
 
-// ── SOCKET.IO EVENTS ─────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   const req = socket.request;
 
@@ -276,6 +269,9 @@ io.on('connection', (socket) => {
     if (uid) {
       socket.join(`user_${uid}`);
       if (typeof cb === 'function') cb(true);
+      // Émettre immédiatement un dashboard_update propre avec les IDs exclus
+      // fournis par le client (matchs terminés qu'il connaît déjà)
+      // → résout la race condition quand J2 arrive sur /dashboard après confirmation
       const excludeIds = Array.isArray(data?.exclude) ? data.exclude.filter(v => validateId(String(v))) : [];
       try {
         const dashData = await dashboardData(uid, excludeIds);
@@ -286,19 +282,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join_match', async (data) => {
+  socket.on('join_match', (data) => {
     const cid = data?.challenge_id || '';
     if (!validateId(cid)) return;
     socket.join(`match_${cid}`);
     const history = chatHistory.get(cid) || [];
     if (history.length) socket.emit('chat_history', history);
-
-    const challenges = await sbGet('challenges', `id=eq.${cid}`);
-    if (challenges.length) {
-      const c = challenges[0];
-      const state = getMatchState(cid, c.challenger_id, c.challenged_id);
-      socket.emit('match_state', state);
-    }
   });
 
   socket.on('leave_match', (data) => {
@@ -319,154 +308,18 @@ io.on('connection', (socket) => {
     if (hist.length > CHAT_MAX) hist.shift();
     io.to(`match_${cid}`).emit('chat_message', payload);
   });
-
-  // ── GESTION DES BANS ET DES GAMES ──
-  socket.on('char_pick', async (data) => {
-    const { challenge_id, player_id, char_name } = data;
-    if (!validateId(challenge_id) || !validateId(player_id)) return;
-    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
-    const userId = req.session.user?.id;
-    if (userId !== player_id) return;
-
-    if (state.phase === 'character_p1' && player_id === state.p1Id) {
-      state.p1Char = char_name;
-      state.phase = 'character_p2';
-      state.turn = state.p2Id;
-      io.to(`match_${challenge_id}`).emit('match_state', state);
-      io.to(`match_${challenge_id}`).emit('char_picked', { player_id, char_name });
-    } else if (state.phase === 'character_p2' && player_id === state.p2Id) {
-      state.p2Char = char_name;
-      state.phase = 'stage_ban';
-      state.turn = state.p1Id;
-      state.banCount = 0;
-      io.to(`match_${challenge_id}`).emit('match_state', state);
-      io.to(`match_${challenge_id}`).emit('char_picked', { player_id, char_name });
-    }
-  });
-
-  socket.on('ban_stage', async (data) => {
-    const { challenge_id, stage, by_player } = data;
-    if (!validateId(challenge_id) || !stage) return;
-    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
-    const userId = req.session.user?.id;
-    if (userId !== by_player || state.phase !== 'stage_ban' || by_player !== state.turn) return;
-
-    const idx = state.availableStages.indexOf(stage);
-    if (idx !== -1) {
-      state.availableStages.splice(idx, 1);
-      state.bannedStages.push(stage);
-    }
-    state.banCount++;
-
-    if (state.turn === state.p1Id && state.banCount === 2) {
-      state.turn = state.p2Id;
-      state.banCount = 0;
-    } else if (state.turn === state.p2Id && state.banCount === 4) {
-      state.phase = 'stage_pick';
-      // Celui qui n'a pas banni en dernier choisit le stage (alternance)
-      state.turn = (state.gameIndex === 0) ? state.p1Id : 
-        (state.gameResults[state.gameResults.length-1]?.winner_id === state.p1Id ? state.p2Id : state.p1Id);
-      io.to(`match_${challenge_id}`).emit('match_state', state);
-      io.to(`match_${challenge_id}`).emit('stage_banned', { stage, by_player });
-      return;
-    }
-    io.to(`match_${challenge_id}`).emit('match_state', state);
-    io.to(`match_${challenge_id}`).emit('stage_banned', { stage, by_player });
-  });
-
-  socket.on('pick_stage', async (data) => {
-    const { challenge_id, stage } = data;
-    if (!validateId(challenge_id) || !stage) return;
-    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
-    const userId = req.session.user?.id;
-    if (state.phase !== 'stage_pick' || userId !== state.turn) return;
-    if (!state.availableStages.includes(stage)) return;
-
-    state.finalStage = stage;
-    state.phase = 'game_play';
-    state.turn = null;
-    io.to(`match_${challenge_id}`).emit('match_state', state);
-    io.to(`match_${challenge_id}`).emit('stage_picked', { stage, by_player: userId });
-  });
-
-  socket.on('propose_game_result', async (data) => {
-    const { challenge_id, game_index, winner_id } = data;
-    if (!validateId(challenge_id) || !validateId(winner_id)) return;
-    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
-    const userId = req.session.user?.id;
-    if (state.phase !== 'game_play' || state.pendingProposal) return;
-    if (userId !== state.p1Id && userId !== state.p2Id) return;
-    state.pendingProposal = { winner_id, byPlayerId: userId, game_index };
-    io.to(`match_${challenge_id}`).emit('match_state', state);
-    io.to(`match_${challenge_id}`).emit('game_proposed', { winner_id, by_player: userId, game_index });
-  });
-
-  socket.on('confirm_game_result', async (data) => {
-    const { challenge_id, game_index, accepted } = data;
-    if (!validateId(challenge_id)) return;
-    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
-    const userId = req.session.user?.id;
-    if (!state.pendingProposal || state.pendingProposal.game_index !== game_index) return;
-    if (userId === state.pendingProposal.byPlayerId) return;
-
-    if (accepted) {
-      const winnerId = state.pendingProposal.winner_id;
-      state.gameResults.push({ winner_id: winnerId });
-      if (winnerId === state.p1Id) state.p1GamesWon++;
-      else state.p2GamesWon++;
-
-      const maxWins = c.format === 'BO1' ? 1 : c.format === 'BO3' ? 2 : 3;
-      if (state.p1GamesWon === maxWins || state.p2GamesWon === maxWins) {
-        state.setFinished = true;
-        state.phase = 'completed';
-        state.pendingProposal = null;
-        io.to(`match_${challenge_id}`).emit('match_state', state);
-        io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index, setFinished: true });
-        return;
-      }
-
-      // Passer au game suivant : réinitialiser les stages
-      state.gameIndex++;
-      state.pendingProposal = null;
-      state.availableStages = [...ALL_STAGES];
-      state.bannedStages = [];
-      state.finalStage = '';
-      state.phase = 'stage_ban';
-      // Le perdant du game précédent commence les bans
-      state.turn = (winnerId === state.p1Id) ? state.p2Id : state.p1Id;
-      state.banCount = 0;
-
-      io.to(`match_${challenge_id}`).emit('match_state', state);
-      io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index, setFinished: false });
-    } else {
-      state.pendingProposal = null;
-      io.to(`match_${challenge_id}`).emit('match_state', state);
-      io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: false, game_index });
-    }
-  });
 });
 
-// ── AUTH MIDDLEWARE & ROUTES ───────────────────────────────────────────────────
+// ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
+
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
   next();
 }
 
+// ── ROUTES ────────────────────────────────────────────────────────────────────
+
+// Index
 app.get('/', async (req, res) => {
   try {
     const now = new Date().toISOString();
@@ -480,12 +333,14 @@ app.get('/', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Login
 app.get('/login', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauth_state = state;
   res.redirect(DISCORD_AUTH_URL + `&state=${state}`);
 });
 
+// OAuth Callback
 app.get('/callback', async (req, res) => {
   const { code, state } = req.query;
   const expected = req.session.oauth_state;
@@ -530,6 +385,7 @@ app.get('/callback', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Auth error'); }
 });
 
+// Dashboard
 app.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
@@ -538,6 +394,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Player profile
 app.get('/player/:player_id', async (req, res) => {
   const { player_id } = req.params;
   if (req.session.user?.id === player_id) return res.redirect('/dashboard');
@@ -553,6 +410,7 @@ app.get('/player/:player_id', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Match page
 app.get('/match/:challenge_id', requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.redirect('/dashboard');
@@ -572,11 +430,13 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Logout
 app.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
 // ── API ───────────────────────────────────────────────────────────────────────
+
 app.get('/api/dashboard', requireAuth, async (req, res) => {
   try { res.json(await dashboardData(req.session.user.id)); }
   catch (e) { res.status(500).json({ error: 'Server error' }); }
@@ -622,6 +482,7 @@ app.post('/api/update_profile', requireAuth, async (req, res) => {
 });
 
 // ── CHALLENGES ────────────────────────────────────────────────────────────────
+
 app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
   const { opponent_id } = req.params;
   if (!validateId(opponent_id)) return res.status(400).json({ error: 'Invalid opponent ID' });
@@ -636,6 +497,7 @@ app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
   await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: req.session.user.username,
     challenged_id: opponent_id, challenged_name: opponent[0].username, status: 'pending', format: fmt });
+  // Notify challenged player with dedicated event for popup
   io.to(`user_${opponent_id}`).emit('new_challenge', {
     challenger_name: req.session.user.username,
     format: fmt,
@@ -654,7 +516,7 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
   const c = challenges[0];
   if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
   if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  res.json({ success: true });
+  res.json({ success: true }); // Réponse immédiate
   await sbPatch('challenges', { id: challenge_id }, { status: 'accepted' });
   await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
 });
@@ -688,6 +550,7 @@ app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
 });
 
 // ── LFM ───────────────────────────────────────────────────────────────────────
+
 app.post('/lfm', requireAuth, async (req, res) => {
   const userId  = req.session.user.id;
   const fmt     = req.body.format || 'BO3';
@@ -707,7 +570,7 @@ app.post('/lfm', requireAuth, async (req, res) => {
     player_points: pts, main_char: main, format: fmt, mode, message,
     created_at: new Date().toISOString(), expires_at: expires });
   res.json({ success: true });
-  await emitLeaderboardUpdate();
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
 });
 
 app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
@@ -719,11 +582,12 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
   const post = posts[0];
   if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
-  res.json({ success: true, challenge_id: cid });
+  res.json({ success: true, challenge_id: cid }); // Réponse immédiate
   await sbPost('challenges', { id: cid, challenger_id: userId,
     challenger_name: req.session.user.username, challenged_id: post.player_id,
     challenged_name: post.player_name, status: 'accepted', format: post.format });
   await sbDelete('lfm_posts', { id: post_id });
+  // Redirect BOTH players to the match page via Socket.IO
   io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
@@ -738,10 +602,11 @@ app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
   if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
   await sbDelete('lfm_posts', { id: post_id });
   res.json({ success: true });
-  await emitLeaderboardUpdate();
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
 });
 
-// ── RESULT SUBMISSION (identique) ────────────────────────────────────────────
+// ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
+
 app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
@@ -754,6 +619,8 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   const { winner_id, score: rawScore } = req.body;
   const isStocks = c.format === 'STOCKS';
 
+  // En mode STOCKS : le front envoie les TOTAUX CUMULÉS sur l'ensemble des matchs.
+  // On calcule le delta = total saisi - total précédemment enregistré.
   let wStRaw = parseInt(req.body.winner_stocks_taken ?? 0, 10);
   let lStRaw = parseInt(req.body.loser_stocks_taken  ?? 0, 10);
   if (isNaN(wStRaw) || isNaN(lStRaw) || wStRaw < 0 || lStRaw < 0) {
@@ -767,9 +634,9 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
     const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
     const prevW = prev.winner_stocks_total || 0;
     const prevL = prev.loser_stocks_total  || 0;
-    wSt = Math.max(0, wStRaw - prevW);
+    wSt = Math.max(0, wStRaw - prevW); // delta pour ce match
     lSt = Math.max(0, lStRaw - prevL);
-    scoreStr = `${wStRaw}-${lStRaw}`;
+    scoreStr = `${wStRaw}-${lStRaw}`; // score = totaux pour l'affichage
   } else {
     const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
     if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
@@ -819,6 +686,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
+        // Petit délai pour laisser Supabase propager le PATCH avant les re-queries
         await new Promise(r => setTimeout(r, 300));
         await emitMatchUpdate(challenge_id, {
           status: 'completed',
@@ -827,7 +695,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
           elo_change: eloGain,
         });
         await emitLeaderboardUpdate();
-        chatHistory.delete(challenge_id);
+        chatHistory.delete(challenge_id); // clear chat history on match end
         return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
       }
     } else {
@@ -842,5 +710,6 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
 });
 
 // ── START ─────────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`⚔ Smash YUZU running on port ${PORT}`));
