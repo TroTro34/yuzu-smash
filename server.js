@@ -36,7 +36,6 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
 
-// Sessions
 const sessionMiddleware = session({
   secret: SECRET_KEY,
   resave: false,
@@ -50,7 +49,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
-// Templates
 const env = nunjucks.configure(path.join(__dirname, 'templates'), {
   autoescape: true,
   express: app,
@@ -129,7 +127,6 @@ async function getPlayerMatches(userId, limit = 10) {
   return merged.slice(0, limit);
 }
 
-// ── ELO ───────────────────────────────────────────────────────────────────────
 function calcElo(wp, lp) {
   const expected = 1 / (1 + 10 ** ((lp - wp) / 400));
   return Math.max(Math.round(ELO_K * (1 - expected)), 1);
@@ -143,7 +140,6 @@ function calcEloStocks(wp, lp, wSt, lSt) {
   return Math.max(Math.round(base * (1.0 + diffRatio * 0.5)), 1);
 }
 
-// ── VALIDATION ────────────────────────────────────────────────────────────────
 function validateId(v) { return v && VALID_ID_RE.test(String(v)); }
 function sanitizeStr(v, max) { return String(v || '').trim().slice(0, max); }
 function validateStocks(v) {
@@ -152,32 +148,36 @@ function validateStocks(v) {
 }
 
 // ── MATCH STATE MACHINE (BO) ─────────────────────────────────────────────────
-const matchStates = new Map(); // key = challenge_id
+const matchStates = new Map();
 
 function getMatchState(challengeId, p1Id, p2Id) {
   if (!matchStates.has(challengeId)) {
     matchStates.set(challengeId, {
-      phase: 'character_p1',    // character_p1, character_p2, stage_ban, game_play
-      turn: p1Id,               // player who must act
+      phase: 'character_p1',
+      turn: p1Id,
       p1Id: p1Id,
       p2Id: p2Id,
       p1Char: '',
       p2Char: '',
-      availableStages: ["Final Destination", "Battlefield", "Small Battlefield", "Pokemon Stadium 2", "Hollow Bastion", "Town and City", "Smashville"],
+      // Nouvelle liste de 9 stages
+      availableStages: ["Battlefield", "Small Battlefield", "Final Destination", "Pokemon Stadium 2", "Town and City", "Smashville", "Hollow Bastion", "Kalos Pokémon League", "Yoshi's Story"],
       bannedStages: [],
       finalStage: '',
-      gameIndex: 0,             // 0‑based current game
-      gameResults: [],          // { winner_id }
+      gameIndex: 0,
+      gameResults: [],
       p1GamesWon: 0,
       p2GamesWon: 0,
-      pendingProposal: null,    // { winner_id, byPlayerId, gameIndex }
-      setFinished: false
+      pendingProposal: null,
+      setFinished: false,
+      // Pour la phase de pick final
+      stagePickPriority: null,   // 'p1' ou 'p2' (qui choisit en premier)
+      remainingForPick: []       // stages restants après bans pour le pick final
     });
   }
   return matchStates.get(challengeId);
 }
 
-// ── DATA HELPERS (dashboard, leaderboard) ────────────────────────────────────
+// ── DATA HELPERS ──────────────────────────────────────────────────────────────
 async function dashboardData(userId, excludeChallengeIds = []) {
   const [players, allChallenges, myMatches] = await Promise.all([
     sbGet('players', 'order=points.desc'),
@@ -223,7 +223,6 @@ async function leaderboardData() {
   return { players, recent_matches: recentMatches, lfm_posts: lfmPosts };
 }
 
-// ── SOCKET.IO EMITTERS ────────────────────────────────────────────────────────
 async function emitDashboardUpdate(userId, excludeChallengeIds = []) {
   try {
     const data = await dashboardData(userId, excludeChallengeIds);
@@ -263,7 +262,6 @@ async function emitLeaderboardUpdate() {
   } catch (e) { console.error('[emitLeaderboardUpdate]', e); }
 }
 
-// ── CHAT HISTORY ─────────────────────────────────────────────────────────────
 const chatHistory = new Map();
 const CHAT_MAX = 50;
 
@@ -293,7 +291,6 @@ io.on('connection', (socket) => {
     const history = chatHistory.get(cid) || [];
     if (history.length) socket.emit('chat_history', history);
 
-    // Récupérer les infos du challenge pour initialiser l'état
     const challenges = await sbGet('challenges', `id=eq.${cid}`);
     if (challenges.length) {
       const c = challenges[0];
@@ -321,7 +318,7 @@ io.on('connection', (socket) => {
     io.to(`match_${cid}`).emit('chat_message', payload);
   });
 
-  // ---------- NOUVEAUX ÉVÉNEMENTS POUR LE FLOW BO ----------
+  // ── GESTION DES BANS AVEC LA NOUVELLE LISTE ET L'ORDRE ──
   socket.on('char_pick', async (data) => {
     const { challenge_id, player_id, char_id, char_name } = data;
     if (!validateId(challenge_id) || !validateId(player_id)) return;
@@ -341,7 +338,9 @@ io.on('connection', (socket) => {
     } else if (state.phase === 'character_p2' && player_id === state.p2Id) {
       state.p2Char = char_name;
       state.phase = 'stage_ban';
-      state.turn = state.p1Id; // le premier ban revient au challenger
+      // ordre des bans : P1 bannit 2 stages, puis P2 bannit 4 stages
+      state.turn = state.p1Id;
+      state.banCount = 0; // compteur de bans pour savoir quand changer de tour
       io.to(`match_${challenge_id}`).emit('match_state', state);
       io.to(`match_${challenge_id}`).emit('char_picked', { player_id, char_name });
     }
@@ -362,20 +361,48 @@ io.on('connection', (socket) => {
       state.availableStages.splice(idx, 1);
       state.bannedStages.push(stage);
     }
-    const totalBans = state.bannedStages.length;
-    // Logique 1-2-2-1
-    if (totalBans === 1) state.turn = state.p2Id;
-    else if (totalBans === 2) state.turn = state.p2Id;
-    else if (totalBans === 3) state.turn = state.p1Id;
-    else if (totalBans === 4) state.turn = state.p1Id;
-    else if (totalBans === 5) state.turn = state.p2Id;
-    else if (totalBans === 6) {
-      state.finalStage = state.availableStages[0];
-      state.phase = 'game_play';
-      state.turn = null;
+
+    // Logique des tours : P1 ban 2 fois, P2 ban 4 fois
+    if (!state.banCount) state.banCount = 0;
+    state.banCount++;
+    if (state.turn === state.p1Id && state.banCount === 2) {
+      state.turn = state.p2Id;
+      state.banCount = 0;
+    } else if (state.turn === state.p2Id && state.banCount === 4) {
+      // fin des bans : il reste 3 stages
+      state.phase = 'stage_pick';
+      state.remainingForPick = [...state.availableStages];
+      // priorité : vainqueur du game précédent ou challenger pour le premier game
+      const prioritaire = (state.gameResults.length === 0) ? state.p1Id : 
+        (state.gameResults[state.gameResults.length-1].winner_id === state.p1Id ? state.p1Id : state.p2Id);
+      state.stagePickPriority = prioritaire;
+      state.turn = prioritaire;
+      io.to(`match_${challenge_id}`).emit('match_state', state);
+      io.to(`match_${challenge_id}`).emit('stage_banned', { stage, by_player });
+      return;
     }
     io.to(`match_${challenge_id}`).emit('match_state', state);
     io.to(`match_${challenge_id}`).emit('stage_banned', { stage, by_player });
+  });
+
+  // Nouvel événement : choix final du stage
+  socket.on('pick_stage', async (data) => {
+    const { challenge_id, stage } = data;
+    if (!validateId(challenge_id) || !stage) return;
+    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+    if (!challenges.length) return;
+    const c = challenges[0];
+    const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
+    const userId = req.session.user?.id;
+    if (state.phase !== 'stage_pick' || userId !== state.turn) return;
+    if (!state.remainingForPick.includes(stage)) return;
+
+    // Le joueur actuel choisit un stage parmi les 3 restants
+    state.finalStage = stage;
+    state.phase = 'game_play';
+    state.turn = null;
+    io.to(`match_${challenge_id}`).emit('match_state', state);
+    io.to(`match_${challenge_id}`).emit('stage_picked', { stage, by_player: userId });
   });
 
   socket.on('propose_game_result', async (data) => {
@@ -402,29 +429,37 @@ io.on('connection', (socket) => {
     const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
     const userId = req.session.user?.id;
     if (!state.pendingProposal || state.pendingProposal.game_index !== game_index) return;
-    if (userId === state.pendingProposal.byPlayerId) return; // seul l'adversaire peut confirmer
+    if (userId === state.pendingProposal.byPlayerId) return;
 
     if (accepted) {
       const winnerId = state.pendingProposal.winner_id;
       state.gameResults.push({ winner_id: winnerId });
       if (winnerId === state.p1Id) state.p1GamesWon++;
       else state.p2GamesWon++;
-      // Vérifier si le set est fini
+      
       const maxWins = c.format === 'BO1' ? 1 : c.format === 'BO3' ? 2 : 3;
       if (state.p1GamesWon === maxWins || state.p2GamesWon === maxWins) {
         state.setFinished = true;
         state.phase = 'completed';
-        // Envoyer la confirmation finale au backend (via HTTP plus tard, mais on peut prévenir)
         io.to(`match_${challenge_id}`).emit('match_state', state);
-        // On ne soumet pas le résultat ici – ce sera fait par le frontend après la dernière confirmation
+        io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index });
+        return;
       } else {
+        // Passer au game suivant
         state.gameIndex++;
         state.pendingProposal = null;
+        // Réinitialiser la phase de pick pour le nouveau game (sélection de stage)
+        // On recrée la liste des stages (inchangée) et on refait un pick
+        state.phase = 'stage_pick';
+        // Remettre les stages disponibles à la liste complète (sans les bans permanents)
+        state.remainingForPick = [...state.availableStages];
+        // Le vainqueur du game précédent choisit en premier
+        state.stagePickPriority = winnerId;
+        state.turn = winnerId;
         io.to(`match_${challenge_id}`).emit('match_state', state);
+        io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index });
       }
-      io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index });
     } else {
-      // contestation : on remet à zéro la proposition
       state.pendingProposal = null;
       io.to(`match_${challenge_id}`).emit('match_state', state);
       io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: false, game_index });
@@ -432,13 +467,12 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
+// ── AUTH MIDDLEWARE & ROUTES (inchangés) ───────────────────────────────────────
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
   next();
 }
 
-// ── ROUTES (inchangées, sauf /result qui reste compatible) ────────────────────
 app.get('/', async (req, res) => {
   try {
     const now = new Date().toISOString();
@@ -548,7 +582,6 @@ app.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-// ── API ───────────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', requireAuth, async (req, res) => {
   try { res.json(await dashboardData(req.session.user.id)); }
   catch (e) { res.status(500).json({ error: 'Server error' }); }
@@ -593,7 +626,6 @@ app.post('/api/update_profile', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ── CHALLENGES ────────────────────────────────────────────────────────────────
 app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
   const { opponent_id } = req.params;
   if (!validateId(opponent_id)) return res.status(400).json({ error: 'Invalid opponent ID' });
@@ -659,7 +691,6 @@ app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ── LFM ───────────────────────────────────────────────────────────────────────
 app.post('/lfm', requireAuth, async (req, res) => {
   const userId  = req.session.user.id;
   const fmt     = req.body.format || 'BO3';
@@ -713,7 +744,6 @@ app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
   await emitLeaderboardUpdate();
 });
 
-// ── RESULT SUBMISSION (identique, compatible avec le nouveau front) ──────────
 app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
@@ -813,6 +843,5 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   res.status(400).json({ error: 'Invalid action' });
 });
 
-// ── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`⚔ Smash YUZU running on port ${PORT}`));
