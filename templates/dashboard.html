@@ -365,7 +365,7 @@
             <span class="match-vs">vs <strong>{{ match.loser_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
             <span class="match-fmt">{{ match.format }}</span>
             {% if match.elo_change %}<span class="match-elo">+{{ match.elo_change }} ELO</span>{% endif %}
-            <span class="match-date">{{ match.date[:10] if match.date else '' }}</span>
+            <span class="match-date">{{ match.date.slice(0, 10) if match.date else '' }}</span>
           </div>
           {% else %}
           <div class="match-card loss">
@@ -373,7 +373,7 @@
             <span class="match-vs">vs <strong>{{ match.winner_name }}</strong>{% if match.score %} — {{ match.score }}{% endif %}</span>
             <span class="match-fmt">{{ match.format }}</span>
             {% if match.elo_change %}<span class="match-elo">-{{ match.elo_change }} ELO</span>{% endif %}
-            <span class="match-date">{{ match.date[:10] if match.date else '' }}</span>
+            <span class="match-date">{{ match.date.slice(0, 10) if match.date else '' }}</span>
           </div>
           {% endif %}
         {% endfor %}
