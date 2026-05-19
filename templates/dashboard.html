@@ -2,8 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <link rel="icon" type="image/png" href="/static/favicon.png">
-  <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smash YUZU — Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
@@ -11,141 +9,84 @@
     :root {
       --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
       --border: #252540; --accent: #e8400a; --accent2: #ff8000;
-      --gold: #ffd700; --silver: #c0c0c0; --bronze: #cd7f32;
-      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555; --purple: #9b59b6;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
-      background-image: radial-gradient(ellipse at 10% 0%, rgba(232,64,10,0.1) 0%, transparent 50%),
-        radial-gradient(ellipse at 90% 100%, rgba(155,89,182,0.06) 0%, transparent 50%); }
-    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
-      border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
-      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
-    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
-      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
-    .nav-links { display: flex; gap: 0.8rem; align-items: center; }
-    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
-      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
-      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
-    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
-    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
-    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-    
-    .profile-card { display: grid; grid-template-columns: auto 1fr; gap: 2rem;
-      padding: 2rem; background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
-    .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-      background: linear-gradient(to bottom, var(--accent), var(--accent2)); }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100; }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px; background: linear-gradient(135deg, #fff, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .profile-card { display: grid; grid-template-columns: auto 1fr; gap: 2rem; padding: 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; position: relative; overflow: hidden; }
     .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); object-fit: cover; }
-    .profile-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 3px; line-height: 1; }
-    
-    .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1.2rem; text-align: center; min-width: 80px; }
+    .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; text-align: center; min-width: 80px; }
     .stat-box .val { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; display: block; }
-    .stat-box .lbl { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-    
-    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
-    .tab { padding: 0.8rem 1.5rem; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
-      color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
-    .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
-
-    .match-card { padding: 0.8rem 1.2rem; border-radius: 8px; margin-bottom: 0.5rem;
-      border: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
-    .match-card.win { border-left: 3px solid var(--green); background: rgba(61,220,132,0.04); }
-    .match-card.loss { border-left: 3px solid var(--red); background: rgba(255,85,85,0.04); }
-
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-      z-index: 200; align-items: center; justify-content: center; }
-    .modal-overlay.open { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 2rem; width: 90%; max-width: 480px; }
-
-    #match-found-overlay { position: fixed; inset: 0; z-index: 9999; background: #050508;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
-    #match-found-overlay.visible { opacity: 1; pointer-events: all; }
+    .stat-box .lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+    .tabs { display: flex; gap: 1rem; border-bottom: 1px solid var(--border); margin: 2rem 0; }
+    .tab { padding: 0.8rem 1rem; cursor: pointer; font-family: 'Bebas Neue', sans-serif; color: var(--muted); }
+    .tab.active { color: var(--accent2); border-bottom: 2px solid var(--accent2); }
+    .match-card { padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .win { border-left: 4px solid var(--green); }
+    .loss { border-left: 4px solid var(--red); }
   </style>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 
 <nav>
   <a href="/" class="logo">⚔ YUZU</a>
-  <div class="nav-links">
-    <a href="/" class="btn btn-ghost">Leaderboard</a>
-    <a href="/logout" class="btn btn-ghost">Log Out</a>
+  <div style="display:flex; gap:10px;">
+    <a href="/" style="color:white; text-decoration:none;">Leaderboard</a>
+    <a href="/logout" style="color:var(--muted); text-decoration:none;">Logout</a>
   </div>
 </nav>
 
-<div class="container" style="max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;">
-
-  {% set wr = (player.wins / player.matches_played * 100)|round(1) if player.matches_played > 0 else 0 %}
+<div class="container">
   <div class="profile-card">
-    <div class="profile-left">
+    <div>
       {% if user.avatar %}
-        <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="">
+        <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png">
       {% else %}
-        <div class="profile-avatar" style="background:var(--surface3); display:flex; align-items:center; justify-content:center; font-size:2rem;">👤</div>
+        <div class="profile-avatar" style="background:#333; display:flex; align-items:center; justify-content:center;">👤</div>
       {% endif %}
-      <div style="margin-top:10px; text-align:center; font-family:'Bebas Neue'; color:var(--muted);">RANK #{{ rank }}</div>
     </div>
-    <div class="profile-right">
-      <div class="profile-name">{{ user.username }}</div>
-      <div style="display:flex; gap:1rem; margin: 1rem 0;">
-        <div class="stat-box"><span class="val" style="color:var(--accent2)">{{ player.points }}</span><span class="lbl">ELO</span></div>
-        <div class="stat-box"><span class="val" style="color:var(--green)">{{ player.wins }}</span><span class="lbl">Wins</span></div>
-        <div class="stat-box"><span class="val" style="color:var(--red)">{{ player.losses }}</span><span class="lbl">Losses</span></div>
+    <div>
+      <h1 style="font-family:'Bebas Neue'; font-size:2.5rem;">{{ user.username }}</h1>
+      <div style="display:flex; gap:10px; margin-top:1rem;">
+        <div class="stat-box"><span class="val" style="color:var(--accent2)">{{ player.points if player.points else 1000 }}</span><span class="lbl">ELO</span></div>
+        <div class="stat-box"><span class="val" style="color:var(--green)">{{ player.wins if player.wins else 0 }}</span><span class="lbl">Wins</span></div>
+        <div class="stat-box"><span class="val" style="color:var(--red)">{{ player.losses if player.losses else 0 }}</span><span class="lbl">Losses</span></div>
       </div>
-      <div class="wr-label" style="font-size:0.9rem; color:var(--muted);">Win Rate: {{ wr }}%</div>
     </div>
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="showTab('activity', this)">⚡ Activity</div>
-    <div class="tab" onclick="showTab('history', this)">📋 History</div>
+    <div class="tab active">History</div>
   </div>
 
-  <div id="panel-activity" class="tab-panel active">
-    <div id="zone-matchs" class="empty">No active matches.</div>
-  </div>
-
-  <div id="panel-history" class="tab-panel" style="display:none;">
+  <div id="panel-history">
     {% if my_matches and my_matches.length > 0 %}
       {% for match in my_matches %}
         <div class="match-card {{ 'win' if match.winner_id == user.id else 'loss' }}">
-          <strong style="width:50px;">{{ 'WIN' if match.winner_id == user.id else 'LOSS' }}</strong>
-          <span style="flex:1;">vs {{ match.loser_name if match.winner_id == user.id else match.winner_name }}</span>
-          <span style="color:var(--muted);">{{ match.date.slice(0, 10) if match.date else '' }}</span>
+          <div>
+            <strong style="color: {{ 'var(--green)' if match.winner_id == user.id else 'var(--red)' }}">
+              {{ 'WIN' if match.winner_id == user.id else 'LOSS' }}
+            </strong>
+            <span style="margin-left:15px;">vs {{ match.loser_name if match.winner_id == user.id else match.winner_name }}</span>
+          </div>
+          <div style="color:var(--muted); font-size:0.8rem;">
+            {{ match.date.slice(0,10) if match.date else 'Recent' }}
+          </div>
         </div>
       {% endfor %}
     {% else %}
-      <div class="empty" style="text-align:center; padding:2rem; color:var(--muted);">No matches played yet.</div>
+      <div style="text-align:center; color:var(--muted); padding:3rem;">No matches recorded.</div>
     {% endif %}
   </div>
-
 </div>
 
-<div id="match-found-overlay">
-  <h1 style="font-family:'Bebas Neue'; font-size:3rem; color:var(--accent2);">MATCH FOUND</h1>
-  <div id="mfo-players" style="font-size:1.5rem; margin-top:1rem;"></div>
-</div>
-
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
   const socket = io();
-
-  function showTab(name, el) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('panel-' + name).style.display = 'block';
-    el.classList.add('active');
-  }
-
-  socket.on('connect', () => {
-    console.log("Connected to Smash YUZU");
-  });
-
-  // Correction potentielle de la ligne 368 : Assurez-vous qu'aucun 
-  // tag Nunjucks {{ }} ne reste orphelin ou mal écrit ici.
+  socket.on('connect', () => console.log("Connected"));
 </script>
 
 </body>
