@@ -150,6 +150,9 @@ function validateStocks(v) {
 // ── MATCH STATE MACHINE (BO) ─────────────────────────────────────────────────
 const matchStates = new Map();
 
+// Liste complète des stages
+const ALL_STAGES = ["Battlefield", "Small Battlefield", "Final Destination", "Pokemon Stadium 2", "Town and City", "Smashville", "Hollow Bastion", "Kalos Pokémon League", "Yoshi's Story"];
+
 function getMatchState(challengeId, p1Id, p2Id) {
   if (!matchStates.has(challengeId)) {
     matchStates.set(challengeId, {
@@ -159,8 +162,7 @@ function getMatchState(challengeId, p1Id, p2Id) {
       p2Id: p2Id,
       p1Char: '',
       p2Char: '',
-      // Nouvelle liste de 9 stages
-      availableStages: ["Battlefield", "Small Battlefield", "Final Destination", "Pokemon Stadium 2", "Town and City", "Smashville", "Hollow Bastion", "Kalos Pokémon League", "Yoshi's Story"],
+      availableStages: [...ALL_STAGES], // Copie fraîche
       bannedStages: [],
       finalStage: '',
       gameIndex: 0,
@@ -169,12 +171,26 @@ function getMatchState(challengeId, p1Id, p2Id) {
       p2GamesWon: 0,
       pendingProposal: null,
       setFinished: false,
-      // Pour la phase de pick final
-      stagePickPriority: null,   // 'p1' ou 'p2' (qui choisit en premier)
-      remainingForPick: []       // stages restants après bans pour le pick final
+      banCount: 0
     });
   }
   return matchStates.get(challengeId);
+}
+
+// Fonction pour réinitialiser la phase de stages pour un nouveau game
+function resetStagesForNewGame(state, winnerId) {
+  state.availableStages = [...ALL_STAGES];
+  state.bannedStages = [];
+  state.phase = 'stage_ban';
+  // L'ordre des bans alterne : celui qui a PERDU le game précédent commence
+  // Pour le premier game, c'est P1 qui commence
+  if (state.gameIndex === 0) {
+    state.turn = state.p1Id;
+  } else {
+    // Le perdant du game précédent commence les bans
+    state.turn = (winnerId === state.p1Id) ? state.p2Id : state.p1Id;
+  }
+  state.banCount = 0;
 }
 
 // ── DATA HELPERS ──────────────────────────────────────────────────────────────
@@ -318,7 +334,7 @@ io.on('connection', (socket) => {
     io.to(`match_${cid}`).emit('chat_message', payload);
   });
 
-  // ── GESTION DES BANS AVEC LA NOUVELLE LISTE ET L'ORDRE ──
+  // ── GESTION DES BANS ──
   socket.on('char_pick', async (data) => {
     const { challenge_id, player_id, char_id, char_name } = data;
     if (!validateId(challenge_id) || !validateId(player_id)) return;
@@ -337,10 +353,10 @@ io.on('connection', (socket) => {
       io.to(`match_${challenge_id}`).emit('char_picked', { player_id, char_name });
     } else if (state.phase === 'character_p2' && player_id === state.p2Id) {
       state.p2Char = char_name;
+      // Passer à la phase de bans
       state.phase = 'stage_ban';
-      // ordre des bans : P1 bannit 2 stages, puis P2 bannit 4 stages
-      state.turn = state.p1Id;
-      state.banCount = 0; // compteur de bans pour savoir quand changer de tour
+      state.turn = state.p1Id; // P1 commence les bans
+      state.banCount = 0;
       io.to(`match_${challenge_id}`).emit('match_state', state);
       io.to(`match_${challenge_id}`).emit('char_picked', { player_id, char_name });
     }
@@ -362,30 +378,25 @@ io.on('connection', (socket) => {
       state.bannedStages.push(stage);
     }
 
-    // Logique des tours : P1 ban 2 fois, P2 ban 4 fois
-    if (!state.banCount) state.banCount = 0;
     state.banCount++;
+    
+    // Logique des bans: P1 ban 2, P2 ban 4
     if (state.turn === state.p1Id && state.banCount === 2) {
       state.turn = state.p2Id;
       state.banCount = 0;
     } else if (state.turn === state.p2Id && state.banCount === 4) {
-      // fin des bans : il reste 3 stages
+      // Fin des bans - il reste 3 stages, on passe au choix du stage final
       state.phase = 'stage_pick';
-      state.remainingForPick = [...state.availableStages];
-      // priorité : vainqueur du game précédent ou challenger pour le premier game
-      const prioritaire = (state.gameResults.length === 0) ? state.p1Id : 
-        (state.gameResults[state.gameResults.length-1].winner_id === state.p1Id ? state.p1Id : state.p2Id);
-      state.stagePickPriority = prioritaire;
-      state.turn = prioritaire;
+      state.turn = (state.gameIndex === 0) ? state.p1Id : (state.gameResults[state.gameResults.length-1]?.winner_id === state.p1Id ? state.p2Id : state.p1Id);
       io.to(`match_${challenge_id}`).emit('match_state', state);
       io.to(`match_${challenge_id}`).emit('stage_banned', { stage, by_player });
       return;
     }
+    
     io.to(`match_${challenge_id}`).emit('match_state', state);
     io.to(`match_${challenge_id}`).emit('stage_banned', { stage, by_player });
   });
 
-  // Nouvel événement : choix final du stage
   socket.on('pick_stage', async (data) => {
     const { challenge_id, stage } = data;
     if (!validateId(challenge_id) || !stage) return;
@@ -395,9 +406,8 @@ io.on('connection', (socket) => {
     const state = getMatchState(challenge_id, c.challenger_id, c.challenged_id);
     const userId = req.session.user?.id;
     if (state.phase !== 'stage_pick' || userId !== state.turn) return;
-    if (!state.remainingForPick.includes(stage)) return;
+    if (!state.availableStages.includes(stage)) return;
 
-    // Le joueur actuel choisit un stage parmi les 3 restants
     state.finalStage = stage;
     state.phase = 'game_play';
     state.turn = null;
@@ -438,27 +448,33 @@ io.on('connection', (socket) => {
       else state.p2GamesWon++;
       
       const maxWins = c.format === 'BO1' ? 1 : c.format === 'BO3' ? 2 : 3;
+      
+      // Vérifier si le set est terminé
       if (state.p1GamesWon === maxWins || state.p2GamesWon === maxWins) {
         state.setFinished = true;
         state.phase = 'completed';
-        io.to(`match_${challenge_id}`).emit('match_state', state);
-        io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index });
-        return;
-      } else {
-        // Passer au game suivant
-        state.gameIndex++;
+        // Nettoyer la proposition en attente
         state.pendingProposal = null;
-        // Réinitialiser la phase de pick pour le nouveau game (sélection de stage)
-        // On recrée la liste des stages (inchangée) et on refait un pick
-        state.phase = 'stage_pick';
-        // Remettre les stages disponibles à la liste complète (sans les bans permanents)
-        state.remainingForPick = [...state.availableStages];
-        // Le vainqueur du game précédent choisit en premier
-        state.stagePickPriority = winnerId;
-        state.turn = winnerId;
         io.to(`match_${challenge_id}`).emit('match_state', state);
-        io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index });
+        io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index, setFinished: true });
+        return;
       }
+      
+      // Passer au game suivant - RÉINITIALISER COMPLÈTEMENT LES STAGES
+      state.gameIndex++;
+      state.pendingProposal = null;
+      
+      // Réinitialiser les stages pour le nouveau game
+      state.availableStages = [...ALL_STAGES];
+      state.bannedStages = [];
+      state.finalStage = '';
+      state.phase = 'stage_ban';
+      // Le perdant du game précédent commence les bans
+      state.turn = (winnerId === state.p1Id) ? state.p2Id : state.p1Id;
+      state.banCount = 0;
+      
+      io.to(`match_${challenge_id}`).emit('match_state', state);
+      io.to(`match_${challenge_id}`).emit('game_confirmed', { accepted: true, winner_id: winnerId, game_index, setFinished: false });
     } else {
       state.pendingProposal = null;
       io.to(`match_${challenge_id}`).emit('match_state', state);
@@ -467,7 +483,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── AUTH MIDDLEWARE & ROUTES (inchangés) ───────────────────────────────────────
+// ── AUTH MIDDLEWARE & ROUTES ───────────────────────────────────────────────────
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
   next();
@@ -660,188 +676,4 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
   if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
   res.json({ success: true });
   await sbPatch('challenges', { id: challenge_id }, { status: 'accepted' });
-  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
-});
-
-app.post('/challenge/:challenge_id/decline', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
-  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  await sbPatch('challenges', { id: challenge_id }, { status: 'declined' });
-  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
-  res.json({ success: true });
-});
-
-app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (c.challenger_id !== userId) return res.status(403).json({ error: 'Only the challenger can cancel' });
-  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  await sbDelete('challenges', { id: challenge_id });
-  await Promise.all([emitDashboardUpdate(c.challenged_id), emitDashboardUpdate(c.challenger_id)]);
-  res.json({ success: true });
-});
-
-app.post('/lfm', requireAuth, async (req, res) => {
-  const userId  = req.session.user.id;
-  const fmt     = req.body.format || 'BO3';
-  const mode    = req.body.mode || 'sets';
-  if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
-  if (!VALID_MODES.has(mode))  return res.status(400).json({ error: 'Invalid mode' });
-  const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
-  await sbDelete('lfm_posts', { player_id: userId });
-  const player  = await sbGet('players', `id=eq.${userId}`);
-  const pts     = player[0]?.points || 1000;
-  const main    = player[0]?.main_char || '';
-  const avatar  = req.session.user.avatar || '';
-  const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('lfm_posts', { id: postId, player_id: userId,
-    player_name: req.session.user.username, player_avatar: avatar,
-    player_points: pts, main_char: main, format: fmt, mode, message,
-    created_at: new Date().toISOString(), expires_at: expires });
-  res.json({ success: true });
-  await emitLeaderboardUpdate();
-});
-
-app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
-  const { post_id } = req.params;
-  if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
-  if (!posts.length) return res.status(404).json({ error: 'Not found' });
-  const post = posts[0];
-  if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
-  const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
-  res.json({ success: true, challenge_id: cid });
-  await sbPost('challenges', { id: cid, challenger_id: userId,
-    challenger_name: req.session.user.username, challenged_id: post.player_id,
-    challenged_name: post.player_name, status: 'accepted', format: post.format });
-  await sbDelete('lfm_posts', { id: post_id });
-  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
-  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
-  await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
-});
-
-app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
-  const { post_id } = req.params;
-  if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
-  if (!posts.length) return res.status(404).json({ error: 'Not found' });
-  if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
-  await sbDelete('lfm_posts', { id: post_id });
-  res.json({ success: true });
-  await emitLeaderboardUpdate();
-});
-
-app.post('/result/:challenge_id', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId     = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (![c.challenger_id, c.challenged_id].includes(userId)) return res.status(403).json({ error: 'Not part of this match' });
-
-  const { winner_id, score: rawScore } = req.body;
-  const isStocks = c.format === 'STOCKS';
-
-  let wStRaw = parseInt(req.body.winner_stocks_taken ?? 0, 10);
-  let lStRaw = parseInt(req.body.loser_stocks_taken  ?? 0, 10);
-  if (isNaN(wStRaw) || isNaN(lStRaw) || wStRaw < 0 || lStRaw < 0) {
-    return res.status(400).json({ error: 'Stocks must be >= 0' });
-  }
-
-  let wSt = wStRaw, lSt = lStRaw;
-  let scoreStr;
-
-  if (isStocks) {
-    const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
-    const prevW = prev.winner_stocks_total || 0;
-    const prevL = prev.loser_stocks_total  || 0;
-    wSt = Math.max(0, wStRaw - prevW);
-    lSt = Math.max(0, lStRaw - prevL);
-    scoreStr = `${wStRaw}-${lStRaw}`;
-  } else {
-    const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
-    if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
-    scoreStr = sanitizeStr(rawScore || '', 20);
-  }
-
-  if (![c.challenger_id, c.challenged_id].includes(winner_id)) return res.status(400).json({ error: 'Invalid winner' });
-  const loser_id = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
-
-  if (c.status === 'accepted') {
-    await sbPatch('challenges', { id: challenge_id }, {
-      status: 'reported', reported_by: userId,
-      report: {
-        winner_id, score: scoreStr,
-        winner_stocks_taken: wSt, loser_stocks_taken: lSt,
-        winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
-        is_stocks_mode: isStocks
-      }
-    });
-    await emitMatchUpdate(challenge_id);
-    return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
-  }
-
-  if (c.status === 'reported' && c.reported_by !== userId) {
-    const report = typeof c.report === 'object' ? c.report : {};
-    if (String(winner_id) === String(report.winner_id)) {
-      const [winnerArr, loserArr] = await Promise.all([
-        sbGet('players', `id=eq.${winner_id}`),
-        sbGet('players', `id=eq.${loser_id}`),
-      ]);
-      if (winnerArr.length && loserArr.length) {
-        const winner = winnerArr[0], loser = loserArr[0];
-        const wp = winner.points, lp = loser.points;
-        const eloGain = report.is_stocks_mode
-          ? calcEloStocks(wp, lp, report.winner_stocks_taken || 0, report.loser_stocks_taken || 0)
-          : calcElo(wp, lp);
-        await Promise.all([
-          sbPatch('players', { id: winner_id }, { points: wp + eloGain, wins: winner.wins + 1,
-            matches_played: winner.matches_played + 1,
-            stocks_taken: (winner.stocks_taken || 0) + (report.winner_stocks_taken || 0) }),
-          sbPatch('players', { id: loser_id }, { points: Math.max(0, lp - eloGain), losses: loser.losses + 1,
-            matches_played: loser.matches_played + 1,
-            stocks_lost: (loser.stocks_lost || 0) + (report.loser_stocks_taken || 0) }),
-          sbPost('matches', { challenge_id, winner_id, winner_name: winner.username,
-            winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
-            loser_main: loser.main_char || '', score: report.score || scoreStr,
-            format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
-          sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
-        ]);
-        await new Promise(r => setTimeout(r, 300));
-        await emitMatchUpdate(challenge_id, {
-          status: 'completed',
-          winner_id,
-          score: report.score || scoreStr,
-          elo_change: eloGain,
-        });
-        await emitLeaderboardUpdate();
-        chatHistory.delete(challenge_id);
-        return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
-      }
-    } else {
-      await sbPatch('challenges', { id: challenge_id }, { status: 'disputed' });
-      await new Promise(r => setTimeout(r, 300));
-      await emitMatchUpdate(challenge_id);
-      return res.json({ success: true, message: 'Conflict detected! Contact an admin.' });
-    }
-  }
-
-  res.status(400).json({ error: 'Invalid action' });
-});
-
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`⚔ Smash YUZU running on port ${PORT}`));
+  await Promise.all([emit
