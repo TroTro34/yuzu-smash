@@ -8,7 +8,7 @@
   <title>⚔ MATCH — Smash YUZU</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* ========== STYLES (repris de l'original, avec ajouts pour les phases) ========== */
+    /* ========== MÊMES STYLES QUE PRÉCÉDEMMENT (inchangés) ========== */
     :root {
       --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
       --border: #252540; --accent: #e8400a; --accent2: #ff8000;
@@ -192,17 +192,15 @@ const P2_NAME      = "{{ challenged.username }}";
 const MY_ID        = "{{ user.id }}";
 const IS_STOCKS    = FORMAT === 'STOCKS';
 
-// Pour les modes BO
 let MAX_WINS = 1;
 if (FORMAT === 'BO1') MAX_WINS = 1;
 else if (FORMAT === 'BO3') MAX_WINS = 2;
 else if (FORMAT === 'BO5') MAX_WINS = 3;
 
 let matchSocket = null;
-let currentState = null;     // état reçu du serveur
+let currentState = null;
 let setFinished = false;
 
-// ---------- UI Helpers ----------
 function showToast(msg, ok=true) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -225,7 +223,7 @@ function updateScoreDisplay(state) {
   document.getElementById('game-counter').innerHTML = `GAME ${state.gameIndex+1}`;
 }
 
-// ---------- Character selection UI ----------
+// ---------- UI pour les différentes phases ----------
 function showCharacterSelection(state) {
   const container = document.getElementById('dynamic-phase');
   const isMe = (MY_ID === state.turn);
@@ -238,7 +236,7 @@ function showCharacterSelection(state) {
   `;
   if (isMe) {
     const grid = document.getElementById('char-grid');
-    const charList = getFullCharacterList(); // définie plus bas
+    const charList = getFullCharacterList();
     charList.forEach(c => {
       const div = document.createElement('div');
       div.className = 'char-option';
@@ -253,7 +251,6 @@ function showCharacterSelection(state) {
   }
 }
 
-// ---------- Stage ban UI ----------
 function showStageBan(state) {
   const container = document.getElementById('dynamic-phase');
   const isMe = (MY_ID === state.turn);
@@ -280,11 +277,34 @@ function showStageBan(state) {
   }
 }
 
-// ---------- Game play UI (propose / confirm) ----------
+function showStagePick(state) {
+  const container = document.getElementById('dynamic-phase');
+  const isMe = (MY_ID === state.turn);
+  const playerName = (state.turn === state.p1Id) ? P1_NAME : P2_NAME;
+  container.innerHTML = `
+    <div class="section-title">🎯 CHOOSE THE STAGE</div>
+    <div class="step-indicator">${isMe ? 'Your turn' : `Waiting for ${playerName} to pick...`}</div>
+    <div style="margin-bottom:1rem;"><strong>Available stages:</strong> ${state.remainingForPick.join(', ')}</div>
+    <div id="stage-pick-grid" class="stage-grid"></div>
+    ${!isMe ? '<div class="wait-turn">⏳ Opponent is choosing...</div>' : ''}
+  `;
+  if (isMe) {
+    const grid = document.getElementById('stage-pick-grid');
+    state.remainingForPick.forEach(stage => {
+      const div = document.createElement('div');
+      div.className = 'stage-option';
+      div.innerText = stage;
+      div.onclick = () => {
+        matchSocket.emit('pick_stage', { challenge_id: CHALLENGE_ID, stage });
+      };
+      grid.appendChild(div);
+    });
+  }
+}
+
 function showGamePlay(state) {
   const container = document.getElementById('dynamic-phase');
   const maxGames = MAX_WINS * 2 - 1;
-  const isMyTurnToPropose = !state.pendingProposal && (MY_ID === state.p1Id || MY_ID === state.p2Id);
   container.innerHTML = `
     <div class="section-title">⚔ GAME ${state.gameIndex+1} / ${maxGames}</div>
     <div class="game-card">
@@ -334,8 +354,8 @@ function contestGame() {
   matchSocket.emit('confirm_game_result', { challenge_id: CHALLENGE_ID, game_index: currentState.gameIndex, accepted: false });
 }
 
-// ---------- Fin du set : soumission au backend ----------
-async function finishSet(winnerId, finalScore) {
+// ---------- Fin du set ----------
+async function finishSet(winnerId) {
   if (setFinished) return;
   setFinished = true;
   const scoreStr = (winnerId === P1_ID) ? `${MAX_WINS}-${currentState.p2GamesWon}` : `${currentState.p1GamesWon}-${MAX_WINS}`;
@@ -367,19 +387,23 @@ function showWinnerAnnouncement(winnerId, score, eloChange) {
   document.getElementById('winner-announcement').classList.add('show');
 }
 
-// ---------- Rendu principal en fonction de la phase ----------
+// ---------- Rendu principal ----------
 function renderPhase(state) {
   if (!state) return;
   currentState = state;
   updateScoreDisplay(state);
   if (state.setFinished) return;
 
-  if (state.phase === 'character_p1') showCharacterSelection(state);
-  else if (state.phase === 'character_p2') showCharacterSelection(state);
-  else if (state.phase === 'stage_ban') showStageBan(state);
-  else if (state.phase === 'game_play') showGamePlay(state);
-  else if (state.phase === 'completed') {
-    // déjà terminé, ne rien faire
+  if (state.phase === 'character_p1' || state.phase === 'character_p2') {
+    showCharacterSelection(state);
+  } else if (state.phase === 'stage_ban') {
+    showStageBan(state);
+  } else if (state.phase === 'stage_pick') {
+    showStagePick(state);
+  } else if (state.phase === 'game_play') {
+    showGamePlay(state);
+  } else if (state.phase === 'completed') {
+    // déjà terminé
   }
 }
 
@@ -391,26 +415,25 @@ function initMatchSocket() {
 
   matchSocket.on('match_state', (state) => {
     renderPhase(state);
-    // détecter la fin du set via state.setFinished
     if (state.setFinished && !setFinished) {
       setFinished = true;
       const winnerId = state.p1GamesWon === MAX_WINS ? state.p1Id : state.p2Id;
-      finishSet(winnerId, '');
+      finishSet(winnerId);
     }
   });
 
   matchSocket.on('char_picked', (data) => {
     showToast(`${data.char_name} picked by ${data.player_id === P1_ID ? P1_NAME : P2_NAME}`);
   });
-
   matchSocket.on('stage_banned', (data) => {
     showToast(`${data.stage} banned by ${data.by_player === P1_ID ? P1_NAME : P2_NAME}`);
   });
-
+  matchSocket.on('stage_picked', (data) => {
+    showToast(`Stage selected: ${data.stage}`);
+  });
   matchSocket.on('game_proposed', (data) => {
     showToast(`Game ${data.game_index+1} result proposed. Waiting for confirmation.`);
   });
-
   matchSocket.on('game_confirmed', (data) => {
     if (data.accepted) {
       showToast(`Game ${data.game_index+1} confirmed!`);
@@ -418,7 +441,6 @@ function initMatchSocket() {
       showToast(`Game ${data.game_index+1} contested – propose again.`, false);
     }
   });
-
   matchSocket.on('chat_message', chatReceive);
   matchSocket.on('chat_history', (msgs) => { msgs.forEach(chatReceive); });
 }
@@ -446,9 +468,8 @@ function chatReceive(data) {
 }
 function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]); }
 
-// ---------- Liste complète des personnages (à copier depuis dashboard.html) ----------
+// ---------- Liste complète des personnages (même que dashboard.html) ----------
 function getFullCharacterList() {
-  // Voici la liste complète des 80+ personnages (même que dans dashboard.html)
   return [
     {id:"mario", name:"Mario", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png"},
     {id:"donkey_kong", name:"Donkey Kong", img:"https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png"},
@@ -542,10 +563,8 @@ function getFullCharacterList() {
 // ---------- Initialisation ----------
 document.addEventListener('DOMContentLoaded', () => {
   if (IS_STOCKS) {
-    // Rediriger vers l'ancienne interface stocks ou afficher un message
-    document.getElementById('dynamic-phase').innerHTML = `<div class="section-title">STOCKS MODE</div><p>Le mode STOCKS utilise l'interface classique. Veuillez rafraîchir si besoin.</p>`;
-    // On pourrait charger ici le code original des stocks, mais pour la clarté on laisse tel quel.
-    showToast("Mode STOCKS – utilisez l'interface classique.", false);
+    document.getElementById('dynamic-phase').innerHTML = `<div class="section-title">STOCKS MODE</div><p>Mode stocks – utilisez l'interface classique.</p>`;
+    showToast("Mode STOCKS – interface classique.", false);
   } else {
     initMatchSocket();
   }
