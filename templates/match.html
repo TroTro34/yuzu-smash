@@ -532,6 +532,7 @@
 <nav>
   <a href="/" class="logo">⚔ YUZU</a>
   <div class="nav-links">
+    <button class="btn btn-danger" onclick="document.getElementById('report-overlay').style.display='flex'" style="font-size:0.82rem;padding:0.35rem 0.9rem;">🚩 Report</button>
     <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
   </div>
 </nav>
@@ -723,6 +724,60 @@
     </div>
   </div>
 </div>
+
+<!-- ── REPORT MODAL ── -->
+<div id="report-overlay" style="
+  display:none; position:fixed; inset:0; z-index:700;
+  background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
+  <div style="
+    background:var(--surface); border:1px solid rgba(255,85,85,0.4); border-radius:16px;
+    padding:2.5rem; max-width:440px; width:90%; position:relative; overflow:hidden;
+    text-align:center;">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;
+      background:linear-gradient(90deg,var(--red),var(--accent));border-radius:16px 16px 0 0;"></div>
+    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🚩</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;
+      color:var(--red);margin-bottom:0.5rem;">SIGNALER CE MATCH</div>
+    <div style="color:var(--muted);font-size:0.9rem;line-height:1.5;margin-bottom:1.8rem;">
+      Le match sera immédiatement mis en <strong style="color:var(--text);">DRAW</strong>.<br>
+      Un admin recevra le signalement avec l'historique du chat<br>
+      et pourra attribuer la victoire.
+    </div>
+    <div style="text-align:left;margin-bottom:1.5rem;">
+      <label style="font-size:0.78rem;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:0.4rem;">
+        TITRE DU SIGNALEMENT (optionnel)
+      </label>
+      <input id="report-title-input" type="text" maxlength="120"
+        placeholder="Ex: adversaire AFK, résultat contesté…"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+          padding:0.6rem 0.9rem;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.95rem;
+          outline:none;transition:border-color 0.15s;"
+        onfocus="this.style.borderColor='var(--red)'"
+        onblur="this.style.borderColor='var(--border)'">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.7rem;">
+      <button onclick="submitReport()" style="
+        padding:1rem; border-radius:8px; border:2px solid var(--red);
+        background:rgba(255,85,85,0.15); color:var(--red);
+        font-family:'Bebas Neue',sans-serif; font-size:1.2rem; letter-spacing:3px;
+        cursor:pointer; transition:all 0.2s;"
+        onmouseover="this.style.background='var(--red)';this.style.color='#fff'"
+        onmouseout="this.style.background='rgba(255,85,85,0.15)';this.style.color='var(--red)'">
+        🚩 CONFIRMER LE SIGNALEMENT
+      </button>
+      <button onclick="document.getElementById('report-overlay').style.display='none'" style="
+        padding:0.75rem; border-radius:8px; border:1px solid var(--border);
+        background:transparent; color:var(--muted);
+        font-family:'Rajdhani',sans-serif; font-size:0.95rem; font-weight:700;
+        cursor:pointer; transition:all 0.2s; letter-spacing:1px;"
+        onmouseover="this.style.borderColor='var(--border)';this.style.color='var(--text)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        ← Annuler
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── CONFIG (injected by Flask) ──
 const CHALLENGE_ID = {{ challenge.id           | tojson }};
@@ -2070,45 +2125,28 @@ function tickTimer() {
 
 function handleTimerExpired() {
   if (matchFinished) return;
-
-  // Cas 1 : J1 avait proposé un résultat de GAME, J2 n'a pas répondu → J1 gagne le game
-  if (_gameResultPending && MY_ID !== P1_ID) {
-    showToast('⏱ Temps écoulé ! Pas de réponse — résultat de J1 accepté automatiquement.', false);
-    gameTimerEnd = null;
-    confirmGameResultP2();
-    startMatchTimer(); // repart pour le prochain game
-    return;
-  }
-
-  // Cas 2 : J1 avait soumis le résultat FINAL (recap), J2 n'a pas confirmé → J1 gagne
-  if (pendingResult && pendingResult.winner_id && MY_ID === P1_ID) {
-    matchFinished = true;
-    stopTimer();
-    showToast('⏱ Temps écoulé ! Adversaire absent — résultat validé automatiquement.', false);
-    submitResult(pendingResult, true);
-    return;
-  }
-
-  // Cas 3 : Phase en cours — vérifier qui a interagi
-  const p1HasActed = !!(boState.p1Char || (boState.bannedStages && boState.bannedStages.length));
-  const p2HasActed = !!(boState.p2Char);
-
-  // Si J1 a fait quelque chose mais J2 rien (J2 AFK) → J1 gagne
-  if (p1HasActed && !p2HasActed) {
-    matchFinished = true;
-    stopTimer();
-    showToast('⏱ Temps écoulé ! J2 absent — J1 déclare gagnant.', false);
-    const forcedResult = { winner_id: P1_ID, score: 'W-L' };
-    submitResult(forcedResult, false);
-    setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
-    return;
-  }
-
-  // Cas 4 : Personne n'a rien fait (ou les deux AFK) → DRAW / annulation
   matchFinished = true;
   stopTimer();
-  showToast('⏱ Temps écoulé ! Aucune activité — match annulé (DRAW).', false);
-  setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+  document.getElementById('stocks-recap').classList.remove('show');
+
+  // Construire un titre automatique selon l'état du match
+  let autoTitle = '';
+  if (pendingResult && pendingResult.winner_id) {
+    const reporterName = pendingResult.winner_id === P1_ID ? P1_NAME : P2_NAME;
+    autoTitle = `[TIMEOUT] ${P1_NAME} vs ${P2_NAME} — résultat soumis par ${reporterName}, adversaire absent`;
+  } else {
+    autoTitle = `[TIMEOUT] ${P1_NAME} vs ${P2_NAME} — aucune activité`;
+  }
+
+  // Appel API report → draw immédiat + signalement admin
+  fetch(`/report/${CHALLENGE_ID}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: autoTitle }),
+  }).catch(() => {});
+
+  showToast('⏱ Temps écoulé — match en DRAW. Un admin va trancher.', false);
+  setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3500);
 }
 
 // ── Connexion socket immédiate — les deux joueurs rejoignent dès le chargement ──
@@ -2212,6 +2250,20 @@ function initMatchSocket() {
         showOpponentRecap(d);
       }
     }
+  });
+
+  // Décision admin suite à un signalement
+  matchSocket.on('admin_decision', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    if (matchFinished) return;
+    matchFinished = true;
+    stopTimer();
+    document.getElementById('stocks-recap').classList.remove('show');
+    showToast(d.message, d.won);
+    if (d.won) {
+      showWinner(MY_ID, 'W-L (admin)', d.elo_change);
+    }
+    setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
   });
 
   matchSocket.on('chat_message', (d) => { chatReceive(d); });
@@ -2369,6 +2421,33 @@ function doEndMatch() {
   endMatch();
 }
 
+
+// ─────────────────────────────────────────────
+// REPORT MATCH
+// ─────────────────────────────────────────────
+async function submitReport() {
+  const title = document.getElementById('report-title-input').value.trim();
+  try {
+    const res = await fetch(`/report/${CHALLENGE_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('report-overlay').style.display = 'none';
+      matchFinished = true;
+      stopTimer();
+      document.getElementById('stocks-recap').classList.remove('show');
+      showToast('🚩 Match signalé — DRAW en attendant la décision admin.', false);
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
+    } else {
+      showToast(data.error || 'Erreur lors du signalement.', false);
+    }
+  } catch (e) {
+    showToast('Erreur réseau.', false);
+  }
+}
 
 // ─────────────────────────────────────────────
 // MATCH CHAT
