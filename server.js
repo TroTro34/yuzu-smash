@@ -1,2111 +1,723 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <link rel="icon" type="image/png" href="/static/favicon.png">
-  <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚔ MATCH — Smash YUZU</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
-      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
-      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
-      --blue: #4f8ef7; --blue-glow: rgba(79,142,247,0.4);
-      --red-glow: rgba(232,64,10,0.4);
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      background: var(--bg); color: var(--text);
-      font-family: 'Rajdhani', sans-serif; min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* ── NAV ── */
-    nav {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
-      background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100;
-      backdrop-filter: blur(12px);
-    }
-    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
-      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
-    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
-      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
-      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
-    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
-    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
-    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.4); }
-    .btn-success:hover { background: var(--green); color: #0a0a0f; }
-    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
-    .btn-danger:hover { background: var(--red); color: white; }
-
-    /* ── ARENA BACKGROUND ── */
-    .arena {
-      min-height: calc(100vh - 65px);
-      display: flex; flex-direction: column; align-items: center;
-      padding: 2rem 1rem 4rem;
-      background:
-        radial-gradient(ellipse 60% 40% at 20% 50%, rgba(79,142,247,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 80% 50%, rgba(232,64,10,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse at 50% 0%, rgba(255,128,0,0.04) 0%, transparent 50%);
-      position: relative; overflow: hidden;
-    }
-
-    /* Sparks background (pure CSS) */
-    .arena::before {
-      content: '';
-      position: absolute; inset: 0;
-      background-image:
-        radial-gradient(1px 1px at 15% 30%, rgba(255,200,100,0.6) 0%, transparent 100%),
-        radial-gradient(1px 1px at 85% 25%, rgba(100,160,255,0.5) 0%, transparent 100%),
-        radial-gradient(1px 1px at 25% 60%, rgba(255,150,50,0.4) 0%, transparent 100%),
-        radial-gradient(1px 1px at 75% 65%, rgba(80,130,255,0.4) 0%, transparent 100%),
-        radial-gradient(1.5px 1.5px at 40% 20%, rgba(255,180,80,0.5) 0%, transparent 100%),
-        radial-gradient(1.5px 1.5px at 60% 80%, rgba(120,170,255,0.5) 0%, transparent 100%);
-      pointer-events: none;
-    }
-
-    /* ── FORMAT BADGE ── */
-    .format-badge {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 0.9rem; letter-spacing: 3px;
-      color: var(--accent2); border: 1px solid var(--accent2);
-      padding: 0.25rem 1rem; border-radius: 3px;
-      background: rgba(255,128,0,0.08);
-      margin-bottom: 1.5rem;
-    }
-
-    /* ── VS ARENA ── */
-    .vs-arena {
-      display: grid; grid-template-columns: 1fr auto 1fr;
-      gap: 0; align-items: center;
-      width: 100%; max-width: 860px;
-      margin-bottom: 2.5rem; position: relative;
-    }
-
-    .fighter-side {
-      display: flex; flex-direction: column; align-items: center;
-      gap: 1rem; padding: 2rem 1.5rem;
-      position: relative;
-    }
-
-    .fighter-side.blue-side {
-      background: linear-gradient(135deg, rgba(79,142,247,0.08) 0%, transparent 70%);
-      border: 1px solid rgba(79,142,247,0.2); border-right: none;
-      border-radius: 12px 0 0 12px;
-    }
-    .fighter-side.red-side {
-      background: linear-gradient(225deg, rgba(232,64,10,0.08) 0%, transparent 70%);
-      border: 1px solid rgba(232,64,10,0.2); border-left: none;
-      border-radius: 0 12px 12px 0;
-    }
-
-    /* Corner accent lines like the image */
-    .fighter-side.blue-side::before {
-      content: '';
-      position: absolute; left: 0; top: 0;
-      width: 3px; height: 60px;
-      background: linear-gradient(to bottom, var(--blue), transparent);
-    }
-    .fighter-side.blue-side::after {
-      content: '';
-      position: absolute; left: 0; top: 0;
-      height: 3px; width: 60px;
-      background: linear-gradient(to right, var(--blue), transparent);
-    }
-    .fighter-side.red-side::before {
-      content: '';
-      position: absolute; right: 0; bottom: 0;
-      width: 3px; height: 60px;
-      background: linear-gradient(to top, var(--accent), transparent);
-    }
-    .fighter-side.red-side::after {
-      content: '';
-      position: absolute; right: 0; bottom: 0;
-      height: 3px; width: 60px;
-      background: linear-gradient(to left, var(--accent), transparent);
-    }
-
-    .fighter-avatar {
-      width: 80px; height: 80px; border-radius: 50%;
-      border: 3px solid rgba(79,142,247,0.5);
-      box-shadow: 0 0 20px var(--blue-glow);
-    }
-    .red-side .fighter-avatar {
-      border-color: rgba(232,64,10,0.5);
-      box-shadow: 0 0 20px var(--red-glow);
-    }
-
-    .fighter-name {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.8rem; letter-spacing: 3px; text-align: center;
-      color: #fff;
-    }
-    .fighter-elo {
-      font-size: 0.85rem; color: var(--muted); letter-spacing: 1px;
-    }
-    .fighter-char img {
-      width: 52px; height: 52px; object-fit: contain;
-    }
-
-    /* Score display on fighter side */
-    .fighter-score {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 4rem; line-height: 1;
-      color: var(--blue);
-      text-shadow: 0 0 30px var(--blue-glow);
-    }
-    .red-side .fighter-score {
-      color: var(--accent);
-      text-shadow: 0 0 30px var(--red-glow);
-    }
-
-    /* ── VS CENTER ── */
-    .vs-center {
-      display: flex; flex-direction: column; align-items: center;
-      gap: 0.5rem; padding: 1.5rem 1rem;
-      background: var(--surface); border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border); z-index: 2;
-      min-width: 100px;
-    }
-    .vs-text {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 3.5rem; letter-spacing: 6px;
-      background: linear-gradient(135deg, var(--blue) 0%, #fff 40%, var(--accent) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-shadow: none; filter: drop-shadow(0 0 12px rgba(255,255,255,0.3));
-      animation: vs-pulse 3s ease-in-out infinite;
-    }
-    @keyframes vs-pulse {
-      0%,100% { filter: drop-shadow(0 0 8px rgba(255,255,255,0.2)); }
-      50% { filter: drop-shadow(0 0 20px rgba(255,255,255,0.5)); }
-    }
-    .game-counter {
-      font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
-    }
-    .game-dots { display: flex; gap: 5px; margin-top: 0.3rem; }
-    .game-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: var(--surface3); border: 1px solid var(--border);
-      transition: all 0.3s;
-    }
-    .game-dot.p1 { background: var(--blue); box-shadow: 0 0 8px var(--blue-glow); }
-    .game-dot.p2 { background: var(--accent); box-shadow: 0 0 8px var(--red-glow); }
-
-    /* ── SCORE SECTION ── */
-    .score-section {
-      width: 100%; max-width: 860px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 2rem;
-      position: relative; overflow: hidden;
-    }
-    .score-section::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      border-radius: 12px 12px 0 0;
-      background: linear-gradient(90deg, var(--blue), var(--accent));
-    }
-
-    .section-title {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
-      letter-spacing: 3px; color: var(--accent2); margin-bottom: 1.5rem;
-      display: flex; align-items: center; gap: 1rem;
-    }
-    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-    /* ── BO SCORE BUTTONS ── */
-    .score-options {
-      display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;
-      margin-bottom: 1.5rem;
-    }
-    .score-option {
-      flex: 1; min-width: 140px; max-width: 220px;
-      padding: 1.2rem; border-radius: 10px;
-      background: var(--surface2); border: 2px solid var(--border);
-      cursor: pointer; transition: all 0.2s; text-align: center;
-      position: relative; overflow: hidden;
-    }
-    .score-option:hover { border-color: var(--accent2); transform: translateY(-2px); }
-    .score-option.selected-p1 {
-      border-color: var(--blue); background: rgba(79,142,247,0.1);
-      box-shadow: 0 0 20px rgba(79,142,247,0.2);
-    }
-    .score-option.selected-p2 {
-      border-color: var(--accent); background: rgba(232,64,10,0.1);
-      box-shadow: 0 0 20px rgba(232,64,10,0.2);
-    }
-    .score-option .winner-name { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 0.3rem; }
-    .score-option .score-display {
-      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; line-height: 1; letter-spacing: 2px;
-    }
-    .score-option.selected-p1 .score-display { color: var(--blue); }
-    .score-option.selected-p2 .score-display { color: var(--accent); }
-    .score-option .score-label { font-size: 0.7rem; color: var(--muted); margin-top: 0.3rem; }
-
-    /* ── STOCKS MODE ── */
-    .stocks-section { display: flex; flex-direction: column; gap: 1.5rem; }
-
-    .game-round {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 1.2rem;
-      transition: all 0.3s; position: relative; overflow: hidden;
-    }
-    .game-round.locked {
-      opacity: 0.6;
-      background: rgba(7,7,15,0.8);
-    }
-    .game-round.current { border-color: var(--accent2); }
-    .game-round.completed {
-      border-color: rgba(61,220,132,0.3);
-      background: rgba(61,220,132,0.03);
-    }
-    .game-round-header {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 1rem;
-    }
-    .game-round-title {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
-    }
-    .game-round.completed .game-round-title { color: var(--green); }
-    .game-round.current .game-round-title { color: var(--accent2); }
-    .game-round-result {
-      font-size: 0.85rem; color: var(--green); font-weight: 700;
-    }
-
-    .stocks-inputs {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
-    }
-    .stock-input-group { display: flex; flex-direction: column; gap: 0.5rem; }
-    .stock-input-label {
-      font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
-    }
-    .stock-input-label.blue-label { color: rgba(79,142,247,0.8); }
-    .stock-input-label.red-label { color: rgba(232,64,10,0.8); }
-
-    .stock-counter {
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .stock-btn {
-      width: 36px; height: 36px; border-radius: 6px;
-      border: 1px solid var(--border); background: var(--surface3);
-      color: var(--text); font-size: 1.2rem; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s; font-weight: 700;
-    }
-    .stock-btn:hover { border-color: var(--accent2); color: var(--accent2); }
-    .stock-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-    .stock-value {
-      font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; width: 50px;
-      text-align: center; color: var(--text); background: transparent;
-      border: none; outline: none;
-    }
-    .stock-pips { display: flex; gap: 4px; margin-top: 0.3rem; }
-    .stock-pip {
-      width: 12px; height: 12px; border-radius: 50%;
-      background: var(--surface3); border: 1px solid var(--border);
-      transition: all 0.2s;
-    }
-    .stock-pip.filled.blue { background: var(--blue); box-shadow: 0 0 6px var(--blue-glow); }
-    .stock-pip.filled.red { background: var(--accent); box-shadow: 0 0 6px var(--red-glow); }
-
-    .game-confirm-btn {
-      margin-top: 1rem; width: 100%;
-      padding: 0.8rem; border-radius: 8px;
-      border: 1px solid var(--accent2); background: rgba(255,128,0,0.1);
-      color: var(--accent2); font-family: 'Rajdhani', sans-serif;
-      font-size: 1rem; font-weight: 700; letter-spacing: 1px;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .game-confirm-btn:hover { background: var(--accent2); color: #0a0a0f; }
-    .game-confirm-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-    /* ── STOCKS TOTALS ── */
-    .stocks-totals {
-      background: var(--surface2); border: 1px solid rgba(61,220,132,0.3);
-      border-radius: 10px; padding: 1.2rem;
-      display: none;
-    }
-    .stocks-totals.visible { display: block; }
-    .totals-row { display: flex; justify-content: space-around; align-items: center; gap: 1rem; }
-    .total-box { text-align: center; }
-    .total-box .t-val {
-      font-family: 'Bebas Neue', sans-serif; font-size: 3rem;
-      display: block; line-height: 1;
-    }
-    .total-box .t-lbl { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; margin-top: 0.2rem; }
-    .total-box.winner .t-val { color: var(--green); }
-    .total-box.loser .t-val { color: var(--red); }
-
-    /* ── END MATCH BUTTON ── */
-    .end-match-btn {
-      display: none; width: 100%; margin-top: 1.5rem;
-      padding: 1.2rem; border-radius: 10px;
-      background: linear-gradient(135deg, rgba(61,220,132,0.15), rgba(61,220,132,0.05));
-      border: 2px solid var(--green); color: var(--green);
-      font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 4px;
-      cursor: pointer; transition: all 0.3s;
-      text-align: center;
-    }
-    .end-match-btn.visible { display: block; }
-    .end-match-btn:hover { background: var(--green); color: #07070f; }
-
-    /* ── SUBMIT ── */
-    .submit-area { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
-    .submit-btn {
-      padding: 1.1rem 3rem; border-radius: 8px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border: none; color: white; font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.4rem; letter-spacing: 3px; cursor: pointer;
-      transition: all 0.2s; min-width: 240px;
-    }
-    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(232,64,10,0.4); }
-    .submit-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
-    .submit-hint { font-size: 0.85rem; color: var(--muted); text-align: center; }
-
-    /* ── TOAST ── */
-    .toast {
-      position: fixed; bottom: 2rem; right: 2rem;
-      background: var(--surface2); border: 1px solid var(--accent);
-      color: var(--text); padding: 1rem 1.5rem; border-radius: 8px;
-      z-index: 999; opacity: 0; transform: translateY(10px);
-      transition: all 0.3s; font-weight: 700; max-width: 320px;
-    }
-    .toast.show { opacity: 1; transform: translateY(0); }
-    .toast.success { border-color: var(--green); }
-    .toast.error { border-color: var(--red); }
-
-    /* ── WINNER ANNOUNCEMENT ── */
-    .winner-announcement {
-      display: none; position: fixed; inset: 0; z-index: 500;
-      background: rgba(0,0,0,0.9); align-items: center; justify-content: center;
-      flex-direction: column; gap: 1.5rem;
-    }
-    .winner-announcement.show { display: flex; }
-    .winner-crown { font-size: 5rem; animation: crown-bounce 0.6s ease-out; }
-    @keyframes crown-bounce { 0%{transform:scale(0) rotate(-20deg)} 70%{transform:scale(1.2) rotate(5deg)} 100%{transform:scale(1) rotate(0)} }
-    .winner-label { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 4px; color: var(--muted); }
-    .winner-name-big { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 6px;
-      background: linear-gradient(135deg, var(--accent2), var(--accent));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .winner-score-big { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--green); letter-spacing: 4px; }
-
-    /* ── MATCH CHAT — full right column ── */
-    body { display: flex; flex-direction: column; }
-    .page-body {
-      display: flex; flex: 1; min-height: 0;
-      align-items: stretch;
-    }
-    .arena {
-      flex: 1; min-width: 0;
-    }
-    #match-chat {
-      width: 300px; flex-shrink: 0;
-      display: flex; flex-direction: column;
-      background: var(--surface);
-      border-left: 1px solid var(--border);
-      position: sticky; top: 65px;
-      height: calc(100vh - 65px);
-      z-index: 50;
-    }
-    #chat-header {
-      padding: 0.85rem 1rem;
-      background: var(--surface2);
-      border-bottom: 1px solid var(--border);
-      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem;
-      letter-spacing: 3px; color: var(--accent2);
-      display: flex; align-items: center; gap: 0.5rem;
-      flex-shrink: 0;
-    }
-    #chat-messages {
-      flex: 1; overflow-y: auto; padding: 0.75rem;
-      display: flex; flex-direction: column; gap: 0.5rem;
-      scroll-behavior: smooth;
-    }
-    #chat-messages::-webkit-scrollbar { width: 4px; }
-    #chat-messages::-webkit-scrollbar-track { background: transparent; }
-    #chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-    .chat-msg {
-      display: flex; flex-direction: column; gap: 0.15rem;
-      max-width: 88%;
-    }
-    .chat-msg.mine { align-self: flex-end; align-items: flex-end; }
-    .chat-msg.theirs { align-self: flex-start; align-items: flex-start; }
-    .chat-msg-name { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.5px; }
-    .chat-msg.mine .chat-msg-name { color: rgba(79,142,247,0.7); }
-    .chat-msg-bubble {
-      padding: 0.45rem 0.75rem; border-radius: 10px;
-      font-size: 0.88rem; line-height: 1.4; word-break: break-word;
-    }
-    .chat-msg.mine .chat-msg-bubble {
-      background: rgba(79,142,247,0.18); border: 1px solid rgba(79,142,247,0.25);
-      border-radius: 10px 10px 2px 10px;
-    }
-    .chat-msg.theirs .chat-msg-bubble {
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px 10px 10px 2px;
-    }
-    .chat-msg-time { font-size: 0.62rem; color: var(--muted); }
-    .chat-empty {
-      text-align: center; color: var(--muted); font-size: 0.82rem;
-      padding: 2rem 0.75rem;
-    }
-    #chat-input-row {
-      display: flex; gap: 0.4rem; padding: 0.6rem;
-      border-top: 1px solid var(--border);
-      background: var(--surface2); flex-shrink: 0;
-    }
-    #chat-input {
-      flex: 1; background: var(--surface3); border: 1px solid var(--border);
-      border-radius: 6px; padding: 0.45rem 0.75rem;
-      color: var(--text); font-family: 'Rajdhani', sans-serif; font-size: 0.9rem;
-      outline: none; transition: border-color 0.15s;
-    }
-    #chat-input:focus { border-color: var(--accent2); }
-    #chat-send {
-      background: rgba(255,128,0,0.15); border: 1px solid var(--accent2);
-      border-radius: 6px; color: var(--accent2); padding: 0.45rem 0.8rem;
-      cursor: pointer; font-size: 1rem; transition: all 0.15s;
-    }
-    #chat-send:hover { background: var(--accent2); color: #0a0a0f; }
-
-    @media (max-width: 860px) {
-      #match-chat { display: none; }
-    }
-
-    @media (max-width: 640px) {
-      .vs-arena { grid-template-columns: 1fr; }
-      .vs-center { border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; }
-      .fighter-side.blue-side, .fighter-side.red-side { border-radius: 12px; border: 1px solid rgba(79,142,247,0.2); }
-      .red-side { border-color: rgba(232,64,10,0.2) !important; }
-      .fighter-score { font-size: 3rem; }
-      .vs-text { font-size: 2.5rem; }
-      .score-option { min-width: 120px; }
-    }
-  </style>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-</head>
-<body>
-
-<nav>
-  <a href="/" class="logo">⚔ YUZU</a>
-  <div class="nav-links">
-    <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
-  </div>
-</nav>
-
-<div class="page-body">
-<div class="arena">
-  <div class="format-badge" id="format-badge">{{ challenge.format }} — MATCH</div>
-
-  <!-- ── VS ARENA ── -->
-  <div class="vs-arena">
-    <!-- Blue Side (Challenger) -->
-    <div class="fighter-side blue-side">
-      {% if challenger.avatar %}
-        <img class="fighter-avatar"
-          src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png" alt="">
-      {% else %}
-        <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
-      {% endif %}
-      <div class="fighter-name">{{ challenger.username }}</div>
-      <div class="fighter-elo">{{ challenger.points }} ELO</div>
-      <div id="p1-game-char" style="min-height:60px;display:flex;flex-direction:column;align-items:center;gap:0.2rem;justify-content:center;"></div>
-      <div class="fighter-score" id="score-p1">0</div>
-    </div>
-
-    <!-- Center VS -->
-    <div class="vs-center">
-      <div class="vs-text">VS</div>
-      <div class="game-counter" id="game-counter">GAME 1</div>
-      <div class="game-dots" id="game-dots"></div>
-    </div>
-
-    <!-- Red Side (Challenged) -->
-    <div class="fighter-side red-side">
-      {% if challenged.avatar %}
-        <img class="fighter-avatar"
-          src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png" alt="">
-      {% else %}
-        <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
-      {% endif %}
-      <div class="fighter-name">{{ challenged.username }}</div>
-      <div class="fighter-elo">{{ challenged.points }} ELO</div>
-      <div id="p2-game-char" style="min-height:60px;display:flex;flex-direction:column;align-items:center;gap:0.2rem;justify-content:center;"></div>
-      <div class="fighter-score" id="score-p2">0</div>
-    </div>
-  </div>
-
-  <!-- ── SCORE INPUT SECTION ── -->
-  <div class="score-section" id="score-section">
-
-    <!-- BO MODES -->
-    <div id="bo-section" style="display:none;">
-      <div class="score-options" id="score-options"></div>
-      <div class="submit-area">
-        <button class="submit-btn" id="submit-bo" onclick="submitBO()" disabled style="display:none;">
-          ⚔ SUBMIT RESULT
-        </button>
-        <div class="submit-hint" id="submit-hint-bo" style="display:none;">Both players must confirm the result</div>
-      </div>
-    </div>
-
-    <!-- STOCKS MODE — rendu dynamique par JS (initStocksMode → renderStocksGames) -->
-    <div id="stocks-section" style="display:none;"></div>
-
-  </div>
-</div><!-- /arena -->
-
-<!-- ── MATCH CHAT SIDEBAR ── -->
-<div id="match-chat">
-  <div id="chat-header">
-    💬 MATCH CHAT
-    <span style="margin-left:auto;font-size:0.65rem;color:var(--muted);font-family:'Rajdhani',sans-serif;letter-spacing:1px;">only you two</span>
-  </div>
-  <div id="chat-messages">
-    <div class="chat-empty" id="chat-empty">No messages yet — say hi! 👋</div>
-  </div>
-  <div id="chat-input-row">
-    <input id="chat-input" type="text" placeholder="Message…" maxlength="200" autocomplete="off">
-    <button id="chat-send" onclick="chatSend()" title="Send">➤</button>
-  </div>
-</div>
-
-</div><!-- /page-body -->
-
-<!-- ── STOCKS RECAP (shown to player 2 after player 1 submits) ── -->
-<div class="winner-announcement" id="stocks-recap" style="flex-direction:column;gap:0;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem;max-width:480px;width:90%;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;color:var(--accent2);text-align:center;margin-bottom:0.3rem;">MATCH SUMMARY</div>
-    <div id="recap-subtitle" style="text-align:center;color:var(--muted);font-size:0.8rem;letter-spacing:2px;margin-bottom:2rem;">SUBMITTED BY YOUR OPPONENT</div>
-
-    <!-- Games breakdown -->
-    <div id="recap-games" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem;"></div>
-
-    <!-- Totals -->
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1.2rem;margin-bottom:1.5rem;">
-      <div style="display:flex;justify-content:space-around;align-items:center;">
-        <div style="text-align:center;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:3rem;color:var(--blue);" id="recap-total-p1">0</div>
-          <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;" id="recap-p1-name">P1</div>
-        </div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--muted);">TOTAL</div>
-        <div style="text-align:center;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:3rem;color:var(--accent);" id="recap-total-p2">0</div>
-          <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;" id="recap-p2-name">P2</div>
-        </div>
-      </div>
-      <div style="text-align:center;margin-top:0.8rem;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;">WINNER: </span>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--green);" id="recap-winner-name">—</span>
-      </div>
-    </div>
-
-    <!-- Buttons -->
-    <div id="recap-my-actions" style="display:none;flex-direction:column;gap:0.8rem;">
-      <div style="font-size:0.85rem;color:var(--muted);text-align:center;margin-bottom:0.3rem;">Is this result correct?</div>
-      <button class="btn btn-success" style="width:100%;padding:1rem;font-size:1.1rem;letter-spacing:2px;" onclick="confirmRecap()">
-        ✅ YES — CONFIRM
-      </button>
-      <button class="btn btn-danger" style="width:100%;padding:1rem;font-size:1.1rem;letter-spacing:2px;" onclick="contestRecap()">
-        ⚠ NO — CONTEST
-      </button>
-    </div>
-    <div id="recap-waiting" style="display:none;text-align:center;color:var(--muted);padding:1rem;">
-      <div style="font-size:1.5rem;margin-bottom:0.5rem;">⏳</div>
-      Result submitted — waiting for opponent confirmation…
-      <div style="margin-top:1rem;">
-        <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── WINNER ANNOUNCEMENT ── -->
-<div class="winner-announcement" id="winner-announcement">
-  <div class="winner-crown">🏆</div>
-  <div class="winner-label">WINNER</div>
-  <div class="winner-name-big" id="winner-name-big">—</div>
-  <div class="winner-score-big" id="winner-score-big">—</div>
-  <div id="winner-elo-line" style="margin-top:0.75rem;font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;"></div>
-  <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted);letter-spacing:1px;">Redirecting to dashboard…</div>
-</div>
-
-<!-- Toast -->
-<div class="toast" id="toast"></div>
-
-
-<!-- ── STOCKS END MATCH CONFIRMATION DIALOG ── -->
-<div id="confirm-end-overlay" style="
-  display:none; position:fixed; inset:0; z-index:600;
-  background:rgba(0,0,0,0.85); align-items:center; justify-content:center;">
-  <div style="
-    background:var(--surface); border:1px solid var(--border); border-radius:16px;
-    padding:2.5rem; max-width:400px; width:90%; position:relative; overflow:hidden;
-    text-align:center;">
-    <div style="position:absolute;top:0;left:0;right:0;height:3px;
-      background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:16px 16px 0 0;"></div>
-    <div style="font-size:3rem;margin-bottom:1rem;">🏆</div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;
-      color:var(--accent2);margin-bottom:0.8rem;">END MATCH?</div>
-    <div style="color:var(--muted);font-size:0.95rem;line-height:1.5;margin-bottom:2rem;">
-      Are you sure you want to end the match and submit the result?<br>
-      <span style="color:var(--text);font-weight:700;">Your opponent will need to confirm.</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:0.8rem;">
-      <button onclick="doEndMatch()" style="
-        padding:1rem; border-radius:8px; border:2px solid var(--green);
-        background:rgba(61,220,132,0.15); color:var(--green);
-        font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:3px;
-        cursor:pointer; transition:all 0.2s;"
-        onmouseover="this.style.background='var(--green)';this.style.color='#07070f'"
-        onmouseout="this.style.background='rgba(61,220,132,0.15)';this.style.color='var(--green)'">
-        ✅ YES, END MATCH
-      </button>
-      <button onclick="document.getElementById('confirm-end-overlay').style.display='none'" style="
-        padding:0.8rem; border-radius:8px; border:1px solid var(--border);
-        background:transparent; color:var(--muted);
-        font-family:'Rajdhani',sans-serif; font-size:1rem; font-weight:700;
-        cursor:pointer; transition:all 0.2s; letter-spacing:1px;"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-        ← Keep Playing
-      </button>
-    </div>
-  </div>
-</div>
-<script>
-// ── CONFIG (injected by Flask) ──
-const CHALLENGE_ID = {{ challenge.id           | tojson }};
-const FORMAT       = {{ challenge.format        | tojson }};
-const P1_ID        = {{ challenge.challenger_id | tojson }};
-const P1_NAME      = {{ challenger.username     | tojson }};
-const P2_ID        = {{ challenge.challenged_id | tojson }};
-const P2_NAME      = {{ challenged.username     | tojson }};
-const MY_ID        = {{ user.id                 | tojson }};
-
-// ── STATE ──
-let p1Score = 0, p2Score = 0;
-let selectedResult = null;
-let stockGames = [];
-let totalGames = 0;
-let matchSocket = null; // socket unique partagé — évite le double socket / reconnecting
-let matchFinished = false; // guard contre double-traitement HTTP + socket
-
-// Mode STOCKS : historique des games
-// Each entry: { p1: N, p2: N }  (cumulative medals at end of this game)
-let stockGameHistory = [];
-let currentGameMinP1 = 0; // minimum imposé = valeur fin du game précédent
-let currentGameMinP2 = 0;
-
-// ── INIT ──
-function init() {
-  document.getElementById('format-badge').textContent = FORMAT + ' — MATCH';
-
-  if (FORMAT === 'STOCKS') {
-    document.getElementById('stocks-section').style.display = 'block';
-    initStocksMode();
-  } else {
-    document.getElementById('bo-section').style.display = 'block';
-    initBOMode();
-  }
-  updateScoreDisplay();
-}
-
-// ─────────────────────────────────────────────
-// SMASH DATA — Characters & Stages
-// ─────────────────────────────────────────────
-const CHAR_ICONS = {
-  mario:             "https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png",
-  donkey_kong:       "https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png",
-  link:              "https://www.smashbros.com/assets_v2/img/fighter/pict/link.png",
-  samus:             "https://www.smashbros.com/assets_v2/img/fighter/pict/samus.png",
-  dark_samus:        "https://www.smashbros.com/assets_v2/img/fighter/pict/dark_samus.png",
-  yoshi:             "https://www.smashbros.com/assets_v2/img/fighter/pict/yoshi.png",
-  kirby:             "https://www.smashbros.com/assets_v2/img/fighter/pict/kirby.png",
-  fox:               "https://www.smashbros.com/assets_v2/img/fighter/pict/fox.png",
-  pikachu:           "https://www.smashbros.com/assets_v2/img/fighter/pict/pikachu.png",
-  luigi:             "https://www.smashbros.com/assets_v2/img/fighter/pict/luigi.png",
-  ness:              "https://www.smashbros.com/assets_v2/img/fighter/pict/ness.png",
-  captain_falcon:    "https://www.smashbros.com/assets_v2/img/fighter/pict/captain_falcon.png",
-  jigglypuff:        "https://www.smashbros.com/assets_v2/img/fighter/pict/purin.png",
-  peach:             "https://www.smashbros.com/assets_v2/img/fighter/pict/peach.png",
-  daisy:             "https://www.smashbros.com/assets_v2/img/fighter/pict/daisy.png",
-  bowser:            "https://www.smashbros.com/assets_v2/img/fighter/pict/koopa.png",
-  ice_climbers:      "https://www.smashbros.com/assets_v2/img/fighter/pict/ice_climber.png",
-  sheik:             "https://www.smashbros.com/assets_v2/img/fighter/pict/sheik.png",
-  zelda:             "https://www.smashbros.com/assets_v2/img/fighter/pict/zelda.png",
-  dr_mario:          "https://ssb.wiki.gallery/images/thumb/7/78/DrMarioHeadSSBU.png/48px-DrMarioHeadSSBU.png",
-  pichu:             "https://www.smashbros.com/assets_v2/img/fighter/pict/pichu.png",
-  falco:             "https://www.smashbros.com/assets_v2/img/fighter/pict/falco.png",
-  marth:             "https://www.smashbros.com/assets_v2/img/fighter/pict/marth.png",
-  lucina:            "https://www.smashbros.com/assets_v2/img/fighter/pict/lucina.png",
-  young_link:        "https://www.smashbros.com/assets_v2/img/fighter/pict/young_link.png",
-  ganondorf:         "https://www.smashbros.com/assets_v2/img/fighter/pict/ganondorf.png",
-  mewtwo:            "https://www.smashbros.com/assets_v2/img/fighter/pict/mewtwo.png",
-  roy:               "https://www.smashbros.com/assets_v2/img/fighter/pict/roy.png",
-  chrom:             "https://www.smashbros.com/assets_v2/img/fighter/pict/chrom.png",
-  mr_game_and_watch: "https://ssb.wiki.gallery/images/thumb/6/6b/MrGame%26WatchHeadSSBU.png/48px-MrGame%26WatchHeadSSBU.png",
-  meta_knight:       "https://ssb.wiki.gallery/images/thumb/d/de/MetaKnightHeadSSBU.png/48px-MetaKnightHeadSSBU.png",
-  pit:               "https://www.smashbros.com/assets_v2/img/fighter/pict/pit.png",
-  dark_pit:          "https://ssb.wiki.gallery/images/thumb/e/ed/DarkPitHeadSSBU.png/48px-DarkPitHeadSSBU.png",
-  zero_suit_samus:   "https://ssb.wiki.gallery/images/thumb/7/71/ZeroSuitSamusHeadSSBU.png/48px-ZeroSuitSamusHeadSSBU.png",
-  wario:             "https://www.smashbros.com/assets_v2/img/fighter/pict/wario.png",
-  snake:             "https://www.smashbros.com/assets_v2/img/fighter/pict/snake.png",
-  ike:               "https://www.smashbros.com/assets_v2/img/fighter/pict/ike.png",
-  pokemon_trainer:   "https://www.smashbros.com/assets_v2/img/fighter/pict/pokemon_trainer.png",
-  diddy_kong:        "https://www.smashbros.com/assets_v2/img/fighter/pict/diddy_kong.png",
-  lucas:             "https://www.smashbros.com/assets_v2/img/fighter/pict/lucas.png",
-  sonic:             "https://www.smashbros.com/assets_v2/img/fighter/pict/sonic.png",
-  dedede:            "https://www.smashbros.com/assets_v2/img/fighter/pict/dedede.png",
-  olimar:            "https://ssb.wiki.gallery/images/thumb/9/97/OlimarHeadSSBUWebsite.png/180px-OlimarHeadSSBUWebsite.png",
-  lucario:           "https://www.smashbros.com/assets_v2/img/fighter/pict/lucario.png",
-  rob:               "https://www.smashbros.com/assets_v2/img/fighter/pict/robot.png",
-  toon_link:         "https://www.smashbros.com/assets_v2/img/fighter/pict/toon_link.png",
-  wolf:              "https://www.smashbros.com/assets_v2/img/fighter/pict/wolf.png",
-  villager:          "https://www.smashbros.com/assets_v2/img/fighter/pict/murabito.png",
-  mega_man:          "https://www.smashbros.com/assets_v2/img/fighter/pict/rockman.png",
-  wii_fit_trainer:   "https://ssb.wiki.gallery/images/thumb/8/87/WiiFitTrainerHeadSSBU.png/48px-WiiFitTrainerHeadSSBU.png",
-  rosalina_and_luma: "https://ssb.wiki.gallery/images/thumb/e/e8/RosalinaHeadSSBU.png/48px-RosalinaHeadSSBU.png",
-  little_mac:        "https://ssb.wiki.gallery/images/thumb/1/10/LittleMacHeadSSBU.png/48px-LittleMacHeadSSBU.png",
-  greninja:          "https://www.smashbros.com/assets_v2/img/fighter/pict/gekkouga.png",
-  mii_brawler:       "https://ssb.wiki.gallery/images/thumb/d/d8/MiiBrawlerHeadSSBU.png/48px-MiiBrawlerHeadSSBU.png",
-  mii_swordfighter:  "https://ssb.wiki.gallery/images/thumb/e/ef/MiiSwordfighterHeadSSBU.png/48px-MiiSwordfighterHeadSSBU.png",
-  mii_gunner:        "https://ssb.wiki.gallery/images/thumb/3/3d/MiiGunnerHeadSSBU.png/48px-MiiGunnerHeadSSBU.png",
-  palutena:          "https://www.smashbros.com/assets_v2/img/fighter/pict/palutena.png",
-  pac_man:           "https://ssb.wiki.gallery/images/thumb/4/45/Pac-ManHeadSSBU.png/48px-Pac-ManHeadSSBU.png",
-  robin:             "https://www.smashbros.com/assets_v2/img/fighter/pict/reflet.png",
-  shulk:             "https://www.smashbros.com/assets_v2/img/fighter/pict/shulk.png",
-  bowser_jr:         "https://ssb.wiki.gallery/images/thumb/0/07/BowserJrHeadSSBU.png/48px-BowserJrHeadSSBU.png",
-  duck_hunt:         "https://ssb.wiki.gallery/images/thumb/3/38/DuckHuntHeadSSBUWebsite.png/180px-DuckHuntHeadSSBUWebsite.png",
-  ryu:               "https://www.smashbros.com/assets_v2/img/fighter/pict/ryu.png",
-  ken:               "https://www.smashbros.com/assets_v2/img/fighter/pict/ken.png",
-  cloud:             "https://www.smashbros.com/assets_v2/img/fighter/pict/cloud.png",
-  corrin:            "https://www.smashbros.com/assets_v2/img/fighter/pict/kamui.png",
-  bayonetta:         "https://www.smashbros.com/assets_v2/img/fighter/pict/bayonetta.png",
-  inkling:           "https://www.smashbros.com/assets_v2/img/fighter/pict/inkling.png",
-  ridley:            "https://www.smashbros.com/assets_v2/img/fighter/pict/ridley.png",
-  simon:             "https://www.smashbros.com/assets_v2/img/fighter/pict/simon.png",
-  richter:           "https://www.smashbros.com/assets_v2/img/fighter/pict/richter.png",
-  king_k_rool:       "https://ssb.wiki.gallery/images/thumb/d/d2/KingKRoolHeadSSBU.png/48px-KingKRoolHeadSSBU.png",
-  isabelle:          "https://www.smashbros.com/assets_v2/img/fighter/pict/shizue.png",
-  incineroar:        "https://www.smashbros.com/assets_v2/img/fighter/pict/gaogaen.png",
-  piranha_plant:     "https://ssb.wiki.gallery/images/thumb/3/38/PiranhaPlantHeadSSBU.png/48px-PiranhaPlantHeadSSBU.png",
-  joker:             "https://ssb.wiki.gallery/images/thumb/6/63/JokerHeadSSBUWebsite.png/180px-JokerHeadSSBUWebsite.png",
-  hero:              "https://ssb.wiki.gallery/images/thumb/1/1e/HeroHeadSSBUWebsite.png/180px-HeroHeadSSBUWebsite.png",
-  banjo_and_kazooie: "https://ssb.wiki.gallery/images/thumb/1/12/Banjo%26KazooieHeadSSBUWebsite.png/180px-Banjo%26KazooieHeadSSBUWebsite.png",
-  terry:             "https://ssb.wiki.gallery/images/thumb/2/2e/TerryHeadSSBUWebsite.png/180px-TerryHeadSSBUWebsite.png",
-  byleth:            "https://ssb.wiki.gallery/images/thumb/8/86/BylethHeadSSBUWebsite.png/180px-BylethHeadSSBUWebsite.png",
-  min_min:           "https://ssb.wiki.gallery/images/thumb/f/fc/MinMinHeadSSBUWebsite.png/180px-MinMinHeadSSBUWebsite.png",
-  steve:             "https://ssb.wiki.gallery/images/thumb/4/4f/SteveHeadSSBUWebsite.png/180px-SteveHeadSSBUWebsite.png",
-  sephiroth:         "https://ssb.wiki.gallery/images/thumb/6/64/SephirothHeadSSBUWebsite.png/180px-SephirothHeadSSBUWebsite.png",
-  pyra_mythra:       "https://ssb.wiki.gallery/images/f/fc/PyraMythraHeadSSBU.png",
-  kazuya:            "https://ssb.wiki.gallery/images/thumb/8/85/KazuyaHeadSSBUWebsite.png/180px-KazuyaHeadSSBUWebsite.png",
-  sora:              "https://ssb.wiki.gallery/images/thumb/6/61/SoraHeadSSBUWebsite.png/180px-SoraHeadSSBUWebsite.png",
-};
-const SSBU_CHARACTERS = Object.keys(CHAR_ICONS);
-
-const STARTER_STAGES = [
-  { id: "battlefield",      name: "Battlefield" },
-  { id: "small_battlefield",name: "Small BF" },
-  { id: "final_destination",name: "Final Destination" },
-  { id: "hollow_bastion",   name: "Hollow Bastion" },
-  { id: "pokemon_stadium_2",name: "Pokémon Stadium 2" },
-];
-
-const COUNTERPICK_STAGES = [
-  { id: "town_and_city",    name: "Town & City" },
-  { id: "smashville",       name: "Smashville" },
-  { id: "kalos_pokemon_league", name: "Kalos" },
-  { id: "northern_cave",    name: "Northern Cave" },
-  { id: "yoshi_story",      name: "Yoshi's Story" },
-  { id: "lylat_cruise",     name: "Lylat Cruise" },
-];
-
-const ALL_STAGES = [...STARTER_STAGES, ...COUNTERPICK_STAGES];
-
-// ─────────────────────────────────────────────
-// BO MODE — start.gg style
-// Flow par game :
-//   p1_char_select → p2_char_select → p1_ban(2) → p2_ban(4) → p1_pick → game_result
-// ─────────────────────────────────────────────
-
-// boState.phase values:
-//   'p1_char'   J1 choisit son perso
-//   'p2_char'   J2 choisit son perso
-//   'p1_ban'    J1 ban 2 stages
-//   'p2_ban'    J2 ban 4 stages parmi les restants
-//   'p1_pick'   J1 pick le dernier stage restant (confirm)
-//   'result'    Les deux confirment le gagnant du game
-
-let boState = {
-  maxWins: 0,
-  games: [],
-  currentGame: 1,
-  phase: 'p1_char',
-  p1Char: null,
-  p2Char: null,
-  bannedStages: [],   // ids bannis
-  selectedStage: null,
-  prevWinner: null,
-};
-
-function initBOMode() {
-  const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
-  totalGames = maxWins * 2 - 1;
-  boState = { maxWins, games: [], currentGame: 1, phase: 'p1_char',
-    p1Char: null, p2Char: null, bannedStages: [], selectedStage: null, prevWinner: null };
-  updateDots([]);
-  renderBOPhase();
-}
-
-function renderBOPhase() {
-  document.getElementById('bo-section').style.display = 'block';
-  const ph = boState.phase;
-  if      (ph === 'p1_char') renderCharPick('p1');
-  else if (ph === 'p2_char') renderCharPick('p2');
-  else if (ph === 'p1_ban')  renderStageBans();
-  else if (ph === 'p2_ban')  renderStageBans();
-  else if (ph === 'p1_pick') renderStagePick();
-  else if (ph === 'result')  renderGameResult();
-}
-
-// ── Char pick (1 joueur à la fois) ──────────────────────────────────────────
-// ── Helper : mise à jour visuelle des persos dans le VS arena ──────────────
-function updateArenaChars() {
-  const p1div = document.getElementById('p1-game-char');
-  const p2div = document.getElementById('p2-game-char');
-  if (!p1div || !p2div) return;
-
-  if (boState.p1Char) {
-    p1div.innerHTML = `
-      <img src="${CHAR_ICONS[boState.p1Char]||''}" onerror="this.style.display='none'"
-        style="width:52px;height:52px;object-fit:contain;">
-      <div style="font-size:0.7rem;color:var(--blue);letter-spacing:1px;text-transform:capitalize;text-align:center;">
-        ${boState.p1Char.replace(/_/g,' ')}
-      </div>`;
-  } else {
-    p1div.innerHTML = `<div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">— picking —</div>`;
-  }
-
-  if (boState.p2Char) {
-    p2div.innerHTML = `
-      <img src="${CHAR_ICONS[boState.p2Char]||''}" onerror="this.style.display='none'"
-        style="width:52px;height:52px;object-fit:contain;">
-      <div style="font-size:0.7rem;color:var(--accent);letter-spacing:1px;text-transform:capitalize;text-align:center;">
-        ${boState.p2Char.replace(/_/g,' ')}
-      </div>`;
-  } else {
-    p2div.innerHTML = `<div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">— picking —</div>`;
-  }
-}
-
-// ── Char pick : seul le joueur actif peut choisir, l'autre voit "waiting" ──
-function renderCharPick(player) {
-  const isP1      = player === 'p1';
-  const pickerID  = isP1 ? P1_ID : P2_ID;
-  const pickerName= isP1 ? P1_NAME : P2_NAME;
-  const colorVar  = isP1 ? 'var(--blue)' : 'var(--accent)';
-  const bgColor   = isP1 ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
-  const selected  = isP1 ? boState.p1Char : boState.p2Char;
-  const amIPicker = MY_ID === pickerID;
-
-  updateArenaChars();
-
-  if (!amIPicker) {
-    // ── Waiting screen pour l'adversaire ──
-    document.getElementById('score-options').innerHTML = `
-      <div style="width:100%;text-align:center;padding:2rem 1rem;">
-        <div class="section-title">GAME ${boState.currentGame} — CHARACTER SELECT</div>
-        <div style="font-size:3rem;margin-bottom:1rem;animation:vs-pulse 2s ease-in-out infinite;">⚔</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">
-          WAITING FOR
-        </div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${colorVar};margin:0.3rem 0;">
-          ${pickerName.toUpperCase()}
-        </div>
-        <div style="font-size:0.82rem;color:var(--muted);letter-spacing:2px;margin-top:0.5rem;">
-          TO PICK THEIR CHARACTER…
-        </div>
-        ${selected ? `
-          <div style="margin-top:1.5rem;display:inline-flex;flex-direction:column;align-items:center;gap:0.4rem;
-            background:var(--surface2);border:1px solid ${colorVar};border-radius:10px;padding:1rem 1.5rem;">
-            <div style="font-size:0.65rem;color:var(--muted);letter-spacing:2px;">PICKED</div>
-            <img src="${CHAR_ICONS[selected]||''}" style="width:56px;height:56px;object-fit:contain;">
-            <div style="font-size:0.8rem;color:${colorVar};letter-spacing:1px;text-transform:capitalize;">${selected.replace(/_/g,' ')}</div>
-          </div>` : ''}
-      </div>`;
-    return;
-  }
-
-  // ── Picker actif ──
-  document.getElementById('score-options').innerHTML = `
-    <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — PICK YOUR CHARACTER</div>
-      <div style="text-align:center;margin-bottom:0.8rem;">
-        <div id="char-selected-display" style="min-height:70px;display:flex;align-items:center;
-          justify-content:center;flex-direction:column;gap:0.3rem;">
-          ${selected
-            ? `<img src="${CHAR_ICONS[selected]||''}" style="width:56px;height:56px;object-fit:contain;">
-               <div style="font-size:0.8rem;color:${colorVar};letter-spacing:1px;text-transform:capitalize;">${selected.replace(/_/g,' ')}</div>`
-            : `<div style="color:var(--muted);font-size:0.85rem;">No character selected</div>`}
-        </div>
-      </div>
-      <input type="text" id="char-search-input" placeholder="Search character…"
-        style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;
-          padding:0.45rem 0.75rem;color:var(--text);font-family:'Rajdhani',sans-serif;
-          font-size:0.9rem;outline:none;margin-bottom:0.6rem;transition:border-color 0.15s;"
-        onfocus="this.style.borderColor='${colorVar}'" onblur="this.style.borderColor='var(--border)'"
-        oninput="filterCharsSingle('${player}', this.value)">
-      <div id="char-grid-single"
-        style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-height:220px;overflow-y:auto;margin-bottom:1rem;">
-        ${buildCharGridSingle(player, '')}
-      </div>
-      <button id="btn-confirm-char" onclick="confirmCharPick('${player}')"
-        ${selected ? '' : 'disabled'}
-        style="width:100%;padding:1rem;border-radius:8px;
-          border:2px solid ${colorVar};background:${bgColor};
-          color:${colorVar};font-family:'Bebas Neue',sans-serif;
-          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
-          opacity:${selected?'1':'0.4'};">
-        LOCK IN ${selected ? selected.replace(/_/g,' ').toUpperCase() : '?'} →
-      </button>
-      <div style="text-align:center;margin-top:0.6rem;font-size:0.72rem;color:var(--muted);letter-spacing:1px;">
-        Your character is hidden from your opponent until you lock in
-      </div>
-    </div>`;
-}
-
-function buildCharGridSingle(player, filter) {
-  const selected = player === 'p1' ? boState.p1Char : boState.p2Char;
-  const colorVar = player === 'p1' ? 'var(--blue)' : 'var(--accent)';
-  const bgColor  = player === 'p1' ? 'rgba(79,142,247,0.2)' : 'rgba(232,64,10,0.2)';
-  return SSBU_CHARACTERS
-    .filter(c => !filter || c.replace(/_/g,' ').includes(filter.toLowerCase()))
-    .map(c => {
-      const isSel = selected === c;
-      return `<div onclick="selectCharSingle('${player}','${c}')"
-        title="${c.replace(/_/g,' ')}"
-        style="cursor:pointer;border-radius:5px;padding:3px;transition:all 0.12s;
-          border:2px solid ${isSel ? colorVar : 'transparent'};
-          background:${isSel ? bgColor : 'transparent'};">
-        <img src="${CHAR_ICONS[c]||''}" onerror="this.parentNode.style.display='none'"
-          style="width:100%;aspect-ratio:1;object-fit:contain;display:block;">
-      </div>`;
-    }).join('');
-}
-
-function filterCharsSingle(player, val) {
-  const g = document.getElementById('char-grid-single');
-  if (g) g.innerHTML = buildCharGridSingle(player, val);
-}
-
-function selectCharSingle(player, charId) {
-  if (player === 'p1') boState.p1Char = charId;
-  else boState.p2Char = charId;
-
-  const colorVar = player === 'p1' ? 'var(--blue)' : 'var(--accent)';
-  const disp = document.getElementById('char-selected-display');
-  if (disp) disp.innerHTML = `
-    <img src="${CHAR_ICONS[charId]||''}" style="width:56px;height:56px;object-fit:contain;">
-    <div style="font-size:0.8rem;color:${colorVar};letter-spacing:1px;text-transform:capitalize;">${charId.replace(/_/g,' ')}</div>`;
-
-  const searchEl = document.getElementById('char-search-input');
-  const grid = document.getElementById('char-grid-single');
-  if (grid) grid.innerHTML = buildCharGridSingle(player, searchEl ? searchEl.value : '');
-
-  const btn = document.getElementById('btn-confirm-char');
-  if (btn) {
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.textContent = `LOCK IN ${charId.replace(/_/g,' ').toUpperCase()} →`;
-  }
-}
-
-// ── Sync de phase : envoie l'état courant à l'adversaire ──────────────────
-function emitPhase(extraFields) {
-  if (!matchSocket || !matchSocket.connected) return;
-  matchSocket.emit('bo_phase_update', {
-    challenge_id: CHALLENGE_ID,
-    phase:        boState.phase,
-    p1Char:       boState.p1Char,
-    p2Char:       boState.p2Char,
-    bannedStages: boState.bannedStages,
-    selectedStage:boState.selectedStage,
-    currentGame:  boState.currentGame,
-    prevWinner:   boState.prevWinner,
-    games:        boState.games,
-    ...(extraFields || {})
-  });
-}
-
-function confirmCharPick(player) {
-  if (player === 'p1' && !boState.p1Char) return;
-  if (player === 'p2' && !boState.p2Char) return;
-  // Après p1 → p2 pick ; après p2 → stage bans
-  boState.phase = player === 'p1' ? 'p2_char' : 'p1_ban';
-  if (boState.phase === 'p1_ban') {
-    boState.bannedStages = [];
-    boState.selectedStage = null;
-    boState.p1PendingBans = [];  // bans en cours de sélection (avant confirm)
-    boState.p2PendingBans = [];
-  }
-  updateArenaChars();
-  emitPhase();
-  renderBOPhase();
-}
-
-// ── Stage bans : sélection puis confirmation en une fois ─────────────────────
-// p1_ban  : J1 sélectionne 2 bans puis confirme
-// p2_ban  : J2 sélectionne 4 bans puis confirme
-// p1_pick : le loser du jeu précédent (ou J1 au game 1) choisit le stage final
-
-function renderStageBans() {
-  const phase     = boState.phase;
-  const isP1Ban   = phase === 'p1_ban';
-  const bannerID  = isP1Ban ? P1_ID : P2_ID;
-  const bannerName= isP1Ban ? P1_NAME : P2_NAME;
-  const colorVar  = isP1Ban ? 'var(--blue)' : 'var(--accent)';
-  const bgColor   = isP1Ban ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
-  const limit     = isP1Ban ? 2 : 4;
-  const amIBanner = MY_ID === bannerID;
-
-  // Pending bans = stages cliqués mais pas encore confirmés
-  const pendingKey = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
-  if (!boState[pendingKey]) boState[pendingKey] = [];
-  const pendingBans = boState[pendingKey];
-
-  // Stages déjà bannis par la phase précédente (J1 a banni → maintenant affiché pour J2)
-  const alreadyBanned = boState.bannedStages; // confirmés
-  const totalPending  = pendingBans.length;
-  const bansLeft      = limit - totalPending;
-
-  if (!amIBanner) {
-    // ── Waiting screen : montre les bans déjà effectués + indicateur ──
-    document.getElementById('score-options').innerHTML = `
-      <div style="width:100%;text-align:center;padding:1.5rem 1rem;">
-        <div class="section-title">GAME ${boState.currentGame} — STAGE BANS</div>
-        <div style="font-size:2rem;margin-bottom:0.8rem;animation:vs-pulse 2s ease-in-out infinite;">🚫</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">
-          WAITING FOR
-        </div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${colorVar};margin:0.3rem 0 1rem;">
-          ${bannerName.toUpperCase()}
-        </div>
-        <div style="font-size:0.82rem;color:var(--muted);letter-spacing:2px;margin-bottom:1.2rem;">
-          TO BAN ${limit} STAGE${limit>1?'S':''}…
-        </div>
-        ${buildStageBanGrid(false, alreadyBanned, [], limit, colorVar)}
-      </div>`;
-    return;
-  }
-
-  // ── Banner actif ──
-  document.getElementById('score-options').innerHTML = `
-    <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — BAN ${limit} STAGE${limit>1?'S':''}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;flex-wrap:wrap;gap:0.4rem;">
-        <div style="font-size:0.82rem;color:${colorVar};letter-spacing:1px;font-weight:700;">
-          ${totalPending} / ${limit} selected
-        </div>
-        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-          ${alreadyBanned.map(s=>`
-            <span style="background:rgba(255,85,85,0.12);border:1px solid rgba(255,85,85,0.3);
-              border-radius:4px;padding:0.15rem 0.6rem;font-size:0.72rem;color:var(--red);">
-              🚫 ${ALL_STAGES.find(x=>x.id===s)?.name||s}
-            </span>`).join('')}
-          ${pendingBans.map(s=>`
-            <span style="background:rgba(255,85,85,0.18);border:1px solid rgba(255,85,85,0.5);
-              border-radius:4px;padding:0.15rem 0.6rem;font-size:0.72rem;color:var(--red);cursor:pointer;"
-              onclick="togglePendingBan('${s}','${pendingKey}')">
-              ✕ ${ALL_STAGES.find(x=>x.id===s)?.name||s}
-            </span>`).join('')}
-        </div>
-      </div>
-      ${buildStageBanGrid(true, alreadyBanned, pendingBans, limit, colorVar)}
-      <button id="btn-confirm-bans" onclick="confirmBans('${pendingKey}')"
-        ${totalPending === limit ? '' : 'disabled'}
-        style="width:100%;padding:1rem;border-radius:8px;margin-top:0.8rem;
-          border:2px solid ${colorVar};background:${bgColor};
-          color:${colorVar};font-family:'Bebas Neue',sans-serif;
-          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
-          opacity:${totalPending === limit ? '1' : '0.4'};">
-        BAN THESE ${limit} STAGE${limit>1?'S':''} →
-      </button>
-    </div>`;
-}
-
-function buildStageBanGrid(interactive, alreadyBanned, pendingBans, limit, colorVar) {
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.5rem;margin-bottom:0.5rem;">
-    ${ALL_STAGES.map(s => {
-      const isBanned  = alreadyBanned.includes(s.id);
-      const isPending = pendingBans.includes(s.id);
-      const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
-      const canSelect = interactive && !isBanned && (!isPending || true);
-      const pendingFull = pendingBans.length >= limit && !isPending;
-      let bg, border, cursor, label;
-      if (isBanned) {
-        bg='rgba(255,85,85,0.05)'; border='rgba(255,85,85,0.25)'; cursor='not-allowed'; label=`🚫 ${s.name}`;
-      } else if (isPending) {
-        bg=`rgba(255,85,85,0.18)`; border='rgba(255,85,85,0.6)'; cursor='pointer'; label=`✕ ${s.name}`;
-      } else if (pendingFull && interactive) {
-        bg='var(--surface2)'; border='var(--border)'; cursor='not-allowed'; label=s.name;
-      } else {
-        bg='var(--surface2)'; border='var(--border)'; cursor=interactive?'pointer':'default'; label=s.name;
-      }
-      const nameColor = (isBanned||isPending) ? 'var(--red)' : 'var(--text)';
-      const opacity   = (isBanned || (pendingFull && !isPending && interactive)) ? '0.45' : '1';
-      const onclick   = interactive && !isBanned && !(pendingFull && !isPending)
-        ? `togglePendingBan('${s.id}','${pendingFull?'':'x'}')` : '';
-      return `<div ${onclick ? `onclick="${onclick}"` : ''}
-        style="border-radius:8px;padding:0.7rem 0.4rem;text-align:center;
-          cursor:${cursor};transition:all 0.15s;
-          background:${bg};border:2px solid ${border};opacity:${opacity};">
-        <div style="font-size:0.82rem;font-weight:700;color:${nameColor};">${label}</div>
-        <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-          ${isStarter?'STARTER':'COUNTERPICK'}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
-}
-
-function togglePendingBan(stageId, pendingKey) {
-  const phase   = boState.phase;
-  const isP1Ban = phase === 'p1_ban';
-  const limit   = isP1Ban ? 2 : 4;
-  const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
-  if (!boState[key]) boState[key] = [];
-
-  const idx = boState[key].indexOf(stageId);
-  if (idx >= 0) {
-    boState[key].splice(idx, 1); // deselect
-  } else {
-    if (boState[key].length >= limit) return; // full
-    boState[key].push(stageId);
-  }
-  renderStageBans();
-}
-
-function confirmBans(pendingKey) {
-  const phase   = boState.phase;
-  const isP1Ban = phase === 'p1_ban';
-  const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
-  if (!boState[key] || boState[key].length < (isP1Ban ? 2 : 4)) return;
-
-  boState.bannedStages = [...boState.bannedStages, ...boState[key]];
-  boState[key] = [];
-
-  boState.phase = isP1Ban ? 'p2_ban' : 'p1_pick';
-  emitPhase();
-  renderBOPhase();
-}
-
-// ── Stage pick : le loser choisit (ou J1 au premier game) ──────────────────
-function renderStagePick() {
-  // Au game 1, c'est J1 qui pick ; sinon le loser du game précédent
-  const pickerIsP1 = boState.currentGame === 1 || boState.prevWinner === 'p2';
-  const pickerID   = pickerIsP1 ? P1_ID : P2_ID;
-  const pickerName = pickerIsP1 ? P1_NAME : P2_NAME;
-  const colorVar   = pickerIsP1 ? 'var(--blue)' : 'var(--accent)';
-  const bgColor    = pickerIsP1 ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
-  const amIPicker  = MY_ID === pickerID;
-  const remaining  = ALL_STAGES.filter(s => !boState.bannedStages.includes(s.id));
-
-  if (!amIPicker) {
-    document.getElementById('score-options').innerHTML = `
-      <div style="width:100%;text-align:center;padding:1.5rem 1rem;">
-        <div class="section-title">GAME ${boState.currentGame} — STAGE SELECT</div>
-        <div style="font-size:2.5rem;margin-bottom:0.8rem;animation:vs-pulse 2s ease-in-out infinite;">🗺</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">WAITING FOR</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${colorVar};margin:0.3rem 0 1.2rem;">
-          ${pickerName.toUpperCase()}
-        </div>
-        <div style="font-size:0.8rem;color:var(--muted);letter-spacing:2px;margin-bottom:1.2rem;">TO PICK THE STAGE…</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.5rem;">
-          ${remaining.map(s => {
-            const isSel = boState.selectedStage === s.id;
-            const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
-            return `<div style="border-radius:8px;padding:0.7rem 0.4rem;text-align:center;
-              background:${isSel?bgColor:'var(--surface2)'};
-              border:2px solid ${isSel?colorVar:'var(--border)'};">
-              <div style="font-size:0.82rem;font-weight:700;color:${isSel?colorVar:'var(--text)'};">
-                ${isSel?'✅ ':''}${s.name}
-              </div>
-              <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-                ${isStarter?'STARTER':'COUNTERPICK'}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>`;
-    return;
-  }
-
-  document.getElementById('score-options').innerHTML = `
-    <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — PICK THE STAGE</div>
-      <div style="font-size:0.82rem;color:${colorVar};letter-spacing:1px;margin-bottom:0.8rem;font-weight:700;">
-        Your pick — select one stage
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.6rem;margin-bottom:1.2rem;">
-        ${remaining.map(s => {
-          const isSel = boState.selectedStage === s.id;
-          const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
-          return `<div onclick="pickStage('${s.id}')"
-            style="border-radius:8px;padding:0.8rem 0.5rem;text-align:center;cursor:pointer;
-              transition:all 0.15s;
-              background:${isSel?bgColor:'var(--surface2)'};
-              border:2px solid ${isSel?colorVar:'var(--border)'};">
-            <div style="font-size:0.85rem;font-weight:700;color:${isSel?colorVar:'var(--text)'};">
-              ${isSel?'✅ ':''}${s.name}
-            </div>
-            <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-              ${isStarter?'STARTER':'COUNTERPICK'}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-      <button onclick="confirmStagePick()" id="btn-confirm-stage"
-        ${boState.selectedStage?'':'disabled'}
-        style="width:100%;padding:1rem;border-radius:8px;
-          border:2px solid ${colorVar};background:${bgColor};
-          color:${colorVar};font-family:'Bebas Neue',sans-serif;
-          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
-          opacity:${boState.selectedStage?'1':'0.4'};">
-        PLAY ON ${boState.selectedStage?(ALL_STAGES.find(x=>x.id===boState.selectedStage)?.name||'?').toUpperCase():'?'} →
-      </button>
-    </div>`;
-}
-
-function pickStage(stageId) {
-  boState.selectedStage = stageId;
-  renderStagePick();
-}
-
-function confirmStagePick() {
-  if (!boState.selectedStage) return;
-  boState.phase = 'result';
-  emitPhase();
-  renderBOPhase();
-}
-
-// ── Game result ──────────────────────────────────────────────────────────────
-function renderGameResult() {
-  const stage = ALL_STAGES.find(s=>s.id===boState.selectedStage);
-
-  document.getElementById('score-options').innerHTML = `
-    <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — RESULT</div>
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;
-        padding:0.8rem 1.2rem;margin-bottom:1.2rem;display:flex;justify-content:space-between;
-        align-items:center;flex-wrap:wrap;gap:0.6rem;">
-        <div style="display:flex;align-items:center;gap:0.5rem;">
-          <img src="${CHAR_ICONS[boState.p1Char]||''}" onerror="this.style.display='none'"
-            style="width:38px;height:38px;object-fit:contain;">
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:0.95rem;color:var(--blue);">${P1_NAME}</span>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:0.6rem;color:var(--muted);letter-spacing:2px;">STAGE</div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;color:var(--accent2);">${stage?.name||'?'}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.5rem;">
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:0.95rem;color:var(--accent);">${P2_NAME}</span>
-          <img src="${CHAR_ICONS[boState.p2Char]||''}" onerror="this.style.display='none'"
-            style="width:38px;height:38px;object-fit:contain;">
-        </div>
-      </div>
-      <div style="font-size:0.8rem;color:var(--muted);text-align:center;margin-bottom:0.8rem;letter-spacing:1px;">
-        Who won this game?
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem;">
-        <div id="result-p1" onclick="selectGameWinner('p1')"
-          style="border-radius:10px;padding:1.4rem 0.8rem;text-align:center;cursor:pointer;
-            transition:all 0.2s;background:var(--surface2);border:2px solid var(--border);">
-          <img src="${CHAR_ICONS[boState.p1Char]||''}" onerror="this.style.display='none'"
-            style="width:52px;height:52px;object-fit:contain;margin-bottom:0.4rem;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--blue);letter-spacing:2px;">${P1_NAME}</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${boState.p1Char.replace(/_/g,' ')}</div>
-        </div>
-        <div id="result-p2" onclick="selectGameWinner('p2')"
-          style="border-radius:10px;padding:1.4rem 0.8rem;text-align:center;cursor:pointer;
-            transition:all 0.2s;background:var(--surface2);border:2px solid var(--border);">
-          <img src="${CHAR_ICONS[boState.p2Char]||''}" onerror="this.style.display='none'"
-            style="width:52px;height:52px;object-fit:contain;margin-bottom:0.4rem;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--accent);letter-spacing:2px;">${P2_NAME}</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${boState.p2Char.replace(/_/g,' ')}</div>
-        </div>
-      </div>
-      <button onclick="confirmGameResult()" id="btn-confirm-game" disabled
-        style="width:100%;padding:1rem;border-radius:8px;
-          border:2px solid var(--green);background:rgba(61,220,132,0.08);
-          color:var(--green);font-family:'Bebas Neue',sans-serif;
-          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;opacity:0.4;">
-        CONFIRM GAME ${boState.currentGame} RESULT
-      </button>
-    </div>`;
-}
-
-let _selectedGameWinner = null;
-function selectGameWinner(player) {
-  _selectedGameWinner = player;
-  const p1El = document.getElementById('result-p1');
-  const p2El = document.getElementById('result-p2');
-  if (player === 'p1') {
-    p1El.style.cssText += ';border-color:var(--blue);background:rgba(79,142,247,0.12);';
-    p2El.style.cssText += ';border-color:var(--border);background:var(--surface2);';
-  } else {
-    p2El.style.cssText += ';border-color:var(--accent);background:rgba(232,64,10,0.12);';
-    p1El.style.cssText += ';border-color:var(--border);background:var(--surface2);';
-  }
-  const btn = document.getElementById('btn-confirm-game');
-  if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-}
-
-function confirmGameResult() {
-  if (!_selectedGameWinner) return;
-  const winner = _selectedGameWinner;
-  _selectedGameWinner = null;
-
-  boState.games.push({ p1char: boState.p1Char, p2char: boState.p2Char,
-    stage: boState.selectedStage, winner });
-
-  if (winner === 'p1') p1Score++; else p2Score++;
-  updateScoreDisplay();
-  updateDots(boState.games.map(g => g.winner));
-  boState.prevWinner = winner;
-
-  if (p1Score >= boState.maxWins || p2Score >= boState.maxWins) {
-    // BO terminé
-    const finalWinnerId = p1Score >= boState.maxWins ? P1_ID : P2_ID;
-    selectedResult = { winner_id: finalWinnerId, score: `${p1Score}-${p2Score}` };
-
-    // Clear arena chars
-    const p1div = document.getElementById('p1-game-char');
-    const p2div = document.getElementById('p2-game-char');
-    if (p1div) p1div.innerHTML = '';
-    if (p2div) p2div.innerHTML = '';
-
-    boState.phase = 'match_over';
-    emitPhase({ selectedResult });
-
-    document.getElementById('score-options').innerHTML = `
-      <div style="width:100%;text-align:center;">
-        <div class="section-title">MATCH OVER</div>
-        ${buildGamesHistory()}
-        <div style="margin-top:1rem;font-family:'Bebas Neue',sans-serif;font-size:2rem;
-          color:${p1Score>p2Score?'var(--blue)':'var(--accent)'};letter-spacing:3px;">
-          ${p1Score>p2Score?P1_NAME:P2_NAME} WINS ${p1Score}-${p2Score}
-        </div>
-      </div>`;
-    document.getElementById('submit-bo').disabled = false;
-    document.getElementById('submit-bo').style.display = 'block';
-    document.getElementById('submit-hint-bo').style.display = 'block';
-    return;
-  }
-
-  // Prochain game
-  boState.currentGame++;
-  boState.phase = 'p1_char';
-  boState.p1Char = null; boState.p2Char = null;
-  boState.bannedStages = [];
-  boState.p1PendingBans = [];
-  boState.p2PendingBans = [];
-  boState.selectedStage = null;
-  emitPhase();
-  updateArenaChars();
-  renderBOPhase();
-}
-
-function buildGamesHistory() {
-  return `<div style="display:flex;flex-direction:column;gap:0.5rem;margin:1rem 0;text-align:left;">
-    ${boState.games.map((g,i) => {
-      const stageName = ALL_STAGES.find(s=>s.id===g.stage)?.name||g.stage;
-      const wName  = g.winner==='p1'?P1_NAME:P2_NAME;
-      const wColor = g.winner==='p1'?'var(--blue)':'var(--accent)';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;
-        background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.9rem;gap:0.5rem;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:0.78rem;color:var(--muted);letter-spacing:2px;min-width:55px;">G${i+1}</span>
-        <div style="display:flex;align-items:center;gap:0.3rem;">
-          <img src="${CHAR_ICONS[g.p1char]||''}" onerror="this.style.display='none'" style="width:26px;height:26px;object-fit:contain;">
-          <span style="font-size:0.65rem;color:var(--muted);">vs</span>
-          <img src="${CHAR_ICONS[g.p2char]||''}" onerror="this.style.display='none'" style="width:26px;height:26px;object-fit:contain;">
-        </div>
-        <span style="font-size:0.7rem;color:var(--muted);">${stageName}</span>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:0.88rem;color:${wColor};">${wName}</span>
-      </div>`;
-    }).join('')}
-  </div>`;
-}
-
-// ─────────────────────────────────────────────
-// STOCKS MODE — saisie game par game
-// ─────────────────────────────────────────────
-let medalsP1 = 0, medalsP2 = 0;
-
-function initStocksMode() {
-  stockGameHistory = [];
-  currentGameMinP1 = 0;
-  currentGameMinP2 = 0;
-  medalsP1 = 0; medalsP2 = 0;
-  p1Score = 0; p2Score = 0;
-  updateScoreDisplay();
-  updateDots([]);
-  renderStocksGames();
-}
-
-// Construit / met à jour l'affichage de tous les games + game courant
-function renderStocksGames() {
-  const section = document.getElementById('stocks-section');
-  section.innerHTML = `<div class="section-title">🏅 MEDALS — GAME BY GAME</div>
-    <div id="stocks-games-list" style="display:flex;flex-direction:column;gap:0.8rem;margin-bottom:1.5rem;"></div>
-    <div id="current-game-block"></div>
-    <div class="submit-hint" style="text-align:center;margin-top:0.8rem;font-size:0.8rem;color:var(--muted);">
-      Enter the <strong>cumulative</strong> medals at the end of each game.<br>
-      The minimum resets from the previous game total.
-    </div>`;
-
-  // Historique des games déjà validés
-  const list = document.getElementById('stocks-games-list');
-  stockGameHistory.forEach((g, i) => {
-    const row = document.createElement('div');
-    row.style.cssText = `display:flex;align-items:center;justify-content:space-between;
-      background:var(--surface2);border:1px solid rgba(61,220,132,0.3);
-      border-radius:8px;padding:0.75rem 1.2rem;`;
-    const wName = g.p1 > g.p2 ? P1_NAME : P2_NAME;
-    const delta1 = g.p1 - (i > 0 ? stockGameHistory[i-1].p1 : 0);
-    const delta2 = g.p2 - (i > 0 ? stockGameHistory[i-1].p2 : 0);
-    row.innerHTML = `
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.85rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">${g.p1}</span>
-        <span style="color:var(--muted);margin:0 0.4rem;font-size:1rem;">—</span>
-        <span style="color:var(--accent)">${g.p2}</span>
-      </span>
-      <span style="font-size:0.75rem;color:var(--muted);">(+${delta1} / +${delta2})</span>
-      <span style="font-size:0.8rem;color:var(--green);font-weight:700;">${wName} wins</span>`;
-    list.appendChild(row);
-  });
-
-  // Game courant
-  const gameNum = stockGameHistory.length + 1;
-  const block = document.getElementById('current-game-block');
-  block.innerHTML = `
-    <div style="background:var(--surface2);border:1px solid var(--accent2);border-radius:10px;padding:1.2rem;position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--accent2);margin-bottom:1rem;">
-        GAME ${gameNum} — CUMULATIVE MEDALS
-      </div>
-      <div class="stocks-inputs">
-        <div class="stock-input-group">
-          <div class="stock-input-label blue-label">${P1_NAME}</div>
-          <div class="stock-counter">
-            <button class="stock-btn" id="btn-p1-minus" onclick="changeStockGame('p1',-1)">−</button>
-            <input type="text" class="stock-value" id="sg-p1" value="${currentGameMinP1}" readonly>
-            <button class="stock-btn" onclick="changeStockGame('p1',1)">+</button>
-          </div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min: ${currentGameMinP1}</div>
-        </div>
-        <div class="stock-input-group">
-          <div class="stock-input-label red-label">${P2_NAME}</div>
-          <div class="stock-counter">
-            <button class="stock-btn" id="btn-p2-minus" onclick="changeStockGame('p2',-1)">−</button>
-            <input type="text" class="stock-value" id="sg-p2" value="${currentGameMinP2}" readonly>
-            <button class="stock-btn" onclick="changeStockGame('p2',1)">+</button>
-          </div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;">min: ${currentGameMinP2}</div>
-        </div>
-      </div>
-      <button class="game-confirm-btn" id="confirm-game-btn" onclick="confirmStockGame()" style="margin-top:1rem;">
-        ✅ CONFIRM GAME ${gameNum}
-      </button>
-    </div>
-    ${stockGameHistory.length > 0 ? `
-    <button class="end-match-btn visible" id="end-match-btn" onclick="confirmEndMatch()" style="margin-top:1rem;">
-      🏆 END MATCH & SUBMIT
-    </button>` : ''}`;
-
-  // Sync valeurs courantes
-  medalsP1 = currentGameMinP1;
-  medalsP2 = currentGameMinP2;
-  updateMinusButtons();
-}
-
-function changeStockGame(player, delta) {
-  if (player === 'p1') {
-    const newVal = medalsP1 + delta;
-    if (newVal < currentGameMinP1) return;
-    medalsP1 = newVal;
-    document.getElementById('sg-p1').value = medalsP1;
-    p1Score = medalsP1;
-  } else {
-    const newVal = medalsP2 + delta;
-    if (newVal < currentGameMinP2) return;
-    medalsP2 = newVal;
-    document.getElementById('sg-p2').value = medalsP2;
-    p2Score = medalsP2;
-  }
-  updateScoreDisplay();
-  updateMinusButtons();
-}
-
-function updateMinusButtons() {
-  const bm1 = document.getElementById('btn-p1-minus');
-  const bm2 = document.getElementById('btn-p2-minus');
-  if (bm1) bm1.disabled = (medalsP1 <= currentGameMinP1);
-  if (bm2) bm2.disabled = (medalsP2 <= currentGameMinP2);
-}
-
-function confirmStockGame() {
-  const delta1 = medalsP1 - currentGameMinP1;
-  const delta2 = medalsP2 - currentGameMinP2;
-  if (delta1 === 0 && delta2 === 0) {
-    showToast('Enter at least one medal for this game!', false); return;
-  }
-  if (delta1 === delta2) {
-    showToast('Tie not allowed — there must be a winner!', false); return;
-  }
-  // Enregistre le game
-  stockGameHistory.push({ p1: medalsP1, p2: medalsP2 });
-  currentGameMinP1 = medalsP1;
-  currentGameMinP2 = medalsP2;
-  // Met à jour les scores live (delta de ce game)
-  updateDots(stockGameHistory.map(g => {
-    const i = stockGameHistory.indexOf(g);
-    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
-    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
-    return (g.p1 - prev1) > (g.p2 - prev2) ? 'p1' : 'p2';
-  }));
-  renderStocksGames();
-}
-
-function changeMedals(player, delta) { changeStockGame(player, delta); } // alias compat
-
-// ─────────────────────────────────────────────
-// UI HELPERS
-// ─────────────────────────────────────────────
-function updateScoreDisplay() {
-  document.getElementById('score-p1').textContent = p1Score;
-  document.getElementById('score-p2').textContent = p2Score;
-}
-
-function updateDots(dots) {
-  const maxDots = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 3 : FORMAT === 'BO5' ? 5 : dots.length + 1;
-  const container = document.getElementById('game-dots');
-  container.innerHTML = '';
-  for (let i = 0; i < Math.max(maxDots, dots.length); i++) {
-    const d = document.createElement('div');
-    d.className = 'game-dot' + (dots[i] ? ' ' + dots[i] : '');
-    container.appendChild(d);
-  }
-  // Update game counter
-  const lockedCount = FORMAT === 'STOCKS'
-    ? stockGames.filter(g => g.locked).length
-    : dots.length;
-  document.getElementById('game-counter').textContent = `GAME ${lockedCount + 1}`;
-}
-
-// ─────────────────────────────────────────────
-// SUBMIT
-// ─────────────────────────────────────────────
-async function submitBO() {
-  if (!selectedResult) { showToast('Select a result first!', false); return; }
-  const btn = document.getElementById('submit-bo');
-  btn.disabled = true; btn.textContent = 'Submitting…';
-
-  try {
-    const res = await fetch(`/result/${CHALLENGE_ID}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(selectedResult)
-    });
-    const data = await res.json();
-    if (data.success) {
-      if (data.message && data.message.includes('ELO')) {
-        // Second player confirming — match validated
-        if (matchFinished) return;
-        matchFinished = true;
-        showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
-        showToast(data.message, true);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
-      } else {
-        // First player submitted — wait for opponent confirmation
-        pendingResult = selectedResult;
-        showBORecap(selectedResult, 'waiting');
-        showToast("Result submitted \u2713 Waiting for opponent confirmation\u2026", true);
-        startMatchPolling();
-        startHttpFallback(); // fallback si le socket rate l'event
-      }
-    } else {
-      showToast(data.error || 'Error', false);
-      btn.disabled = false; btn.textContent = '⚔ SUBMIT RESULT';
-    }
-  } catch(e) {
-    showToast('Network error', false);
-    btn.disabled = false; btn.textContent = '⚔ SUBMIT RESULT';
-  }
-}
-
-// ─────────────────────────────────────────────
-// RECAP & CONFIRM — all modes (BO + STOCKS)
-// ─────────────────────────────────────────────
-let pendingResult = null; // { winner_id, score, [stocks fields] }
-
-// ── MEDALS MODE: end match button ──
-function endMatch() {
-  if (!stockGameHistory.length) {
-    showToast('Confirm at least one game before finishing!', false); return;
-  }
-  const totalP1 = currentGameMinP1;
-  const totalP2 = currentGameMinP2;
-  if (totalP1 === totalP2) {
-    showToast('Tie not allowed — there must be a winner!', false); return;
-  }
-
-  const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
-  const winnerMeds = Math.max(totalP1, totalP2);
-  const loserMeds  = Math.min(totalP1, totalP2);
-
-  pendingResult = {
-    winner_id: winnerId,
-    score: `${winnerMeds}-${loserMeds}`,
-    winner_stocks_taken: winnerMeds,
-    loser_stocks_taken: loserMeds,
-    is_stocks_mode: true
-  };
-
-  // Recap : liste chaque game
-  const gamesDiv = document.getElementById('recap-games');
-  gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
-    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
-    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
-    const d1 = g.p1 - prev1, d2 = g.p2 - prev2;
-    const wName = d1 > d2 ? P1_NAME : P2_NAME;
-    const wColor = d1 > d2 ? 'var(--blue)' : 'var(--accent)';
-    return `<div style="display:flex;align-items:center;justify-content:space-between;
-      background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">${g.p1}</span>
-        <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
-        <span style="color:var(--accent)">${g.p2}</span>
-      </span>
-      <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
-    </div>`;
-  }).join('');
-
-  populateRecapTotals(totalP1, totalP2, winnerId);
-  document.getElementById('recap-subtitle').textContent = 'MEDALS — WAITING FOR CONFIRMATION';
-  document.getElementById('recap-my-actions').style.display = 'none';
-  document.getElementById('recap-waiting').style.display = 'block';
-  document.getElementById('stocks-recap').classList.add('show');
-  submitResult(pendingResult, false);
-}
-
-// ── BO : affiche le recap côté soumetteur ──
-function showBORecap(result, state) {
-  const winnerName = result.winner_id === P1_ID ? P1_NAME : P2_NAME;
-  const parts = result.score.split('-');
-  const t1 = parseInt(parts[0]) || 0;
-  const t2 = parseInt(parts[1]) || 0;
-
-  const gamesDiv = document.getElementById('recap-games');
-  gamesDiv.innerHTML = `
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-      padding:1rem;text-align:center;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--blue);">${t1}</span>
-      <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);">${t2}</span>
-    </div>`;
-  populateRecapTotals(t1, t2, result.winner_id);
-  document.getElementById('recap-subtitle').textContent = FORMAT + ' — WAITING FOR CONFIRMATION';
-
-  if (state === 'waiting') {
-    document.getElementById('recap-my-actions').style.display = 'none';
-    document.getElementById('recap-waiting').style.display = 'block';
-  } else {
-    document.getElementById('recap-my-actions').style.display = 'flex';
-    document.getElementById('recap-waiting').style.display = 'none';
-  }
-  document.getElementById('stocks-recap').classList.add('show');
-}
-
-function populateRecapTotals(t1, t2, winnerId) {
-  document.getElementById('recap-total-p1').textContent = t1;
-  document.getElementById('recap-total-p2').textContent = t2;
-  document.getElementById('recap-p1-name').textContent = P1_NAME;
-  document.getElementById('recap-p2-name').textContent = P2_NAME;
-  document.getElementById('recap-winner-name').textContent = winnerId === P1_ID ? P1_NAME : P2_NAME;
-}
-
-// ── Soumission unifiée ──
-async function submitResult(result, isConfirm) {
-  const btn = document.getElementById('end-match-btn');
-  try {
-    const res = await fetch(`/result/${CHALLENGE_ID}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(result)
-    });
-    const data = await res.json();
-    if (data.success) {
-      if (isConfirm) {
-        if (matchFinished) return; // déjà géré par le socket
-        matchFinished = true;
-        showToast(data.message, true);
-        document.getElementById('stocks-recap').classList.remove('show');
-        const scoreLabel = result.winner_stocks_taken != null
-          ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} medals`
-          : result.score;
-        showWinner(result.winner_id, scoreLabel, data.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
-      } else {
-        showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
-        startMatchPolling();
-        startHttpFallback(); // fallback si le socket rate l'event
-      }
-    } else {
-      showToast(data.error || 'Error', false);
-      if (btn) { btn.classList.add('visible'); btn.textContent = '\uD83C\uDFC6 END MATCH & SUBMIT'; }
-    }
-  } catch(e) {
-    showToast('Network error', false);
-    if (btn) { btn.textContent = '\uD83C\uDFC6 END MATCH & SUBMIT'; }
-  }
-}
-
-// ── Player 2: Confirm ──
-async function confirmRecap() {
-  if (!pendingResult) return;
-  document.getElementById('recap-my-actions').style.display = 'none';
-  document.getElementById('recap-waiting').style.display = 'block';
-  await submitResult(pendingResult, true);
-}
-
-// ── Player 2: Contest ──
-async function contestRecap() {
-  if (!pendingResult) return;
-  const oppositeWinner = pendingResult.winner_id === P1_ID ? P2_ID : P1_ID;
-  const disputed = { ...pendingResult, winner_id: oppositeWinner };
-  try {
-    await fetch(`/result/${CHALLENGE_ID}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(disputed)
-    });
-  } catch(e) {}
-  showToast('Result contested — an admin will review.', false);
-  document.getElementById('stocks-recap').classList.remove('show');
-  setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 2500);
-}
-
-// ── Socket.IO : socket UNIQUE créé dès le chargement ──
-let pollInterval = null;
-
-function stopPolling() {
-  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-}
-
-function startHttpFallback() {
-  if (pollInterval) return;
-  pollInterval = setInterval(() => {
-    fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
-      if (d.status === 'completed') {
-        if (matchFinished) { stopPolling(); return; }
-        matchFinished = true;
-        stopPolling();
-        document.getElementById('stocks-recap').classList.remove('show');
-        showWinner(d.winner_id, d.score || '', d.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
-      } else if (d.status === 'disputed') {
-        stopPolling();
-        showToast('Result contested — contact an admin.', false);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
-      }
-    }).catch(() => {});
-  }, 3000);
-}
-
-// ── Connexion socket immédiate — les deux joueurs rejoignent dès le chargement ──
-// Ainsi le joueur qui attend la confirmation reçoit match_update en temps réel
-// sans avoir besoin de soumettre quoi que ce soit d'abord.
-function initMatchSocket() {
-  if (matchSocket) return;
-
-  matchSocket = io({ transports: ['websocket'], upgrade: false });
-  window.socket = matchSocket; // exposé pour notifications.js (évite le double socket)
-
-  matchSocket.on('connect', () => {
-    // Rejoindre la room match ET la room user dès la connexion
-    matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
-    matchSocket.emit('join_user', {});
-    checkInitialState();
-  });
-
-  matchSocket.on('reconnect', () => {
-    matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
-    matchSocket.emit('join_user', {});
-    checkInitialState();
-  });
-
-  matchSocket.on('bo_phase_update', (d) => {
-    if (!d || d.challenge_id !== CHALLENGE_ID) return;
-    if (FORMAT === 'STOCKS') return; // pas de sync de phase en mode stocks
-    // Appliquer l'état reçu dans boState local
-    boState.phase         = d.phase;
-    boState.p1Char        = d.p1Char        ?? boState.p1Char;
-    boState.p2Char        = d.p2Char        ?? boState.p2Char;
-    boState.bannedStages  = d.bannedStages  ?? boState.bannedStages;
-    boState.selectedStage = d.selectedStage ?? boState.selectedStage;
-    boState.currentGame   = d.currentGame   ?? boState.currentGame;
-    boState.prevWinner    = d.prevWinner    ?? boState.prevWinner;
-    boState.games         = d.games         ?? boState.games;
-    // Recalcul des scores depuis l'historique des games
-    p1Score = boState.games.filter(g => g.winner === 'p1').length;
-    p2Score = boState.games.filter(g => g.winner === 'p2').length;
-    updateScoreDisplay();
-    updateDots(boState.games.map(g => g.winner));
-    updateArenaChars();
-    if (d.phase === 'match_over') {
-      // L'autre joueur a terminé le match — afficher le même état "match over"
-      if (d.selectedResult) selectedResult = d.selectedResult;
-      document.getElementById('score-options').innerHTML = `
-        <div style="width:100%;text-align:center;">
-          <div class="section-title">MATCH OVER</div>
-          ${buildGamesHistory()}
-          <div style="margin-top:1rem;font-family:'Bebas Neue',sans-serif;font-size:2rem;
-            color:${p1Score>p2Score?'var(--blue)':'var(--accent)'};letter-spacing:3px;">
-            ${p1Score>p2Score?P1_NAME:P2_NAME} WINS ${p1Score}-${p2Score}
-          </div>
-        </div>`;
-      document.getElementById('submit-bo').disabled = false;
-      document.getElementById('submit-bo').style.display = 'block';
-      document.getElementById('submit-hint-bo').style.display = 'block';
-    } else {
-      renderBOPhase();
-    }
-  });
-
-  matchSocket.on('match_update', (d) => {
-    if (!d || d.challenge_id !== CHALLENGE_ID) return; // ignorer les events d'autres matchs
-    if (d.status === 'completed') {
-      if (matchFinished) return;
-      matchFinished = true;
-      document.getElementById('stocks-recap').classList.remove('show');
-      showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
-    } else if (d.status === 'disputed') {
-      showToast('Result contested — contact an admin.', false);
-      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
-    } else if (d.status === 'reported' && d.reported_by !== MY_ID) {
-      // L'adversaire vient de soumettre son résultat — afficher le recap de confirmation
-      if (!document.getElementById('stocks-recap').classList.contains('show')) {
-        showOpponentRecap(d);
-      }
-    }
-  });
-
-  matchSocket.on('chat_message', (d) => { chatReceive(d); });
-  matchSocket.on('chat_history', (msgs) => {
-    msgs.forEach(d => chatReceive(d));
-  });
-}
-
-// Alias conservé pour compatibilité avec les appels existants (submitBO, endMatch…)
-function startMatchPolling() { initMatchSocket(); }
-
-// ── Vérification au chargement ──
-function checkInitialState() {
-  fetch(`/api/match_status/${CHALLENGE_ID}`).then(r => r.json()).then(d => {
-    if (d.status === 'completed') {
-      if (matchFinished) return;
-      matchFinished = true;
-      // Match déjà terminé (ex: rechargement après confirmation)
-      showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
-    } else if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
-      // L'adversaire a soumis — afficher le recap pour confirmer/contester
-      showOpponentRecap(d);
-    } else if (d.status === 'reported' && d.reported_by === MY_ID) {
-      // J'ai soumis, en attente de l'adversaire — restaurer le recap waiting
-      const report = (typeof d.report === 'object' && d.report) ? d.report : {};
-      if (report.winner_id) {
-        pendingResult = {
-          winner_id: report.winner_id,
-          score: report.score || '',
-          winner_stocks_taken: report.winner_stocks_taken,
-          loser_stocks_taken: report.loser_stocks_taken,
-          is_stocks_mode: report.is_stocks_mode
-        };
-        showBORecap(pendingResult, 'waiting');
-      }
-    }
-  }).catch(() => {});
-}
-
-// ── Show recap submitted by opponent ──
-function showOpponentRecap(d) {
-  const report = d.report || d;
-  if (!report || !report.winner_id) return;
-
-  if (report.is_stocks_mode || FORMAT === 'STOCKS') {
-    // Medals mode
-    pendingResult = {
-      winner_id: report.winner_id,
-      score: report.score,
-      winner_stocks_taken: report.winner_stocks_taken,
-      loser_stocks_taken: report.loser_stocks_taken,
-      is_stocks_mode: true
-    };
-    const t1 = report.winner_id === P1_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
-    const t2 = report.winner_id === P2_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
-    const gamesDiv = document.getElementById('recap-games');
-    gamesDiv.innerHTML = `
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
-        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">TOTAL MEDALS</div>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${t1}</span>
-        <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${t2}</span>
-      </div>`;
-    populateRecapTotals(t1, t2, report.winner_id);
-    document.getElementById('recap-subtitle').textContent = 'MEDALS — SUBMITTED BY YOUR OPPONENT';
-  } else {
-    // BO mode
-    pendingResult = { winner_id: report.winner_id, score: report.score || '' };
-    const parts = (report.score || '0-0').split('-');
-    const t1 = parseInt(parts[0]) || 0;
-    const t2 = parseInt(parts[1]) || 0;
-    const gamesDiv = document.getElementById('recap-games');
-    gamesDiv.innerHTML = `
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-        padding:1rem;text-align:center;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--blue);">${t1}</span>
-        <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--accent);">${t2}</span>
-      </div>`;
-    populateRecapTotals(t1, t2, report.winner_id);
-    document.getElementById('recap-subtitle').textContent = FORMAT + ' — SUBMITTED BY YOUR OPPONENT';
-  }
-
-  document.getElementById('recap-my-actions').style.display = 'flex';
-  document.getElementById('recap-waiting').style.display = 'none';
-  document.getElementById('stocks-recap').classList.add('show');
-}
-
-
-
-// ─────────────────────────────────────────────
-// TOAST
-// ─────────────────────────────────────────────
-let toastTimer;
-function showToast(msg, success = true) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + (success ? 'success' : 'error');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
-}
-
-function showWinner(winnerId, score, eloChange) {
-  const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
-  const iWon = winnerId === MY_ID;
-
-  // Fermer le recap s'il est encore ouvert
-  document.getElementById('stocks-recap').classList.remove('show');
-
-  document.getElementById('winner-name-big').textContent = name;
-  document.getElementById('winner-score-big').textContent = score;
-  const eloLine = document.getElementById('winner-elo-line');
-  if (eloChange) {
-    if (iWon) {
-      eloLine.innerHTML = `
-        <span style="color:var(--green);font-size:2rem;display:block">+${eloChange} ELO 🏆</span>
-        <span style="color:var(--muted);font-size:0.85rem;display:block;margin-top:0.3rem;letter-spacing:2px;">GG — you won!</span>`;
-    } else {
-      eloLine.innerHTML = `
-        <span style="color:var(--red);font-size:2rem;display:block">−${eloChange} ELO</span>
-        <span style="color:var(--muted);font-size:0.85rem;display:block;margin-top:0.3rem;letter-spacing:2px;">GG — better luck next time</span>`;
-    }
-  } else {
-    eloLine.textContent = '';
-  }
-  document.getElementById('winner-announcement').classList.add('show');
-}
-
-// ── Stocks end match confirmation ──
-function confirmEndMatch() {
-  if (!stockGameHistory.length) { showToast('Confirm at least one game before finishing!', false); return; }
-  const overlay = document.getElementById('confirm-end-overlay');
-  overlay.style.display = 'flex';
-}
-
-function doEndMatch() {
-  document.getElementById('confirm-end-overlay').style.display = 'none';
-  endMatch();
-}
-
-
-// ─────────────────────────────────────────────
-// MATCH CHAT
-// ─────────────────────────────────────────────
-function chatSend() {
-  const input = document.getElementById('chat-input');
-  const text = input.value.trim();
-  if (!text) return;
-  if (!matchSocket || !matchSocket.connected) {
-    showToast('Connection lost — try again in a moment.', false);
-    return;
-  }
-  matchSocket.emit('chat_message', { challenge_id: CHALLENGE_ID, text });
-  input.value = '';
-  input.focus();
-}
-
-function chatReceive(data) {
-  const empty = document.getElementById('chat-empty');
-  if (empty) empty.remove();
-
-  const msgs = document.getElementById('chat-messages');
-  const isMine = data.uid === MY_ID;
-
-  const div = document.createElement('div');
-  div.className = 'chat-msg ' + (isMine ? 'mine' : 'theirs');
-
-  const d = new Date(data.ts);
-  const time = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
-
-  div.innerHTML = `
-    <div class="chat-msg-name">${escChatHtml(data.name)}</div>
-    <div class="chat-msg-bubble">${escChatHtml(data.text)}</div>
-    <div class="chat-msg-time">${time}</div>`;
-
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function escChatHtml(s) {
-  return String(s).replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('chat-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
-  });
-  init();
-  // Connexion immédiate — les deux joueurs rejoignent la room dès le chargement
-  // Crucial : le joueur qui attend la confirmation reçoit match_update en temps réel
-  // même sans avoir soumis quoi que ce soit.
-  initMatchSocket();
+'use strict';
+
+const express    = require('express');
+const http       = require('http');
+const { Server } = require('socket.io');
+const session    = require('express-session');
+const nunjucks   = require('nunjucks');
+const crypto     = require('crypto');
+const fetch      = require('node-fetch');
+const path       = require('path');
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+
+const SECRET_KEY          = process.env.SECRET_KEY;
+if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
+
+const CLIENT_ID           = '1504467669712240861';
+const CLIENT_SECRET       = process.env.DISCORD_CLIENT_SECRET || '';
+const GUILD_ID            = '1051577844318339172';
+const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onrender.com/callback';
+const SUPABASE_URL        = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
+const ADMIN_DISCORD_ID    = process.env.ADMIN_DISCORD_ID || '';
+
+const DISCORD_AUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
+
+const ELO_K          = 32;
+const VALID_FORMATS  = new Set(['BO1', 'BO3', 'BO5', 'STOCKS']);
+const VALID_MODES    = new Set(['sets', 'stocks']);
+const MAX_CHAR_NAME  = 32;
+const MAX_MESSAGE    = 200;
+const MAX_STOCKS     = 8;
+const VALID_ID_RE    = /^[a-zA-Z0-9_\-]+$/;
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+
+const app    = express();
+const server = http.createServer(app);
+const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
+
+// Sessions
+const sessionMiddleware = session({
+  secret: SECRET_KEY,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
 });
-</script>
+app.use(sessionMiddleware);
 
-<script src="/static/notifications.js"></script>
-</body>
-</html>
+// Share session with Socket.IO
+io.engine.use(sessionMiddleware);
+
+// Body parsing
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// Static files
+app.use('/static', express.static(path.join(__dirname, 'static')));
+
+// Templates (Nunjucks — compatible avec les fichiers HTML Jinja2)
+const env = nunjucks.configure(path.join(__dirname, 'templates'), {
+  autoescape: true,
+  express: app,
+  noCache: false,
+});
+
+// Filtre tojson pour compatibilité Jinja
+env.addFilter('tojson', function(val) { return new nunjucks.runtime.SafeString(JSON.stringify(val)); });
+env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
+env.addFilter('int', (val) => parseInt(val, 10));
+env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
+
+// ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
+
+function sbHeaders() {
+  return {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation',
+  };
+}
+
+async function sbGet(table, params = '') {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: sbHeaders() });
+    return r.ok ? r.json() : [];
+  } catch { return []; }
+}
+
+async function sbPost(table, data) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: 'POST', headers: sbHeaders(), body: JSON.stringify(data)
+    });
+    if (!r.ok) console.error(`[sbPost ERROR] ${table}: ${r.status} ${await r.text()}`);
+    return r.ok ? r.json() : null;
+  } catch (e) { console.error('[sbPost]', e); return null; }
+}
+
+async function sbPatch(table, match, data) {
+  try {
+    const params = Object.entries(match).map(([k, v]) => `${k}=eq.${v}`).join('&');
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(data)
+    });
+    if (!r.ok) console.error(`[sbPatch ERROR] ${table}: ${r.status} ${await r.text()}`);
+    return r.ok;
+  } catch (e) { console.error('[sbPatch]', e); return false; }
+}
+
+async function sbDelete(table, match) {
+  try {
+    const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
+    const parts = Object.entries(match).map(([k, v]) => {
+      const s = String(v);
+      const op = s.split('.')[0];
+      return OPERATORS.has(op) ? `${k}=${s}` : `${k}=eq.${s}`;
+    });
+    const params = parts.join('&');
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      method: 'DELETE', headers: sbHeaders()
+    });
+    return r.ok;
+  } catch (e) { console.error('[sbDelete]', e); return false; }
+}
+
+async function getPlayerMatches(userId, limit = 10) {
+  const [wins, losses] = await Promise.all([
+    sbGet('matches', `winner_id=eq.${userId}&order=date.desc&limit=${limit}`),
+    sbGet('matches', `loser_id=eq.${userId}&order=date.desc&limit=${limit}`),
+  ]);
+  const seen = new Set();
+  const merged = [];
+  for (const m of [...(wins||[]), ...(losses||[])]) {
+    if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
+  }
+  merged.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return merged.slice(0, limit);
+}
+
+// ── ELO ───────────────────────────────────────────────────────────────────────
+
+function calcElo(wp, lp) {
+  const expected = 1 / (1 + 10 ** ((lp - wp) / 400));
+  return Math.max(Math.round(ELO_K * (1 - expected)), 1);
+}
+
+function calcEloStocks(wp, lp, wSt, lSt) {
+  const expected = 1 / (1 + 10 ** ((lp - wp) / 400));
+  const base = ELO_K * (1 - expected);
+  const total = wSt + lSt;
+  const diffRatio = total > 0 ? (wSt - lSt) / total : 0;
+  return Math.max(Math.round(base * (1.0 + diffRatio * 0.5)), 1);
+}
+
+// ── VALIDATION ────────────────────────────────────────────────────────────────
+
+function validateId(v) { return v && VALID_ID_RE.test(String(v)); }
+function sanitizeStr(v, max) { return String(v || '').trim().slice(0, max); }
+function validateStocks(v) {
+  const n = parseInt(v, 10);
+  return (!isNaN(n) && n >= 0 && n <= MAX_STOCKS) ? n : null;
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+async function dashboardData(userId, excludeChallengeIds = []) {
+  const [players, allChallenges, myMatches] = await Promise.all([
+    sbGet('players', 'order=points.desc'),
+    sbGet('challenges', 'status=in.(pending,accepted,reported)'),
+    getPlayerMatches(userId, 10),
+  ]);
+  const player = players.find(p => p.id === userId) || null;
+  const rank   = players.findIndex(p => p.id === userId) + 1 || null;
+
+  const challengesReceived = {};
+  const challengesSent     = {};
+  const activeMatches      = {};
+  const awaitingConf       = {};
+  const excludeSet = new Set(excludeChallengeIds);
+
+  for (const c of allChallenges) {
+    if (excludeSet.has(c.id)) continue;
+    if (c.challenged_id === userId && c.status === 'pending')
+      challengesReceived[c.id] = c;
+    if (c.challenger_id === userId && c.status === 'pending')
+      challengesSent[c.id] = c;
+    if (c.status === 'accepted' && [c.challenger_id, c.challenged_id].includes(userId))
+      activeMatches[c.id] = c;
+    if (c.status === 'reported' && c.reported_by !== userId && [c.challenger_id, c.challenged_id].includes(userId))
+      awaitingConf[c.id] = c;
+  }
+
+  return { player, players, rank,
+    challenges_received: challengesReceived,
+    challenges_sent: challengesSent,
+    active_matches: activeMatches,
+    awaiting_confirmation: awaitingConf,
+    my_matches: myMatches };
+}
+
+async function leaderboardData() {
+  const now = new Date().toISOString();
+  const [players, recentMatches, lfmPosts] = await Promise.all([
+    sbGet('players', 'order=points.desc'),
+    sbGet('matches', 'order=date.desc&limit=10'),
+    sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`),
+  ]);
+  return { players, recent_matches: recentMatches, lfm_posts: lfmPosts };
+}
+
+// ── SOCKET.IO EMITTERS ────────────────────────────────────────────────────────
+
+async function emitDashboardUpdate(userId, excludeChallengeIds = []) {
+  try {
+    const data = await dashboardData(userId, excludeChallengeIds);
+    io.to(`user_${userId}`).emit('dashboard_update', data);
+  } catch (e) { console.error('[emitDashboardUpdate]', e); }
+}
+
+async function emitMatchUpdate(challengeId, override = {}) {
+  try {
+    const challenges = await sbGet('challenges', `id=eq.${challengeId}`);
+    if (!challenges.length) return;
+    const c = challenges[0];
+    const report = typeof c.report === 'object' ? c.report : {};
+    const payload = {
+      challenge_id: challengeId,
+      status:      override.status      ?? c.status,
+      reported_by: override.reported_by ?? c.reported_by,
+      report:      c.report,
+      winner_id:   override.winner_id   ?? report?.winner_id  ?? null,
+      score:       override.score       ?? report?.score       ?? null,
+      elo_change:  override.elo_change  ?? c.elo_change        ?? null,
+    };
+    // Envoi dans la room match ET directement à chaque joueur (comme les notifications)
+    // → garanti même si un joueur a perdu sa room après reconnexion
+    io.to(`match_${challengeId}`).emit('match_update', payload);
+    io.to(`user_${c.challenger_id}`).emit('match_update', payload);
+    io.to(`user_${c.challenged_id}`).emit('match_update', payload);
+    // Si le match vient d'être complété, exclure ce challenge du dashboard_update
+    // pour éviter la race condition Supabase (le PATCH completed pas encore lisible)
+    const excludeIds = (payload.status === 'completed' || payload.status === 'disputed')
+      ? [challengeId]
+      : [];
+    await Promise.all([c.challenger_id, c.challenged_id].map(uid => emitDashboardUpdate(uid, excludeIds)));
+  } catch (e) { console.error('[emitMatchUpdate]', e); }
+}
+
+async function emitLeaderboardUpdate() {
+  try {
+    const data = await leaderboardData();
+    io.emit('leaderboard_update', data);
+  } catch (e) { console.error('[emitLeaderboardUpdate]', e); }
+}
+
+// ── SOCKET.IO EVENTS ──────────────────────────────────────────────────────────
+
+// In-memory chat history per match (max 50 messages)
+const chatHistory = new Map();
+const CHAT_MAX = 50;
+
+io.on('connection', (socket) => {
+  const req = socket.request;
+
+  socket.on('join_user', async (data, cb) => {
+    const uid = req.session?.user?.id;
+    if (uid) {
+      socket.join(`user_${uid}`);
+      if (typeof cb === 'function') cb(true);
+      // Émettre immédiatement un dashboard_update propre avec les IDs exclus
+      // fournis par le client (matchs terminés qu'il connaît déjà)
+      // → résout la race condition quand J2 arrive sur /dashboard après confirmation
+      const excludeIds = Array.isArray(data?.exclude) ? data.exclude.filter(v => validateId(String(v))) : [];
+      try {
+        const dashData = await dashboardData(uid, excludeIds);
+        socket.emit('dashboard_update', dashData);
+      } catch (e) { console.error('[join_user dashboard_update]', e); }
+    } else {
+      if (typeof cb === 'function') cb(false);
+    }
+  });
+
+  socket.on('join_match', (data) => {
+    const cid = data?.challenge_id || '';
+    if (!validateId(cid)) return;
+    socket.join(`match_${cid}`);
+    const history = chatHistory.get(cid) || [];
+    if (history.length) socket.emit('chat_history', history);
+  });
+
+  socket.on('leave_match', (data) => {
+    const cid = data?.challenge_id || '';
+    if (validateId(cid)) socket.leave(`match_${cid}`);
+  });
+
+  // Relai des transitions de phase BO entre les deux joueurs
+  socket.on('bo_phase_update', (data) => {
+    const cid = data && data.challenge_id;
+    if (!cid) return;
+    // Rediffuser à toute la room sauf l'émetteur
+    socket.to(`match_${cid}`).emit('bo_phase_update', data);
+  });
+
+  socket.on('chat_message', (data) => {
+    const uid  = req.session?.user?.id;
+    const name = req.session?.user?.username || 'Unknown';
+    const cid  = data?.challenge_id || '';
+    const text = (data?.text || '').toString().slice(0, 200).trim();
+    if (!uid || !validateId(cid) || !text) return;
+    const payload = { uid, name, text, ts: new Date().toISOString() };
+    if (!chatHistory.has(cid)) chatHistory.set(cid, []);
+    const hist = chatHistory.get(cid);
+    hist.push(payload);
+    if (hist.length > CHAT_MAX) hist.shift();
+    io.to(`match_${cid}`).emit('chat_message', payload);
+  });
+});
+
+// ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
+
+function requireAuth(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  next();
+}
+
+// ── ROUTES ────────────────────────────────────────────────────────────────────
+
+// Index
+app.get('/', async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    await sbDelete('lfm_posts', { expires_at: `lt.${now}` });
+    const [players, matches, lfm] = await Promise.all([
+      sbGet('players', 'order=points.desc'),
+      sbGet('matches', 'order=date.desc&limit=10'),
+      sbGet('lfm_posts', 'order=created_at.desc'),
+    ]);
+    res.render('index.html', { user: req.session.user || null, players, recent_matches: matches, lfm_posts: lfm });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// Login
+app.get('/login', (req, res) => {
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.oauth_state = state;
+  res.redirect(DISCORD_AUTH_URL + `&state=${state}`);
+});
+
+// OAuth Callback
+app.get('/callback', async (req, res) => {
+  const { code, state } = req.query;
+  const expected = req.session.oauth_state;
+  delete req.session.oauth_state;
+  if (!state || state !== expected) return res.status(403).send('Invalid state — possible CSRF attack.');
+  if (!code) return res.redirect('/');
+
+  try {
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
+        grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
+    });
+    if (!tokenRes.ok) return res.status(400).send(`Discord Error: ${await tokenRes.text()}`);
+    const { access_token: token } = await tokenRes.json();
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const [userData, guilds, memberData] = await Promise.all([
+      fetch('https://discord.com/api/users/@me', { headers }).then(r => r.json()),
+      fetch('https://discord.com/api/users/@me/guilds', { headers }).then(r => r.json()),
+      fetch(`https://discord.com/api/users/@me/guilds/${GUILD_ID}/member`, { headers }).then(r => r.json()),
+    ]);
+
+    if (!guilds.find(g => g.id === GUILD_ID)) return res.render('not_member.html');
+
+    const displayName = memberData.nick || userData.global_name || userData.username;
+    const avatar      = userData.avatar || null;
+    const uid         = userData.id;
+
+    req.session.user = { id: uid, username: displayName, avatar };
+
+    const existing = await sbGet('players', `id=eq.${uid}`);
+    if (!existing.length) {
+      await sbPost('players', { id: uid, username: displayName, avatar,
+        points: 1000, wins: 0, losses: 0, matches_played: 0,
+        main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0 });
+    } else {
+      await sbPatch('players', { id: uid }, { username: displayName, avatar });
+    }
+    res.redirect('/dashboard');
+  } catch (e) { console.error(e); res.status(500).send('Auth error'); }
+});
+
+// Dashboard
+app.get('/dashboard', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const data   = await dashboardData(userId);
+    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches) });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// Player profile
+app.get('/player/:player_id', async (req, res) => {
+  const { player_id } = req.params;
+  if (req.session.user?.id === player_id) return res.redirect('/dashboard');
+  try {
+    const [players, myMatches] = await Promise.all([
+      sbGet('players', 'order=points.desc'),
+      getPlayerMatches(player_id, 10),
+    ]);
+    const player = players.find(p => p.id === player_id);
+    if (!player) return res.redirect('/');
+    const rank = players.findIndex(p => p.id === player_id) + 1;
+    res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// Match page
+app.get('/match/:challenge_id', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.redirect('/dashboard');
+  const userId = req.session.user.id;
+  try {
+    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+    if (!challenges.length) return res.redirect('/dashboard');
+    const c = challenges[0];
+    if (![c.challenger_id, c.challenged_id].includes(userId)) return res.redirect('/dashboard');
+    if (!['accepted', 'reported'].includes(c.status)) return res.redirect('/dashboard');
+    const [challenger, challenged] = await Promise.all([
+      sbGet('players', `id=eq.${c.challenger_id}`),
+      sbGet('players', `id=eq.${c.challenged_id}`),
+    ]);
+    if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
+    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0] });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// Logout
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => res.redirect('/'));
+});
+
+// ── API ───────────────────────────────────────────────────────────────────────
+
+app.get('/api/dashboard', requireAuth, async (req, res) => {
+  try { res.json(await dashboardData(req.session.user.id)); }
+  catch (e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+  try { res.json(await leaderboardData()); }
+  catch (e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.get('/api/lfm', async (req, res) => {
+  const now = new Date().toISOString();
+  res.json(await sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`));
+});
+
+app.get('/api/players/search', async (req, res) => {
+  const q = (req.query.q || '').toLowerCase();
+  let players = await sbGet('players', 'order=points.desc');
+  if (q) players = players.filter(p => p.username.toLowerCase().includes(q));
+  res.json(players);
+});
+
+app.get('/api/match_status/:challenge_id', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  const report = typeof c.report === 'object' ? c.report : {};
+  res.json({ status: c.status, reported_by: c.reported_by, report: c.report,
+    winner_id: report?.winner_id || null, score: report?.score || null,
+    elo_change: c.elo_change || null });
+});
+
+app.post('/api/update_profile', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const update = {};
+  if (req.body.main_char      !== undefined) update.main_char      = sanitizeStr(req.body.main_char,      MAX_CHAR_NAME);
+  if (req.body.secondary_char !== undefined) update.secondary_char = sanitizeStr(req.body.secondary_char, MAX_CHAR_NAME);
+  if (!Object.keys(update).length) return res.json({ success: true });
+  await sbPatch('players', { id: userId }, update);
+  res.json({ success: true });
+});
+
+// ── CHALLENGES ────────────────────────────────────────────────────────────────
+
+app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
+  const { opponent_id } = req.params;
+  if (!validateId(opponent_id)) return res.status(400).json({ error: 'Invalid opponent ID' });
+  const userId = req.session.user.id;
+  if (userId === opponent_id) return res.status(400).json({ error: "You can't challenge yourself" });
+  const opponent = await sbGet('players', `id=eq.${opponent_id}`);
+  if (!opponent.length) return res.status(404).json({ error: 'Player not found' });
+  const existing = await sbGet('challenges', `status=in.(pending,accepted)&or=(and(challenger_id.eq.${userId},challenged_id.eq.${opponent_id}),and(challenger_id.eq.${opponent_id},challenged_id.eq.${userId}))`);
+  if (existing.length) return res.status(400).json({ error: 'A challenge is already pending between you' });
+  const fmt = req.body.format || 'BO3';
+  if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
+  const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
+  await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: req.session.user.username,
+    challenged_id: opponent_id, challenged_name: opponent[0].username, status: 'pending', format: fmt });
+  // Notify challenged player with dedicated event for popup
+  io.to(`user_${opponent_id}`).emit('new_challenge', {
+    challenger_name: req.session.user.username,
+    format: fmt,
+    challenge_id: cid,
+  });
+  await Promise.all([emitDashboardUpdate(opponent_id), emitDashboardUpdate(userId)]);
+  res.json({ success: true });
+});
+
+app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
+  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
+  res.json({ success: true }); // Réponse immédiate
+  await sbPatch('challenges', { id: challenge_id }, { status: 'accepted' });
+  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+});
+
+app.post('/challenge/:challenge_id/decline', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
+  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
+  await sbPatch('challenges', { id: challenge_id }, { status: 'declined' });
+  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+  res.json({ success: true });
+});
+
+app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (c.challenger_id !== userId) return res.status(403).json({ error: 'Only the challenger can cancel' });
+  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
+  await sbDelete('challenges', { id: challenge_id });
+  await Promise.all([emitDashboardUpdate(c.challenged_id), emitDashboardUpdate(c.challenger_id)]);
+  res.json({ success: true });
+});
+
+// ── LFM ───────────────────────────────────────────────────────────────────────
+
+app.post('/lfm', requireAuth, async (req, res) => {
+  const userId  = req.session.user.id;
+  const fmt     = req.body.format || 'BO3';
+  const mode    = req.body.mode || 'sets';
+  if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
+  if (!VALID_MODES.has(mode))  return res.status(400).json({ error: 'Invalid mode' });
+  const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
+  await sbDelete('lfm_posts', { player_id: userId });
+  const player  = await sbGet('players', `id=eq.${userId}`);
+  const pts     = player[0]?.points || 1000;
+  const main    = player[0]?.main_char || '';
+  const avatar  = req.session.user.avatar || '';
+  const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
+  await sbPost('lfm_posts', { id: postId, player_id: userId,
+    player_name: req.session.user.username, player_avatar: avatar,
+    player_points: pts, main_char: main, format: fmt, mode, message,
+    created_at: new Date().toISOString(), expires_at: expires });
+  res.json({ success: true });
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
+});
+
+app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
+  const { post_id } = req.params;
+  if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
+  if (!posts.length) return res.status(404).json({ error: 'Not found' });
+  const post = posts[0];
+  if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
+  const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
+  res.json({ success: true, challenge_id: cid }); // Réponse immédiate
+  await sbPost('challenges', { id: cid, challenger_id: userId,
+    challenger_name: req.session.user.username, challenged_id: post.player_id,
+    challenged_name: post.player_name, status: 'accepted', format: post.format });
+  await sbDelete('lfm_posts', { id: post_id });
+  // Redirect BOTH players to the match page via Socket.IO
+  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
+  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
+  await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
+});
+
+app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
+  const { post_id } = req.params;
+  if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
+  if (!posts.length) return res.status(404).json({ error: 'Not found' });
+  if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
+  await sbDelete('lfm_posts', { id: post_id });
+  res.json({ success: true });
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
+});
+
+// ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
+
+app.post('/result/:challenge_id', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId     = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (![c.challenger_id, c.challenged_id].includes(userId)) return res.status(403).json({ error: 'Not part of this match' });
+
+  const { winner_id, score: rawScore } = req.body;
+  const isStocks = c.format === 'STOCKS';
+
+  // En mode STOCKS : le front envoie les TOTAUX CUMULÉS sur l'ensemble des matchs.
+  // On calcule le delta = total saisi - total précédemment enregistré.
+  let wStRaw = parseInt(req.body.winner_stocks_taken ?? 0, 10);
+  let lStRaw = parseInt(req.body.loser_stocks_taken  ?? 0, 10);
+  if (isNaN(wStRaw) || isNaN(lStRaw) || wStRaw < 0 || lStRaw < 0) {
+    return res.status(400).json({ error: 'Stocks must be >= 0' });
+  }
+
+  let wSt = wStRaw, lSt = lStRaw;
+  let scoreStr;
+
+  if (isStocks) {
+    const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
+    const prevW = prev.winner_stocks_total || 0;
+    const prevL = prev.loser_stocks_total  || 0;
+    wSt = Math.max(0, wStRaw - prevW); // delta pour ce match
+    lSt = Math.max(0, lStRaw - prevL);
+    scoreStr = `${wStRaw}-${lStRaw}`; // score = totaux pour l'affichage
+  } else {
+    const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
+    if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
+    scoreStr = sanitizeStr(rawScore || '', 20);
+  }
+
+  if (![c.challenger_id, c.challenged_id].includes(winner_id)) return res.status(400).json({ error: 'Invalid winner' });
+  const loser_id = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
+
+  if (c.status === 'accepted') {
+    await sbPatch('challenges', { id: challenge_id }, {
+      status: 'reported', reported_by: userId,
+      report: {
+        winner_id, score: scoreStr,
+        winner_stocks_taken: wSt, loser_stocks_taken: lSt,
+        winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
+        is_stocks_mode: isStocks
+      }
+    });
+    await emitMatchUpdate(challenge_id);
+    return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
+  }
+
+  if (c.status === 'reported' && c.reported_by !== userId) {
+    const report = typeof c.report === 'object' ? c.report : {};
+    if (String(winner_id) === String(report.winner_id)) {
+      const [winnerArr, loserArr] = await Promise.all([
+        sbGet('players', `id=eq.${winner_id}`),
+        sbGet('players', `id=eq.${loser_id}`),
+      ]);
+      if (winnerArr.length && loserArr.length) {
+        const winner = winnerArr[0], loser = loserArr[0];
+        const wp = winner.points, lp = loser.points;
+        const eloGain = report.is_stocks_mode
+          ? calcEloStocks(wp, lp, report.winner_stocks_taken || 0, report.loser_stocks_taken || 0)
+          : calcElo(wp, lp);
+        await Promise.all([
+          sbPatch('players', { id: winner_id }, { points: wp + eloGain, wins: winner.wins + 1,
+            matches_played: winner.matches_played + 1,
+            stocks_taken: (winner.stocks_taken || 0) + (report.winner_stocks_taken || 0) }),
+          sbPatch('players', { id: loser_id }, { points: Math.max(0, lp - eloGain), losses: loser.losses + 1,
+            matches_played: loser.matches_played + 1,
+            stocks_lost: (loser.stocks_lost || 0) + (report.loser_stocks_taken || 0) }),
+          sbPost('matches', { challenge_id, winner_id, winner_name: winner.username,
+            winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
+            loser_main: loser.main_char || '', score: report.score || scoreStr,
+            format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
+          sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
+        ]);
+        // Petit délai pour laisser Supabase propager le PATCH avant les re-queries
+        await new Promise(r => setTimeout(r, 300));
+        await emitMatchUpdate(challenge_id, {
+          status: 'completed',
+          winner_id,
+          score: report.score || scoreStr,
+          elo_change: eloGain,
+        });
+        await emitLeaderboardUpdate();
+        chatHistory.delete(challenge_id); // clear chat history on match end
+        return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
+      }
+    } else {
+      await sbPatch('challenges', { id: challenge_id }, { status: 'disputed' });
+      await new Promise(r => setTimeout(r, 300));
+      await emitMatchUpdate(challenge_id);
+      return res.json({ success: true, message: 'Conflict detected! Contact an admin.' });
+    }
+  }
+
+  res.status(400).json({ error: 'Invalid action' });
+});
+
+// ── START ─────────────────────────────────────────────────────────────────────
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => console.log(`⚔ Smash YUZU running on port ${PORT}`));
