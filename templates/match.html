@@ -381,6 +381,42 @@
     .toast.success { border-color: var(--green); }
     .toast.error { border-color: var(--red); }
 
+    /* ── MATCH TIMER ── */
+    #match-timer {
+      position: fixed; top: 75px; left: 50%; transform: translateX(-50%);
+      z-index: 200;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 0.35rem 1.2rem;
+      display: flex; align-items: center; gap: 0.6rem;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem;
+      letter-spacing: 2px; color: var(--text);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      transition: border-color 0.3s, color 0.3s;
+      pointer-events: none;
+    }
+    #match-timer.warning {
+      border-color: var(--accent2); color: var(--accent2);
+      animation: timer-pulse 1s ease-in-out infinite;
+    }
+    #match-timer.danger {
+      border-color: var(--red); color: var(--red);
+      animation: timer-pulse 0.5s ease-in-out infinite;
+    }
+    @keyframes timer-pulse {
+      0%,100% { box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+      50% { box-shadow: 0 4px 30px rgba(232,64,10,0.5); }
+    }
+    #timer-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+      animation: dot-blink 1.5s ease-in-out infinite;
+    }
+    #match-timer.warning #timer-dot { background: var(--accent2); }
+    #match-timer.danger  #timer-dot { background: var(--red); }
+    @keyframes dot-blink {
+      0%,100% { opacity:1; } 50% { opacity:0.3; }
+    }
+
     /* ── WINNER ANNOUNCEMENT ── */
     .winner-announcement {
       display: none; position: fixed; inset: 0; z-index: 500;
@@ -499,6 +535,12 @@
     <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
   </div>
 </nav>
+
+<!-- ── MATCH TIMER ── -->
+<div id="match-timer">
+  <div id="timer-dot"></div>
+  <span id="timer-display">15:00</span>
+</div>
 
 <div class="page-body">
 <div class="arena">
@@ -1485,14 +1527,6 @@ function applyGameResult(winner) {
   updateDots(boState.games.map(g => g.winner));
   boState.prevWinner = winner;
 
-  boState.games.push({ p1char: boState.p1Char, p2char: boState.p2Char,
-    stage: boState.selectedStage, winner });
-
-  if (winner === 'p1') p1Score++; else p2Score++;
-  updateScoreDisplay();
-  updateDots(boState.games.map(g => g.winner));
-  boState.prevWinner = winner;
-
   if (p1Score >= boState.maxWins || p2Score >= boState.maxWins) {
     // BO terminé
     const finalWinnerId = p1Score >= boState.maxWins ? P1_ID : P2_ID;
@@ -1943,6 +1977,89 @@ function startHttpFallback() {
   }, 3000);
 }
 
+// ─────────────────────────────────────────────
+// MATCH TIMER — 15 minutes
+// Logique :
+//   • Aucune action de personne → annulation
+//   • J1 a soumis (gameResultPending / pendingResult) mais J2 n'a pas répondu → J1 gagne
+// ─────────────────────────────────────────────
+const MATCH_TIMER_SECONDS = 15 * 60;
+let matchTimerEnd = null;
+let matchTimerRAF = null;
+let gameTimerEnd  = null; // timer spécifique pour attente de confirmation J2
+
+function startMatchTimer(endTimestamp) {
+  matchTimerEnd = endTimestamp || (Date.now() + MATCH_TIMER_SECONDS * 1000);
+  if (matchTimerRAF) cancelAnimationFrame(matchTimerRAF);
+  tickTimer();
+}
+
+function resetGameTimer() {
+  gameTimerEnd = Date.now() + MATCH_TIMER_SECONDS * 1000;
+}
+
+function stopTimer() {
+  if (matchTimerRAF) { cancelAnimationFrame(matchTimerRAF); matchTimerRAF = null; }
+  const el = document.getElementById('match-timer');
+  if (el) el.style.display = 'none';
+}
+
+function tickTimer() {
+  if (matchFinished) { stopTimer(); return; }
+  const now = Date.now();
+  let remaining;
+
+  // Timer de game (en attente de confirmation) prioritaire
+  if (gameTimerEnd && (_gameResultPending || pendingResult)) {
+    remaining = Math.max(0, Math.round((gameTimerEnd - now) / 1000));
+  } else {
+    if (!_gameResultPending && !pendingResult) gameTimerEnd = null;
+    remaining = Math.max(0, Math.round((matchTimerEnd - now) / 1000));
+  }
+
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const dispEl = document.getElementById('timer-display');
+  const timerEl = document.getElementById('match-timer');
+  if (dispEl) dispEl.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+  if (timerEl) {
+    timerEl.classList.remove('warning','danger');
+    if (remaining <= 60)      timerEl.classList.add('danger');
+    else if (remaining <= 180) timerEl.classList.add('warning');
+  }
+
+  if (remaining === 0) { handleTimerExpired(); return; }
+  matchTimerRAF = requestAnimationFrame(tickTimer);
+}
+
+function handleTimerExpired() {
+  if (matchFinished) return;
+
+  // Cas 1 : J1 avait proposé un résultat de GAME, J2 n'a pas répondu
+  if (_gameResultPending && MY_ID !== P1_ID) {
+    showToast('⏱ Temps écoulé ! Pas de réponse — résultat de J1 accepté automatiquement.', false);
+    gameTimerEnd = null;
+    confirmGameResultP2();
+    startMatchTimer(); // repart pour le prochain game
+    return;
+  }
+
+  // Cas 2 : J1 avait soumis le résultat FINAL (recap), J2 n'a pas confirmé
+  if (pendingResult && pendingResult.winner_id && MY_ID === P1_ID) {
+    matchFinished = true;
+    stopTimer();
+    showToast('⏱ Temps écoulé ! Adversaire absent — résultat validé automatiquement.', false);
+    submitResult(pendingResult, true);
+    return;
+  }
+
+  // Cas 3 : Personne n'a rien fait → annulation
+  matchFinished = true;
+  stopTimer();
+  showToast('⏱ Temps écoulé ! Aucune activité — match annulé.', false);
+  setTimeout(() => { window.location.href = '/dashboard'; }, 3500);
+}
+
 // ── Connexion socket immédiate — les deux joueurs rejoignent dès le chargement ──
 // Ainsi le joueur qui attend la confirmation reçoit match_update en temps réel
 // sans avoir besoin de soumettre quoi que ce soit d'abord.
@@ -1983,6 +2100,29 @@ function initMatchSocket() {
     updateScoreDisplay();
     updateDots(boState.games.map(g => g.winner));
     updateArenaChars();
+
+    // ── Gestion des résultats de game (confirmation J1→J2) ──
+    if (d.gameResultPending) {
+      _gameResultPending = d.gameResultPending;
+      // Réinitialiser le timer de game pour J2 aussi
+      resetGameTimer();
+      renderGameResultConfirm();
+      return;
+    }
+    if (d.gameResultConfirmed !== undefined) {
+      _gameResultPending = null;
+      _selectedGameWinner = null;
+      applyGameResult(d.gameResultConfirmed);
+      return;
+    }
+    if (d.gameResultContested) {
+      _gameResultPending = null;
+      _selectedGameWinner = null;
+      showToast('Result contested — re-submit the winner.', false);
+      renderGameResult();
+      return;
+    }
+
     if (d.phase === 'match_over') {
       // L'autre joueur a terminé le match — afficher le même état "match over"
       if (d.selectedResult) selectedResult = d.selectedResult;
