@@ -204,7 +204,7 @@
                 <span class="report-badge badge-player">JOUEUR</span>
               {% endif %}
               <span style="font-size:0.78rem;color:var(--muted);">{{ r.format or '' }}</span>
-              <span class="report-date">{{ r.created_at[:16].replace('T',' ') if r.created_at else '' }}</span>
+              <span class="report-date">{{ r.created_at_fmt }}</span>
             </div>
           </div>
           <span class="chevron">▼</span>
@@ -214,16 +214,14 @@
         <div class="report-body">
 
           <!-- Players -->
-          {% set p1 = players_map.get(r.challenger_id, {}) %}
-          {% set p2 = players_map.get(r.challenged_id, {}) %}
           <div class="players-row">
             <div class="player-box p1">
-              <div class="player-box-name">{{ p1.username or r.challenger_id }}</div>
-              <div class="player-box-elo">{{ p1.points or '?' }} ELO — {{ p1.wins or 0 }}W / {{ p1.losses or 0 }}L</div>
+              <div class="player-box-name">{{ r.p1.username }}</div>
+              <div class="player-box-elo">{{ r.p1.points }} ELO — {{ r.p1.wins }}W / {{ r.p1.losses }}L</div>
               {% if r.status == 'open' %}
               <button class="btn btn-blue"
-                onclick="resolve('{{ r.id }}', '{{ r.challenger_id }}', '{{ p1.username or r.challenger_id }}')">
-                🏆 Victoire {{ p1.username or 'J1' }}
+                onclick="resolve('{{ r.id }}', '{{ r.challenger_id }}', '{{ r.p1.username }}')">
+                🏆 Victoire {{ r.p1.username }}
               </button>
               {% endif %}
             </div>
@@ -232,12 +230,12 @@
               VS
             </div>
             <div class="player-box p2">
-              <div class="player-box-name">{{ p2.username or r.challenged_id }}</div>
-              <div class="player-box-elo">{{ p2.points or '?' }} ELO — {{ p2.wins or 0 }}W / {{ p2.losses or 0 }}L</div>
+              <div class="player-box-name">{{ r.p2.username }}</div>
+              <div class="player-box-elo">{{ r.p2.points }} ELO — {{ r.p2.wins }}W / {{ r.p2.losses }}L</div>
               {% if r.status == 'open' %}
               <button class="btn btn-danger"
-                onclick="resolve('{{ r.id }}', '{{ r.challenged_id }}', '{{ p2.username or r.challenged_id }}')">
-                🏆 Victoire {{ p2.username or 'J2' }}
+                onclick="resolve('{{ r.id }}', '{{ r.challenged_id }}', '{{ r.p2.username }}')">
+                🏆 Victoire {{ r.p2.username }}
               </button>
               {% endif %}
             </div>
