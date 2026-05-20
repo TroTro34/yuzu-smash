@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚔ Admin — Signalements</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+      --blue: #4f8ef7; --gold: #ffd700;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
+
+    nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .admin-badge {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem; letter-spacing: 3px;
+      color: var(--gold); border: 1px solid var(--gold); padding: 0.2rem 0.7rem;
+      border-radius: 3px; background: rgba(255,215,0,0.08);
+    }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.4); }
+    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .btn-danger:hover { background: var(--red); color: white; }
+    .btn-blue { background: rgba(79,142,247,0.15); color: var(--blue); border: 1px solid rgba(79,142,247,0.4); }
+    .btn-blue:hover { background: var(--blue); color: #0a0a0f; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    .page-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 4px;
+      margin-bottom: 0.4rem;
+      background: linear-gradient(135deg, var(--red), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .page-sub { color: var(--muted); font-size: 0.9rem; letter-spacing: 1px; margin-bottom: 2rem; }
+
+    /* FILTER TABS */
+    .filter-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .filter-tab {
+      padding: 0.35rem 1rem; border-radius: 4px; cursor: pointer;
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem; letter-spacing: 2px;
+      border: 1px solid var(--border); color: var(--muted); background: transparent;
+      transition: all 0.2s;
+    }
+    .filter-tab.active { border-color: var(--accent2); color: var(--accent2); }
+    .filter-tab:hover { color: var(--text); border-color: var(--text); }
+
+    /* REPORT CARD */
+    .report-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      margin-bottom: 1.2rem; overflow: hidden; transition: border-color 0.2s;
+    }
+    .report-card.open { border-left: 4px solid var(--red); }
+    .report-card.resolved { border-left: 4px solid var(--green); opacity: 0.7; }
+    .report-card:hover { border-color: var(--accent2); }
+
+    .report-header {
+      padding: 1.2rem 1.5rem; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+    }
+    .report-header:hover { background: rgba(255,255,255,0.02); }
+    .report-title-row { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
+    .report-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 2px;
+    }
+    .report-meta { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; }
+    .report-badge {
+      font-size: 0.7rem; letter-spacing: 1px; padding: 0.15rem 0.5rem;
+      border-radius: 3px; font-weight: 700;
+    }
+    .badge-open { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .badge-resolved { background: rgba(61,220,132,0.12); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
+    .badge-timeout { background: rgba(255,128,0,0.12); color: var(--accent2); border: 1px solid rgba(255,128,0,0.3); }
+    .badge-player { background: rgba(255,85,85,0.08); color: rgba(255,85,85,0.8); border: 1px solid rgba(255,85,85,0.2); }
+    .report-date { font-size: 0.75rem; color: var(--muted); }
+    .chevron { color: var(--muted); font-size: 1.2rem; transition: transform 0.25s; }
+    .report-card.expanded .chevron { transform: rotate(180deg); }
+
+    /* REPORT BODY */
+    .report-body { display: none; padding: 0 1.5rem 1.5rem; }
+    .report-card.expanded .report-body { display: block; }
+
+    .players-row {
+      display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+    }
+    .player-box {
+      flex: 1; min-width: 180px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.2rem; text-align: center;
+    }
+    .player-box.p1 { border-top: 3px solid var(--blue); }
+    .player-box.p2 { border-top: 3px solid var(--accent); }
+    .player-box-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 2px; margin-bottom: 0.3rem; }
+    .player-box-elo { font-size: 0.78rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 0.8rem; }
+    .player-box .btn { width: 100%; }
+
+    /* CHAT LOG */
+    .chat-log-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 3px;
+      color: var(--accent2); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .chat-log-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .chat-log {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      max-height: 280px; overflow-y: auto; padding: 0.8rem;
+      display: flex; flex-direction: column; gap: 0.4rem;
+      margin-bottom: 1.5rem;
+    }
+    .chat-log::-webkit-scrollbar { width: 4px; }
+    .chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .chat-msg-log { font-size: 0.85rem; line-height: 1.4; }
+    .chat-msg-log .msg-name { color: var(--accent2); font-weight: 700; margin-right: 0.4rem; }
+    .chat-msg-log .msg-time { color: var(--muted); font-size: 0.72rem; margin-left: 0.4rem; }
+    .chat-empty-log { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 1rem; }
+
+    /* RESOLVE ACTIONS */
+    .resolve-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 3px;
+      color: var(--gold); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .resolve-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .resolve-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+
+    /* RESOLVED INFO */
+    .resolved-info {
+      background: rgba(61,220,132,0.06); border: 1px solid rgba(61,220,132,0.2);
+      border-radius: 8px; padding: 0.9rem 1.2rem;
+      font-size: 0.88rem; color: var(--green);
+    }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .empty-state p { font-size: 1rem; letter-spacing: 1px; }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
+      border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
+      border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-color: var(--green); }
+    .toast.error { border-color: var(--red); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">⚔ YUZU</a>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <span class="admin-badge">⚡ ADMIN</span>
+    <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-title">🚩 SIGNALEMENTS</div>
+  <div class="page-sub">{{ reports | length }} signalement(s) au total</div>
+
+  <!-- Filter tabs -->
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="filterReports('all', this)">TOUS</button>
+    <button class="filter-tab" onclick="filterReports('open', this)">EN ATTENTE</button>
+    <button class="filter-tab" onclick="filterReports('resolved', this)">RÉSOLUS</button>
+  </div>
+
+  <!-- Report list -->
+  <div id="reports-list">
+    {% if reports %}
+      {% for r in reports %}
+      <div class="report-card {{ r.status }}" id="card-{{ r.id }}" data-status="{{ r.status }}" data-reason="{{ r.reason or '' }}">
+
+        <!-- Header (clickable) -->
+        <div class="report-header" onclick="toggleCard('{{ r.id }}')">
+          <div class="report-title-row">
+            <div class="report-title">{{ r.title or 'Sans titre' }}</div>
+            <div class="report-meta">
+              <span class="report-badge {{ 'badge-resolved' if r.status == 'resolved' else 'badge-open' }}">
+                {{ 'RÉSOLU' if r.status == 'resolved' else 'EN ATTENTE' }}
+              </span>
+              {% if r.reason == 'timeout_no_result' or r.reason == 'timeout_no_confirm' %}
+                <span class="report-badge badge-timeout">TIMEOUT</span>
+              {% elif r.reason == 'player_report' %}
+                <span class="report-badge badge-player">JOUEUR</span>
+              {% endif %}
+              <span style="font-size:0.78rem;color:var(--muted);">{{ r.format or '' }}</span>
+              <span class="report-date">{{ r.created_at[:16].replace('T',' ') if r.created_at else '' }}</span>
+            </div>
+          </div>
+          <span class="chevron">▼</span>
+        </div>
+
+        <!-- Body (expandable) -->
+        <div class="report-body">
+
+          <!-- Players -->
+          {% set p1 = players_map.get(r.challenger_id, {}) %}
+          {% set p2 = players_map.get(r.challenged_id, {}) %}
+          <div class="players-row">
+            <div class="player-box p1">
+              <div class="player-box-name">{{ p1.username or r.challenger_id }}</div>
+              <div class="player-box-elo">{{ p1.points or '?' }} ELO — {{ p1.wins or 0 }}W / {{ p1.losses or 0 }}L</div>
+              {% if r.status == 'open' %}
+              <button class="btn btn-blue"
+                onclick="resolve('{{ r.id }}', '{{ r.challenger_id }}', '{{ p1.username or r.challenger_id }}')">
+                🏆 Victoire {{ p1.username or 'J1' }}
+              </button>
+              {% endif %}
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;
+              font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--muted);padding:0 0.5rem;">
+              VS
+            </div>
+            <div class="player-box p2">
+              <div class="player-box-name">{{ p2.username or r.challenged_id }}</div>
+              <div class="player-box-elo">{{ p2.points or '?' }} ELO — {{ p2.wins or 0 }}W / {{ p2.losses or 0 }}L</div>
+              {% if r.status == 'open' %}
+              <button class="btn btn-danger"
+                onclick="resolve('{{ r.id }}', '{{ r.challenged_id }}', '{{ p2.username or r.challenged_id }}')">
+                🏆 Victoire {{ p2.username or 'J2' }}
+              </button>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Chat log -->
+          <div class="chat-log-title">💬 HISTORIQUE CHAT</div>
+          <div class="chat-log" id="chat-{{ r.id }}">
+            {% set chat = r.chat_history %}
+            {% if chat and chat | length %}
+              {% for msg in chat %}
+              <div class="chat-msg-log">
+                <span class="msg-name">{{ msg.name }}</span>
+                <span>{{ msg.text }}</span>
+                <span class="msg-time">{{ msg.ts[:16].replace('T',' ') if msg.ts else '' }}</span>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="chat-empty-log">Aucun message dans ce match.</div>
+            {% endif %}
+          </div>
+
+          <!-- Actions admin -->
+          {% if r.status == 'open' %}
+          <div class="resolve-title">⚡ DÉCISION ADMIN</div>
+          <div class="resolve-actions">
+            <button class="btn btn-success"
+              onclick="resolveDrawConfirm('{{ r.id }}')">
+              ✅ Confirmer DRAW
+            </button>
+          </div>
+          {% else %}
+          <div class="resolved-info">
+            ✅ Résolu le {{ r.resolved_at[:16].replace('T',' ') if r.resolved_at else '?' }}
+            {% if r.resolution == 'winner' and r.winner_id %}
+              — Victoire attribuée à
+              <strong>{{ players_map.get(r.winner_id, {}).get('username', r.winner_id) }}</strong>
+              {% if r.elo_change %}(±{{ r.elo_change }} ELO){% endif %}
+            {% elif r.resolution == 'draw' %}
+              — DRAW confirmé
+            {% endif %}
+          </div>
+          {% endif %}
+
+        </div><!-- /report-body -->
+      </div><!-- /report-card -->
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <p>Aucun signalement pour le moment.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Confirm draw dialog -->
+<div id="draw-confirm-overlay" style="
+  display:none; position:fixed; inset:0; z-index:800;
+  background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:2rem;max-width:380px;width:90%;text-align:center;">
+    <div style="font-size:2rem;margin-bottom:0.8rem;">🤝</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:3px;
+      color:var(--accent2);margin-bottom:0.8rem;">CONFIRMER LE DRAW</div>
+    <div style="color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem;">
+      Aucun ELO ne sera modifié. Le match restera en DRAW.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.7rem;">
+      <button id="draw-confirm-btn" class="btn btn-success" style="padding:0.9rem;" onclick="confirmDraw()">
+        ✅ Oui, confirmer DRAW
+      </button>
+      <button class="btn btn-ghost" onclick="document.getElementById('draw-confirm-overlay').style.display='none'">
+        Annuler
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let pendingDrawReportId = null;
+
+function toggleCard(id) {
+  const card = document.getElementById('card-' + id);
+  card.classList.toggle('expanded');
+}
+
+function filterReports(filter, btn) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.report-card').forEach(card => {
+    const status = card.dataset.status;
+    if (filter === 'all') { card.style.display = ''; return; }
+    card.style.display = (status === filter) ? '' : 'none';
+  });
+}
+
+function resolve(reportId, winnerId, winnerName) {
+  if (!confirm(`Attribuer la victoire à ${winnerName} ?\n\nL'ELO sera calculé et appliqué immédiatement.`)) return;
+  fetch(`/admin/reports/${reportId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ winner_id: winnerId }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast(`✅ Victoire attribuée à ${winnerName} (+${d.elo_change} ELO)`, true);
+      const card = document.getElementById('card-' + reportId);
+      if (card) {
+        card.dataset.status = 'resolved';
+        card.classList.remove('open');
+        card.classList.add('resolved');
+        // Recharger la page après 1.5s pour afficher le résultat à jour
+        setTimeout(() => location.reload(), 1500);
+      }
+    } else {
+      showToast(d.error || 'Erreur', false);
+    }
+  })
+  .catch(() => showToast('Erreur réseau', false));
+}
+
+function resolveDrawConfirm(reportId) {
+  pendingDrawReportId = reportId;
+  document.getElementById('draw-confirm-overlay').style.display = 'flex';
+}
+
+function confirmDraw() {
+  if (!pendingDrawReportId) return;
+  document.getElementById('draw-confirm-overlay').style.display = 'none';
+  fetch(`/admin/reports/${pendingDrawReportId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast('✅ DRAW confirmé.', true);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(d.error || 'Erreur', false);
+    }
+  })
+  .catch(() => showToast('Erreur réseau', false));
+  pendingDrawReportId = null;
+}
+
+let toastTimer;
+function showToast(msg, success = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (success ? 'success' : 'error');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
