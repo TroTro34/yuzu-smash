@@ -169,6 +169,7 @@
   <a href="/" class="logo">⚔ YUZU</a>
   <div style="display:flex;align-items:center;gap:1rem;">
     <span class="admin-badge">⚡ ADMIN</span>
+    <a href="/admin/memory" class="btn btn-primary">🧠 Memory</a>
     <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
   </div>
 </nav>
@@ -250,7 +251,7 @@
               <div class="chat-msg-log">
                 <span class="msg-name">{{ msg.name }}</span>
                 <span>{{ msg.text }}</span>
-                <span class="msg-time">{{ msg.ts[:16].replace('T',' ') if msg.ts else '' }}</span>
+                <span class="msg-time">{{ msg.ts | datefmt }}</span>
               </div>
               {% endfor %}
             {% else %}
@@ -269,10 +270,10 @@
           </div>
           {% else %}
           <div class="resolved-info">
-            ✅ Résolu le {{ r.resolved_at[:16].replace('T',' ') if r.resolved_at else '?' }}
+            ✅ Résolu le {{ r.resolved_at | datefmt if r.resolved_at else '?' }}
             {% if r.resolution == 'winner' and r.winner_id %}
               — Victoire attribuée à
-              <strong>{{ players_map.get(r.winner_id, {}).get('username', r.winner_id) }}</strong>
+              <strong>{{ r.winner_username or r.winner_id }}</strong>
               {% if r.elo_change %}(±{{ r.elo_change }} ELO){% endif %}
             {% elif r.resolution == 'draw' %}
               — DRAW confirmé
