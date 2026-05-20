@@ -658,6 +658,143 @@ app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
   await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
 });
 
+// ── REPORT (joueur) ───────────────────────────────────────────────────────────
+
+app.post('/report/:challenge_id', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (![c.challenger_id, c.challenged_id].includes(userId))
+    return res.status(403).json({ error: 'Not part of this match' });
+  if (!['accepted', 'reported'].includes(c.status))
+    return res.status(400).json({ error: 'Cannot report this match' });
+
+  const title = sanitizeStr(req.body.title || '', 120) ||
+    `${c.challenger_name} vs ${c.challenged_name}`;
+
+  // Draw immédiat
+  await sbPatch('challenges', { id: challenge_id }, { status: 'draw_reported' });
+
+  // Créer le signalement avec snapshot du chat
+  await createReport({
+    challenge_id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
+    format: c.format, title,
+    reason: 'player_report',
+    chat_history_snapshot: chatHistory.get(challenge_id) || [],
+  });
+  chatHistory.delete(challenge_id);
+
+  // Notifier les deux joueurs
+  const msg = { type: 'match_timeout', outcome: 'draw', challenge_id,
+    message: '🚩 Match signalé — résultat en DRAW en attendant la décision admin.' };
+  io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
+  io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
+  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+
+  res.json({ success: true });
+});
+
+// ── ADMIN MIDDLEWARE ──────────────────────────────────────────────────────────
+
+async function requireAdmin(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  const players = await sbGet('players', `id=eq.${req.session.user.id}`);
+  if (!players.length || !players[0].is_admin)
+    return res.status(403).render('not_member.html');
+  req.adminPlayer = players[0];
+  next();
+}
+
+// ── ADMIN — PAGE SIGNALEMENTS ─────────────────────────────────────────────────
+
+app.get('/admin/reports', requireAdmin, async (req, res) => {
+  try {
+    const [openReports, allPlayers] = await Promise.all([
+      sbGet('reports', 'order=created_at.desc'),
+      sbGet('players', 'order=points.desc'),
+    ]);
+    // Enrichir chaque report avec les noms des joueurs
+    const playersMap = Object.fromEntries(allPlayers.map(p => [p.id, p]));
+    res.render('admin_reports.html', { user: req.session.user, reports: openReports, players_map: playersMap });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => {
+  const { report_id } = req.params;
+  if (!validateId(report_id)) return res.status(400).json({ error: 'Invalid ID' });
+
+  const reports = await sbGet('reports', `id=eq.${report_id}`);
+  if (!reports.length) return res.status(404).json({ error: 'Not found' });
+  const report = reports[0];
+  if (report.status === 'resolved') return res.status(400).json({ error: 'Already resolved' });
+
+  const { winner_id } = req.body;
+  if (!winner_id) {
+    // Clôturer sans vainqueur (draw confirmé)
+    await sbPatch('reports', { id: report_id }, {
+      status: 'resolved', resolved_by: req.session.user.id,
+      resolved_at: new Date().toISOString(), resolution: 'draw'
+    });
+    return res.json({ success: true, resolution: 'draw' });
+  }
+
+  if (![report.challenger_id, report.challenged_id].includes(winner_id))
+    return res.status(400).json({ error: 'Invalid winner' });
+
+  const loser_id = winner_id === report.challenger_id ? report.challenged_id : report.challenger_id;
+  const [winnerArr, loserArr] = await Promise.all([
+    sbGet('players', `id=eq.${winner_id}`),
+    sbGet('players', `id=eq.${loser_id}`),
+  ]);
+  if (!winnerArr.length || !loserArr.length)
+    return res.status(404).json({ error: 'Player not found' });
+
+  const winner = winnerArr[0], loser = loserArr[0];
+  const eloGain = calcElo(winner.points, loser.points);
+
+  await Promise.all([
+    sbPatch('players', { id: winner_id }, {
+      points: winner.points + eloGain, wins: winner.wins + 1,
+      matches_played: winner.matches_played + 1,
+    }),
+    sbPatch('players', { id: loser_id }, {
+      points: Math.max(0, loser.points - eloGain), losses: loser.losses + 1,
+      matches_played: loser.matches_played + 1,
+    }),
+    sbPost('matches', {
+      challenge_id: report.challenge_id, winner_id, winner_name: winner.username,
+      winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
+      loser_main: loser.main_char || '', score: 'W-L (admin)',
+      format: report.format || 'BO3', elo_change: eloGain, date: new Date().toISOString(),
+    }),
+    sbPatch('challenges', { id: report.challenge_id }, { status: 'completed' }),
+    sbPatch('reports', { id: report_id }, {
+      status: 'resolved', resolved_by: req.session.user.id,
+      resolved_at: new Date().toISOString(), resolution: 'winner',
+      winner_id, elo_change: eloGain,
+    }),
+  ]);
+
+  await emitLeaderboardUpdate();
+  await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
+  // Notifier les joueurs de la décision admin
+  const notify = (uid, won) => io.to(`user_${uid}`).emit('admin_decision', {
+    challenge_id: report.challenge_id,
+    message: won
+      ? `✅ Décision admin : vous remportez le match (+${eloGain} ELO).`
+      : `❌ Décision admin : vous perdez le match (−${eloGain} ELO).`,
+    won, elo_change: eloGain,
+  });
+  notify(winner_id, true);
+  notify(loser_id, false);
+
+  res.json({ success: true, resolution: 'winner', elo_change: eloGain });
+});
+
 // ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
 
 app.post('/result/:challenge_id', requireAuth, async (req, res) => {
@@ -763,89 +900,72 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
 });
 
 // ── DEAD MATCH CLEANUP ────────────────────────────────────────────────────────
-// Tournant en arrière-plan, résout les matchs abandonnés selon les règles :
-//   • status=accepted  depuis > 2h  → DRAW (personne n'a soumis) → annulation
-//   • status=reported  depuis > 30min → le reporter gagne par forfait
+// Tournant en arrière-plan, résout les matchs abandonnés :
+//   • status=accepted  depuis > 2h  → DRAW + signalement admin
+//   • status=reported  depuis > 30min → DRAW + signalement admin (plus de forfait auto)
+
+async function createReport({ challenge_id, challenger_id, challenged_id, format, title, reason, chat_history_snapshot }) {
+  const rid = `rep_${crypto.randomBytes(8).toString('hex')}`;
+  await sbPost('reports', {
+    id: rid, challenge_id, challenger_id, challenged_id, format,
+    title: title || 'Signalement sans titre',
+    reason: reason || 'unknown',
+    chat_history: chat_history_snapshot || [],
+    status: 'open',
+    created_at: new Date().toISOString(),
+  });
+  return rid;
+}
 
 async function resolveDeadMatches() {
   try {
     const now = new Date();
 
-    // ── 1. Matchs accepted expirés → DRAW ─────────────────────────────────────
+    // ── 1. Matchs accepted expirés → DRAW + signalement ───────────────────────
     const acceptedExpiry = new Date(now - MATCH_ACCEPTED_TIMEOUT_MS).toISOString();
     const deadAccepted = await sbGet('challenges',
       `status=eq.accepted&accepted_at=lt.${acceptedExpiry}`);
 
     for (const c of deadAccepted) {
-      console.log(`[DeadMatch] DRAW annulation: ${c.id} (accepted at ${c.accepted_at})`);
-      await sbPatch('challenges', { id: c.id }, { status: 'cancelled_timeout' });
-      // Notifier les deux joueurs
+      console.log(`[DeadMatch] DRAW (timeout accepted): ${c.id}`);
+      await sbPatch('challenges', { id: c.id }, { status: 'draw_timeout' });
+      await createReport({
+        challenge_id: c.id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
+        format: c.format,
+        title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — aucun résultat soumis`,
+        reason: 'timeout_no_result',
+        chat_history_snapshot: chatHistory.get(c.id) || [],
+      });
+      chatHistory.delete(c.id);
       const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
-        message: '⏱ Match annulé — aucun résultat soumis dans les 2 heures (DRAW).' };
+        message: '⏱ Temps écoulé — aucun résultat soumis. Match annulé (DRAW), un admin peut trancher.' };
       io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
       io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
       await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
     }
 
-    // ── 2. Matchs reported expirés → victoire du reporter ────────────────────
+    // ── 2. Matchs reported expirés → DRAW + signalement ──────────────────────
     const reportedExpiry = new Date(now - MATCH_REPORTED_TIMEOUT_MS).toISOString();
     const deadReported = await sbGet('challenges',
       `status=eq.reported&reported_at=lt.${reportedExpiry}`);
 
     for (const c of deadReported) {
-      const report = typeof c.report === 'object' && c.report ? c.report : null;
-      if (!report || !report.winner_id) {
-        // Rapport corrompu → annulation propre
-        await sbPatch('challenges', { id: c.id }, { status: 'cancelled_timeout' });
-        continue;
-      }
-
-      const winner_id = report.winner_id;
-      const loser_id  = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
-
-      console.log(`[DeadMatch] FORFAIT reporter gagne: ${c.id}, winner=${winner_id}`);
-
-      const [winnerArr, loserArr] = await Promise.all([
-        sbGet('players', `id=eq.${winner_id}`),
-        sbGet('players', `id=eq.${loser_id}`),
-      ]);
-      if (!winnerArr.length || !loserArr.length) continue;
-
-      const winner = winnerArr[0], loser = loserArr[0];
-      const eloGain = report.is_stocks_mode
-        ? calcEloStocks(winner.points, loser.points,
-            report.winner_stocks_taken || 0, report.loser_stocks_taken || 0)
-        : calcElo(winner.points, loser.points);
-
-      await Promise.all([
-        sbPatch('players', { id: winner_id }, {
-          points: winner.points + eloGain, wins: winner.wins + 1,
-          matches_played: winner.matches_played + 1,
-          stocks_taken: (winner.stocks_taken || 0) + (report.winner_stocks_taken || 0),
-        }),
-        sbPatch('players', { id: loser_id }, {
-          points: Math.max(0, loser.points - eloGain), losses: loser.losses + 1,
-          matches_played: loser.matches_played + 1,
-          stocks_lost: (loser.stocks_lost || 0) + (report.loser_stocks_taken || 0),
-        }),
-        sbPost('matches', {
-          challenge_id: c.id, winner_id, winner_name: winner.username,
-          winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
-          loser_main: loser.main_char || '', score: report.score || 'W-L (forfait)',
-          format: c.format, elo_change: eloGain, date: new Date().toISOString(),
-        }),
-        sbPatch('challenges', { id: c.id }, { status: 'completed' }),
-      ]);
-
+      const report = typeof c.report === 'object' && c.report ? c.report : {};
+      console.log(`[DeadMatch] DRAW (timeout reported): ${c.id}`);
+      await sbPatch('challenges', { id: c.id }, { status: 'draw_timeout' });
+      await createReport({
+        challenge_id: c.id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
+        format: c.format,
+        title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — confirmation expirée`,
+        reason: 'timeout_no_confirm',
+        chat_history_snapshot: chatHistory.get(c.id) || [],
+      });
       chatHistory.delete(c.id);
-
-      const timeoutMsg = { type: 'match_timeout', outcome: 'forfeit',
-        challenge_id: c.id, winner_id, elo_change: eloGain,
-        message: '⏱ Confirmation non reçue — résultat validé automatiquement par forfait.' };
-      io.to(`user_${winner_id}`).emit('match_timeout', timeoutMsg);
-      io.to(`user_${loser_id}`).emit('match_timeout', timeoutMsg);
-      await emitLeaderboardUpdate();
-      await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
+      const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
+        message: '⏱ Confirmation non reçue à temps — match en DRAW. Un admin va trancher.' };
+      io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
+      io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
+      await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
     }
   } catch (e) {
     console.error('[resolveDeadMatches]', e);
