@@ -516,12 +516,7 @@
       {% endif %}
       <div class="fighter-name">{{ challenger.username }}</div>
       <div class="fighter-elo">{{ challenger.points }} ELO</div>
-      {% if challenger.main_char %}
-      <div class="fighter-char">
-        <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ challenger.main_char }}.png"
-          onerror="this.style.display='none'" alt="{{ challenger.main_char }}">
-      </div>
-      {% endif %}
+      <div id="p1-game-char" style="min-height:60px;display:flex;flex-direction:column;align-items:center;gap:0.2rem;justify-content:center;"></div>
       <div class="fighter-score" id="score-p1">0</div>
     </div>
 
@@ -542,12 +537,7 @@
       {% endif %}
       <div class="fighter-name">{{ challenged.username }}</div>
       <div class="fighter-elo">{{ challenged.points }} ELO</div>
-      {% if challenged.main_char %}
-      <div class="fighter-char">
-        <img src="https://www.smashbros.com/assets_v2/img/fighter/thumb_v2/{{ challenged.main_char }}.png"
-          onerror="this.style.display='none'" alt="{{ challenged.main_char }}">
-      </div>
-      {% endif %}
+      <div id="p2-game-char" style="min-height:60px;display:flex;flex-direction:column;align-items:center;gap:0.2rem;justify-content:center;"></div>
       <div class="fighter-score" id="score-p2">0</div>
     </div>
   </div>
@@ -888,28 +878,91 @@ function renderBOPhase() {
 }
 
 // ── Char pick (1 joueur à la fois) ──────────────────────────────────────────
-function renderCharPick(player) {
-  const isP1     = player === 'p1';
-  const name     = isP1 ? P1_NAME : P2_NAME;
-  const colorVar = isP1 ? 'var(--blue)' : 'var(--accent)';
-  const selected = isP1 ? boState.p1Char : boState.p2Char;
+// ── Helper : mise à jour visuelle des persos dans le VS arena ──────────────
+function updateArenaChars() {
+  const p1div = document.getElementById('p1-game-char');
+  const p2div = document.getElementById('p2-game-char');
+  if (!p1div || !p2div) return;
 
+  if (boState.p1Char) {
+    p1div.innerHTML = `
+      <img src="${CHAR_ICONS[boState.p1Char]||''}" onerror="this.style.display='none'"
+        style="width:52px;height:52px;object-fit:contain;">
+      <div style="font-size:0.7rem;color:var(--blue);letter-spacing:1px;text-transform:capitalize;text-align:center;">
+        ${boState.p1Char.replace(/_/g,' ')}
+      </div>`;
+  } else {
+    p1div.innerHTML = `<div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">— picking —</div>`;
+  }
+
+  if (boState.p2Char) {
+    p2div.innerHTML = `
+      <img src="${CHAR_ICONS[boState.p2Char]||''}" onerror="this.style.display='none'"
+        style="width:52px;height:52px;object-fit:contain;">
+      <div style="font-size:0.7rem;color:var(--accent);letter-spacing:1px;text-transform:capitalize;text-align:center;">
+        ${boState.p2Char.replace(/_/g,' ')}
+      </div>`;
+  } else {
+    p2div.innerHTML = `<div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">— picking —</div>`;
+  }
+}
+
+// ── Char pick : seul le joueur actif peut choisir, l'autre voit "waiting" ──
+function renderCharPick(player) {
+  const isP1      = player === 'p1';
+  const pickerID  = isP1 ? P1_ID : P2_ID;
+  const pickerName= isP1 ? P1_NAME : P2_NAME;
+  const colorVar  = isP1 ? 'var(--blue)' : 'var(--accent)';
+  const bgColor   = isP1 ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
+  const selected  = isP1 ? boState.p1Char : boState.p2Char;
+  const amIPicker = MY_ID === pickerID;
+
+  updateArenaChars();
+
+  if (!amIPicker) {
+    // ── Waiting screen pour l'adversaire ──
+    document.getElementById('score-options').innerHTML = `
+      <div style="width:100%;text-align:center;padding:2rem 1rem;">
+        <div class="section-title">GAME ${boState.currentGame} — CHARACTER SELECT</div>
+        <div style="font-size:3rem;margin-bottom:1rem;animation:vs-pulse 2s ease-in-out infinite;">⚔</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">
+          WAITING FOR
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${colorVar};margin:0.3rem 0;">
+          ${pickerName.toUpperCase()}
+        </div>
+        <div style="font-size:0.82rem;color:var(--muted);letter-spacing:2px;margin-top:0.5rem;">
+          TO PICK THEIR CHARACTER…
+        </div>
+        ${selected ? `
+          <div style="margin-top:1.5rem;display:inline-flex;flex-direction:column;align-items:center;gap:0.4rem;
+            background:var(--surface2);border:1px solid ${colorVar};border-radius:10px;padding:1rem 1.5rem;">
+            <div style="font-size:0.65rem;color:var(--muted);letter-spacing:2px;">PICKED</div>
+            <img src="${CHAR_ICONS[selected]||''}" style="width:56px;height:56px;object-fit:contain;">
+            <div style="font-size:0.8rem;color:${colorVar};letter-spacing:1px;text-transform:capitalize;">${selected.replace(/_/g,' ')}</div>
+          </div>` : ''}
+      </div>`;
+    return;
+  }
+
+  // ── Picker actif ──
   document.getElementById('score-options').innerHTML = `
     <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — ${name.toUpperCase()} PICKS CHARACTER</div>
-      <div style="text-align:center;margin-bottom:1rem;">
+      <div class="section-title">GAME ${boState.currentGame} — PICK YOUR CHARACTER</div>
+      <div style="text-align:center;margin-bottom:0.8rem;">
         <div id="char-selected-display" style="min-height:70px;display:flex;align-items:center;
           justify-content:center;flex-direction:column;gap:0.3rem;">
           ${selected
             ? `<img src="${CHAR_ICONS[selected]||''}" style="width:56px;height:56px;object-fit:contain;">
                <div style="font-size:0.8rem;color:${colorVar};letter-spacing:1px;text-transform:capitalize;">${selected.replace(/_/g,' ')}</div>`
-            : `<div style="color:var(--muted);font-size:0.85rem;">Aucun perso sélectionné</div>`}
+            : `<div style="color:var(--muted);font-size:0.85rem;">No character selected</div>`}
         </div>
       </div>
-      <input type="text" id="char-search-input" placeholder="Rechercher un perso…"
+      <input type="text" id="char-search-input" placeholder="Search character…"
         style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;
           padding:0.45rem 0.75rem;color:var(--text);font-family:'Rajdhani',sans-serif;
-          font-size:0.9rem;outline:none;margin-bottom:0.6rem;"
+          font-size:0.9rem;outline:none;margin-bottom:0.6rem;transition:border-color 0.15s;"
+        onfocus="this.style.borderColor='${colorVar}'" onblur="this.style.borderColor='var(--border)'"
         oninput="filterCharsSingle('${player}', this.value)">
       <div id="char-grid-single"
         style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-height:220px;overflow-y:auto;margin-bottom:1rem;">
@@ -918,12 +971,15 @@ function renderCharPick(player) {
       <button id="btn-confirm-char" onclick="confirmCharPick('${player}')"
         ${selected ? '' : 'disabled'}
         style="width:100%;padding:1rem;border-radius:8px;
-          border:2px solid ${colorVar};background:${isP1?'rgba(79,142,247,0.1)':'rgba(232,64,10,0.1)'};
+          border:2px solid ${colorVar};background:${bgColor};
           color:${colorVar};font-family:'Bebas Neue',sans-serif;
           font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
           opacity:${selected?'1':'0.4'};">
-        CONFIRMER ${name.toUpperCase()} →
+        LOCK IN ${selected ? selected.replace(/_/g,' ').toUpperCase() : '?'} →
       </button>
+      <div style="text-align:center;margin-top:0.6rem;font-size:0.72rem;color:var(--muted);letter-spacing:1px;">
+        Your character is hidden from your opponent until you lock in
+      </div>
     </div>`;
 }
 
@@ -961,96 +1017,224 @@ function selectCharSingle(player, charId) {
     <img src="${CHAR_ICONS[charId]||''}" style="width:56px;height:56px;object-fit:contain;">
     <div style="font-size:0.8rem;color:${colorVar};letter-spacing:1px;text-transform:capitalize;">${charId.replace(/_/g,' ')}</div>`;
 
-  // Refresh grid highlight
   const searchEl = document.getElementById('char-search-input');
   const grid = document.getElementById('char-grid-single');
   if (grid) grid.innerHTML = buildCharGridSingle(player, searchEl ? searchEl.value : '');
 
   const btn = document.getElementById('btn-confirm-char');
-  if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.textContent = `LOCK IN ${charId.replace(/_/g,' ').toUpperCase()} →`;
+  }
 }
 
 function confirmCharPick(player) {
   if (player === 'p1' && !boState.p1Char) return;
   if (player === 'p2' && !boState.p2Char) return;
+  // Après p1 → p2 pick ; après p2 → stage bans
   boState.phase = player === 'p1' ? 'p2_char' : 'p1_ban';
-  boState.bannedStages = [];
-  boState.selectedStage = null;
+  if (boState.phase === 'p1_ban') {
+    boState.bannedStages = [];
+    boState.selectedStage = null;
+    boState.p1PendingBans = [];  // bans en cours de sélection (avant confirm)
+    boState.p2PendingBans = [];
+  }
+  updateArenaChars();
   renderBOPhase();
 }
 
-// ── Stage bans ───────────────────────────────────────────────────────────────
-// p1_ban : J1 ban 2 stages parmi ALL_STAGES
-// p2_ban : J2 ban 4 stages parmi les restants
-// p1_pick: J1 confirme le dernier stage restant
+// ── Stage bans : sélection puis confirmation en une fois ─────────────────────
+// p1_ban  : J1 sélectionne 2 bans puis confirme
+// p2_ban  : J2 sélectionne 4 bans puis confirme
+// p1_pick : le loser du jeu précédent (ou J1 au game 1) choisit le stage final
 
 function renderStageBans() {
   const phase     = boState.phase;
   const isP1Ban   = phase === 'p1_ban';
-  const bannerName = isP1Ban ? P1_NAME : P2_NAME;
-  const colorVar   = isP1Ban ? 'var(--blue)' : 'var(--accent)';
-  const bansLeft   = isP1Ban ? (2 - boState.bannedStages.length) : (6 - boState.bannedStages.length);
-  const pool       = ALL_STAGES;
+  const bannerID  = isP1Ban ? P1_ID : P2_ID;
+  const bannerName= isP1Ban ? P1_NAME : P2_NAME;
+  const colorVar  = isP1Ban ? 'var(--blue)' : 'var(--accent)';
+  const bgColor   = isP1Ban ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
+  const limit     = isP1Ban ? 2 : 4;
+  const amIBanner = MY_ID === bannerID;
 
+  // Pending bans = stages cliqués mais pas encore confirmés
+  const pendingKey = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
+  if (!boState[pendingKey]) boState[pendingKey] = [];
+  const pendingBans = boState[pendingKey];
+
+  // Stages déjà bannis par la phase précédente (J1 a banni → maintenant affiché pour J2)
+  const alreadyBanned = boState.bannedStages; // confirmés
+  const totalPending  = pendingBans.length;
+  const bansLeft      = limit - totalPending;
+
+  if (!amIBanner) {
+    // ── Waiting screen : montre les bans déjà effectués + indicateur ──
+    document.getElementById('score-options').innerHTML = `
+      <div style="width:100%;text-align:center;padding:1.5rem 1rem;">
+        <div class="section-title">GAME ${boState.currentGame} — STAGE BANS</div>
+        <div style="font-size:2rem;margin-bottom:0.8rem;animation:vs-pulse 2s ease-in-out infinite;">🚫</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">
+          WAITING FOR
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${colorVar};margin:0.3rem 0 1rem;">
+          ${bannerName.toUpperCase()}
+        </div>
+        <div style="font-size:0.82rem;color:var(--muted);letter-spacing:2px;margin-bottom:1.2rem;">
+          TO BAN ${limit} STAGE${limit>1?'S':''}…
+        </div>
+        ${buildStageBanGrid(false, alreadyBanned, [], limit, colorVar)}
+      </div>`;
+    return;
+  }
+
+  // ── Banner actif ──
   document.getElementById('score-options').innerHTML = `
     <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — ${bannerName.toUpperCase()} BAN ${isP1Ban?'2':'4'} STAGES</div>
-      <div style="text-align:center;color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem;letter-spacing:1px;">
-        <strong style="color:${colorVar};">${bannerName}</strong> — encore <strong style="color:var(--text);">${bansLeft}</strong> ban${bansLeft>1?'s':''} restant${bansLeft>1?'s':''}
+      <div class="section-title">GAME ${boState.currentGame} — BAN ${limit} STAGE${limit>1?'S':''}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;flex-wrap:wrap;gap:0.4rem;">
+        <div style="font-size:0.82rem;color:${colorVar};letter-spacing:1px;font-weight:700;">
+          ${totalPending} / ${limit} selected
+        </div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          ${alreadyBanned.map(s=>`
+            <span style="background:rgba(255,85,85,0.12);border:1px solid rgba(255,85,85,0.3);
+              border-radius:4px;padding:0.15rem 0.6rem;font-size:0.72rem;color:var(--red);">
+              🚫 ${ALL_STAGES.find(x=>x.id===s)?.name||s}
+            </span>`).join('')}
+          ${pendingBans.map(s=>`
+            <span style="background:rgba(255,85,85,0.18);border:1px solid rgba(255,85,85,0.5);
+              border-radius:4px;padding:0.15rem 0.6rem;font-size:0.72rem;color:var(--red);cursor:pointer;"
+              onclick="togglePendingBan('${s}','${pendingKey}')">
+              ✕ ${ALL_STAGES.find(x=>x.id===s)?.name||s}
+            </span>`).join('')}
+        </div>
       </div>
-      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.8rem;min-height:24px;">
-        ${boState.bannedStages.map(s=>`
-          <span style="background:rgba(255,85,85,0.12);border:1px solid rgba(255,85,85,0.3);
-            border-radius:4px;padding:0.15rem 0.6rem;font-size:0.75rem;color:var(--red);">
-            🚫 ${ALL_STAGES.find(x=>x.id===s)?.name||s}
-          </span>`).join('')}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.5rem;margin-bottom:1.2rem;">
-        ${pool.map(s => {
-          const isBanned = boState.bannedStages.includes(s.id);
-          const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
-          return `<div onclick="${isBanned ? '' : `banStage('${s.id}')`}"
-            style="border-radius:8px;padding:0.7rem 0.4rem;text-align:center;
-              cursor:${isBanned?'not-allowed':'pointer'};transition:all 0.15s;
-              background:${isBanned?'rgba(255,85,85,0.05)':'var(--surface2)'};
-              border:2px solid ${isBanned?'rgba(255,85,85,0.3)':'var(--border)'};
-              opacity:${isBanned?'0.45':'1'};">
-            <div style="font-size:0.82rem;font-weight:700;color:${isBanned?'var(--red)':'var(--text)'};">
-              ${isBanned?'🚫 ':''}${s.name}
-            </div>
-            <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-              ${isStarter?'STARTER':'COUNTERPICK'}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
+      ${buildStageBanGrid(true, alreadyBanned, pendingBans, limit, colorVar)}
+      <button id="btn-confirm-bans" onclick="confirmBans('${pendingKey}')"
+        ${totalPending === limit ? '' : 'disabled'}
+        style="width:100%;padding:1rem;border-radius:8px;margin-top:0.8rem;
+          border:2px solid ${colorVar};background:${bgColor};
+          color:${colorVar};font-family:'Bebas Neue',sans-serif;
+          font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
+          opacity:${totalPending === limit ? '1' : '0.4'};">
+        BAN THESE ${limit} STAGE${limit>1?'S':''} →
+      </button>
     </div>`;
 }
 
-function banStage(stageId) {
-  if (boState.bannedStages.includes(stageId)) return;
+function buildStageBanGrid(interactive, alreadyBanned, pendingBans, limit, colorVar) {
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.5rem;margin-bottom:0.5rem;">
+    ${ALL_STAGES.map(s => {
+      const isBanned  = alreadyBanned.includes(s.id);
+      const isPending = pendingBans.includes(s.id);
+      const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
+      const canSelect = interactive && !isBanned && (!isPending || true);
+      const pendingFull = pendingBans.length >= limit && !isPending;
+      let bg, border, cursor, label;
+      if (isBanned) {
+        bg='rgba(255,85,85,0.05)'; border='rgba(255,85,85,0.25)'; cursor='not-allowed'; label=`🚫 ${s.name}`;
+      } else if (isPending) {
+        bg=`rgba(255,85,85,0.18)`; border='rgba(255,85,85,0.6)'; cursor='pointer'; label=`✕ ${s.name}`;
+      } else if (pendingFull && interactive) {
+        bg='var(--surface2)'; border='var(--border)'; cursor='not-allowed'; label=s.name;
+      } else {
+        bg='var(--surface2)'; border='var(--border)'; cursor=interactive?'pointer':'default'; label=s.name;
+      }
+      const nameColor = (isBanned||isPending) ? 'var(--red)' : 'var(--text)';
+      const opacity   = (isBanned || (pendingFull && !isPending && interactive)) ? '0.45' : '1';
+      const onclick   = interactive && !isBanned && !(pendingFull && !isPending)
+        ? `togglePendingBan('${s.id}','${pendingFull?'':'x'}')` : '';
+      return `<div ${onclick ? `onclick="${onclick}"` : ''}
+        style="border-radius:8px;padding:0.7rem 0.4rem;text-align:center;
+          cursor:${cursor};transition:all 0.15s;
+          background:${bg};border:2px solid ${border};opacity:${opacity};">
+        <div style="font-size:0.82rem;font-weight:700;color:${nameColor};">${label}</div>
+        <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
+          ${isStarter?'STARTER':'COUNTERPICK'}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function togglePendingBan(stageId, pendingKey) {
   const phase   = boState.phase;
   const isP1Ban = phase === 'p1_ban';
-  const limit   = isP1Ban ? 2 : 6;
+  const limit   = isP1Ban ? 2 : 4;
+  const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
+  if (!boState[key]) boState[key] = [];
 
-  boState.bannedStages.push(stageId);
-
-  if (boState.bannedStages.length >= limit) {
-    // Passer à la phase suivante
-    boState.phase = isP1Ban ? 'p2_ban' : 'p1_pick';
+  const idx = boState[key].indexOf(stageId);
+  if (idx >= 0) {
+    boState[key].splice(idx, 1); // deselect
+  } else {
+    if (boState[key].length >= limit) return; // full
+    boState[key].push(stageId);
   }
+  renderStageBans();
+}
+
+function confirmBans(pendingKey) {
+  const phase   = boState.phase;
+  const isP1Ban = phase === 'p1_ban';
+  const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
+  if (!boState[key] || boState[key].length < (isP1Ban ? 2 : 4)) return;
+
+  boState.bannedStages = [...boState.bannedStages, ...boState[key]];
+  boState[key] = [];
+
+  boState.phase = isP1Ban ? 'p2_ban' : 'p1_pick';
   renderBOPhase();
 }
 
-// ── Stage pick (J1 choisit parmi les restants) ──────────────────────────────
+// ── Stage pick : le loser choisit (ou J1 au premier game) ──────────────────
 function renderStagePick() {
-  const remaining = ALL_STAGES.filter(s => !boState.bannedStages.includes(s.id));
+  // Au game 1, c'est J1 qui pick ; sinon le loser du game précédent
+  const pickerIsP1 = boState.currentGame === 1 || boState.prevWinner === 'p2';
+  const pickerID   = pickerIsP1 ? P1_ID : P2_ID;
+  const pickerName = pickerIsP1 ? P1_NAME : P2_NAME;
+  const colorVar   = pickerIsP1 ? 'var(--blue)' : 'var(--accent)';
+  const bgColor    = pickerIsP1 ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
+  const amIPicker  = MY_ID === pickerID;
+  const remaining  = ALL_STAGES.filter(s => !boState.bannedStages.includes(s.id));
+
+  if (!amIPicker) {
+    document.getElementById('score-options').innerHTML = `
+      <div style="width:100%;text-align:center;padding:1.5rem 1rem;">
+        <div class="section-title">GAME ${boState.currentGame} — STAGE SELECT</div>
+        <div style="font-size:2.5rem;margin-bottom:0.8rem;animation:vs-pulse 2s ease-in-out infinite;">🗺</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">WAITING FOR</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${colorVar};margin:0.3rem 0 1.2rem;">
+          ${pickerName.toUpperCase()}
+        </div>
+        <div style="font-size:0.8rem;color:var(--muted);letter-spacing:2px;margin-bottom:1.2rem;">TO PICK THE STAGE…</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.5rem;">
+          ${remaining.map(s => {
+            const isSel = boState.selectedStage === s.id;
+            const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
+            return `<div style="border-radius:8px;padding:0.7rem 0.4rem;text-align:center;
+              background:${isSel?bgColor:'var(--surface2)'};
+              border:2px solid ${isSel?colorVar:'var(--border)'};">
+              <div style="font-size:0.82rem;font-weight:700;color:${isSel?colorVar:'var(--text)'};">
+                ${isSel?'✅ ':''}${s.name}
+              </div>
+              <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
+                ${isStarter?'STARTER':'COUNTERPICK'}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    return;
+  }
 
   document.getElementById('score-options').innerHTML = `
     <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — ${P1_NAME.toUpperCase()} CHOISIT LE STAGE</div>
-      <div style="text-align:center;color:var(--muted);font-size:0.82rem;margin-bottom:0.8rem;letter-spacing:1px;">
-        <strong style="color:var(--blue);">${P1_NAME}</strong> — sélectionne le stage restant
+      <div class="section-title">GAME ${boState.currentGame} — PICK THE STAGE</div>
+      <div style="font-size:0.82rem;color:${colorVar};letter-spacing:1px;margin-bottom:0.8rem;font-weight:700;">
+        Your pick — select one stage
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.6rem;margin-bottom:1.2rem;">
         ${remaining.map(s => {
@@ -1059,9 +1243,9 @@ function renderStagePick() {
           return `<div onclick="pickStage('${s.id}')"
             style="border-radius:8px;padding:0.8rem 0.5rem;text-align:center;cursor:pointer;
               transition:all 0.15s;
-              background:${isSel?'rgba(79,142,247,0.15)':'var(--surface2)'};
-              border:2px solid ${isSel?'var(--blue)':'var(--border)'};">
-            <div style="font-size:0.85rem;font-weight:700;color:${isSel?'var(--blue)':'var(--text)'};">
+              background:${isSel?bgColor:'var(--surface2)'};
+              border:2px solid ${isSel?colorVar:'var(--border)'};">
+            <div style="font-size:0.85rem;font-weight:700;color:${isSel?colorVar:'var(--text)'};">
               ${isSel?'✅ ':''}${s.name}
             </div>
             <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
@@ -1073,11 +1257,11 @@ function renderStagePick() {
       <button onclick="confirmStagePick()" id="btn-confirm-stage"
         ${boState.selectedStage?'':'disabled'}
         style="width:100%;padding:1rem;border-radius:8px;
-          border:2px solid var(--blue);background:rgba(79,142,247,0.1);
-          color:var(--blue);font-family:'Bebas Neue',sans-serif;
+          border:2px solid ${colorVar};background:${bgColor};
+          color:${colorVar};font-family:'Bebas Neue',sans-serif;
           font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;
           opacity:${boState.selectedStage?'1':'0.4'};">
-        JOUER SUR ${boState.selectedStage?(ALL_STAGES.find(x=>x.id===boState.selectedStage)?.name||'?').toUpperCase():'?'} →
+        PLAY ON ${boState.selectedStage?(ALL_STAGES.find(x=>x.id===boState.selectedStage)?.name||'?').toUpperCase():'?'} →
       </button>
     </div>`;
 }
@@ -1096,11 +1280,10 @@ function confirmStagePick() {
 // ── Game result ──────────────────────────────────────────────────────────────
 function renderGameResult() {
   const stage = ALL_STAGES.find(s=>s.id===boState.selectedStage);
-  let _gameWinner = null;
 
   document.getElementById('score-options').innerHTML = `
     <div style="width:100%;">
-      <div class="section-title">GAME ${boState.currentGame} — RÉSULTAT</div>
+      <div class="section-title">GAME ${boState.currentGame} — RESULT</div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;
         padding:0.8rem 1.2rem;margin-bottom:1.2rem;display:flex;justify-content:space-between;
         align-items:center;flex-wrap:wrap;gap:0.6rem;">
@@ -1118,6 +1301,9 @@ function renderGameResult() {
           <img src="${CHAR_ICONS[boState.p2Char]||''}" onerror="this.style.display='none'"
             style="width:38px;height:38px;object-fit:contain;">
         </div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--muted);text-align:center;margin-bottom:0.8rem;letter-spacing:1px;">
+        Who won this game?
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem;">
         <div id="result-p1" onclick="selectGameWinner('p1')"
@@ -1142,7 +1328,7 @@ function renderGameResult() {
           border:2px solid var(--green);background:rgba(61,220,132,0.08);
           color:var(--green);font-family:'Bebas Neue',sans-serif;
           font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;opacity:0.4;">
-        CONFIRMER RÉSULTAT GAME ${boState.currentGame}
+        CONFIRM GAME ${boState.currentGame} RESULT
       </button>
     </div>`;
 }
@@ -1180,9 +1366,16 @@ function confirmGameResult() {
     // BO terminé
     const finalWinnerId = p1Score >= boState.maxWins ? P1_ID : P2_ID;
     selectedResult = { winner_id: finalWinnerId, score: `${p1Score}-${p2Score}` };
+
+    // Clear arena chars
+    const p1div = document.getElementById('p1-game-char');
+    const p2div = document.getElementById('p2-game-char');
+    if (p1div) p1div.innerHTML = '';
+    if (p2div) p2div.innerHTML = '';
+
     document.getElementById('score-options').innerHTML = `
       <div style="width:100%;text-align:center;">
-        <div class="section-title">MATCH TERMINÉ</div>
+        <div class="section-title">MATCH OVER</div>
         ${buildGamesHistory()}
         <div style="margin-top:1rem;font-family:'Bebas Neue',sans-serif;font-size:2rem;
           color:${p1Score>p2Score?'var(--blue)':'var(--accent)'};letter-spacing:3px;">
@@ -1199,7 +1392,11 @@ function confirmGameResult() {
   boState.currentGame++;
   boState.phase = 'p1_char';
   boState.p1Char = null; boState.p2Char = null;
-  boState.bannedStages = []; boState.selectedStage = null;
+  boState.bannedStages = [];
+  boState.p1PendingBans = [];
+  boState.p2PendingBans = [];
+  boState.selectedStage = null;
+  updateArenaChars();
   renderBOPhase();
 }
 
