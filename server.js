@@ -32,6 +32,19 @@ const MAX_MESSAGE    = 200;
 const MAX_STOCKS     = 8;
 const VALID_ID_RE    = /^[a-zA-Z0-9_\-]+$/;
 
+// ── ANTI-SPAM / DEAD MATCH CONFIG ────────────────────────────────────────────
+// Délai avant qu'un match "accepted" sans résultat soumis soit annulé (draw)
+const MATCH_ACCEPTED_TIMEOUT_MS  = 2 * 60 * 60 * 1000; // 2h
+// Délai avant qu'un match "reported" sans confirmation soit auto-validé
+const MATCH_REPORTED_TIMEOUT_MS  = 30 * 60 * 1000;      // 30min
+// Intervalle de vérification du nettoyeur
+const DEAD_MATCH_CHECK_INTERVAL  = 5 * 60 * 1000;        // toutes les 5min
+// Max challenges pending envoyés simultanément par un joueur
+const MAX_PENDING_CHALLENGES_SENT = 1;
+// Rate-limit chat Socket.IO : N messages par fenêtre
+const CHAT_RATE_LIMIT_COUNT  = 5;
+const CHAT_RATE_LIMIT_WINDOW = 4000; // ms
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 
 const app    = express();
@@ -260,6 +273,19 @@ async function emitLeaderboardUpdate() {
 // In-memory chat history per match (max 50 messages)
 const chatHistory = new Map();
 const CHAT_MAX = 50;
+// Rate-limit chat : { uid -> { count, windowStart } }
+const chatRateMap = new Map();
+
+function isChatRateLimited(uid) {
+  const now = Date.now();
+  const entry = chatRateMap.get(uid) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > CHAT_RATE_LIMIT_WINDOW) {
+    entry.count = 0; entry.windowStart = now;
+  }
+  entry.count++;
+  chatRateMap.set(uid, entry);
+  return entry.count > CHAT_RATE_LIMIT_COUNT;
+}
 
 io.on('connection', (socket) => {
   const req = socket.request;
@@ -282,9 +308,16 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join_match', (data) => {
+  socket.on('join_match', async (data) => {
     const cid = data?.challenge_id || '';
     if (!validateId(cid)) return;
+    const uid = req.session?.user?.id;
+    if (!uid) return;
+    // Vérifier que l'utilisateur est bien un des deux joueurs du match
+    const challenges = await sbGet('challenges', `id=eq.${cid}`);
+    if (!challenges.length) return;
+    const c = challenges[0];
+    if (![c.challenger_id, c.challenged_id].includes(uid)) return;
     socket.join(`match_${cid}`);
     const history = chatHistory.get(cid) || [];
     if (history.length) socket.emit('chat_history', history);
@@ -309,6 +342,7 @@ io.on('connection', (socket) => {
     const cid  = data?.challenge_id || '';
     const text = (data?.text || '').toString().slice(0, 200).trim();
     if (!uid || !validateId(cid) || !text) return;
+    if (isChatRateLimited(uid)) return; // silencieux côté serveur
     const payload = { uid, name, text, ts: new Date().toISOString() };
     if (!chatHistory.has(cid)) chatHistory.set(cid, []);
     const hist = chatHistory.get(cid);
@@ -476,7 +510,8 @@ app.get('/api/match_status/:challenge_id', requireAuth, async (req, res) => {
   const report = typeof c.report === 'object' ? c.report : {};
   res.json({ status: c.status, reported_by: c.reported_by, report: c.report,
     winner_id: report?.winner_id || null, score: report?.score || null,
-    elo_change: c.elo_change || null });
+    elo_change: c.elo_change || null, accepted_at: c.accepted_at || null,
+    reported_at: c.reported_at || null });
 });
 
 app.post('/api/update_profile', requireAuth, async (req, res) => {
@@ -500,6 +535,11 @@ app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
   if (!opponent.length) return res.status(404).json({ error: 'Player not found' });
   const existing = await sbGet('challenges', `status=in.(pending,accepted)&or=(and(challenger_id.eq.${userId},challenged_id.eq.${opponent_id}),and(challenger_id.eq.${opponent_id},challenged_id.eq.${userId}))`);
   if (existing.length) return res.status(400).json({ error: 'A challenge is already pending between you' });
+
+  // Anti-spam : un seul challenge envoyé en pending à la fois
+  const sentPending = await sbGet('challenges', `challenger_id=eq.${userId}&status=eq.pending`);
+  if (sentPending.length >= MAX_PENDING_CHALLENGES_SENT)
+    return res.status(429).json({ error: `You already have a pending challenge — cancel it first.` });
   const fmt = req.body.format || 'BO3';
   if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
@@ -525,7 +565,7 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
   if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
   if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
   res.json({ success: true }); // Réponse immédiate
-  await sbPatch('challenges', { id: challenge_id }, { status: 'accepted' });
+  await sbPatch('challenges', { id: challenge_id }, { status: 'accepted', accepted_at: new Date().toISOString() });
   await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
 });
 
@@ -565,6 +605,11 @@ app.post('/lfm', requireAuth, async (req, res) => {
   const mode    = req.body.mode || 'sets';
   if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
   if (!VALID_MODES.has(mode))  return res.status(400).json({ error: 'Invalid mode' });
+
+  // Anti-spam : pas de LFM si déjà dans un match actif ou en challenge pending/accepted
+  const activeC = await sbGet('challenges',
+    `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${userId},challenged_id.eq.${userId})`);
+  if (activeC.length) return res.status(400).json({ error: 'You already have an active challenge or match — finish it first.' });
   const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
   await sbDelete('lfm_posts', { player_id: userId });
   const player  = await sbGet('players', `id=eq.${userId}`);
@@ -656,7 +701,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
 
   if (c.status === 'accepted') {
     await sbPatch('challenges', { id: challenge_id }, {
-      status: 'reported', reported_by: userId,
+      status: 'reported', reported_by: userId, reported_at: new Date().toISOString(),
       report: {
         winner_id, score: scoreStr,
         winner_stocks_taken: wSt, loser_stocks_taken: lSt,
@@ -717,7 +762,102 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   res.status(400).json({ error: 'Invalid action' });
 });
 
+// ── DEAD MATCH CLEANUP ────────────────────────────────────────────────────────
+// Tournant en arrière-plan, résout les matchs abandonnés selon les règles :
+//   • status=accepted  depuis > 2h  → DRAW (personne n'a soumis) → annulation
+//   • status=reported  depuis > 30min → le reporter gagne par forfait
+
+async function resolveDeadMatches() {
+  try {
+    const now = new Date();
+
+    // ── 1. Matchs accepted expirés → DRAW ─────────────────────────────────────
+    const acceptedExpiry = new Date(now - MATCH_ACCEPTED_TIMEOUT_MS).toISOString();
+    const deadAccepted = await sbGet('challenges',
+      `status=eq.accepted&accepted_at=lt.${acceptedExpiry}`);
+
+    for (const c of deadAccepted) {
+      console.log(`[DeadMatch] DRAW annulation: ${c.id} (accepted at ${c.accepted_at})`);
+      await sbPatch('challenges', { id: c.id }, { status: 'cancelled_timeout' });
+      // Notifier les deux joueurs
+      const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
+        message: '⏱ Match annulé — aucun résultat soumis dans les 2 heures (DRAW).' };
+      io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
+      io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
+      await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+    }
+
+    // ── 2. Matchs reported expirés → victoire du reporter ────────────────────
+    const reportedExpiry = new Date(now - MATCH_REPORTED_TIMEOUT_MS).toISOString();
+    const deadReported = await sbGet('challenges',
+      `status=eq.reported&reported_at=lt.${reportedExpiry}`);
+
+    for (const c of deadReported) {
+      const report = typeof c.report === 'object' && c.report ? c.report : null;
+      if (!report || !report.winner_id) {
+        // Rapport corrompu → annulation propre
+        await sbPatch('challenges', { id: c.id }, { status: 'cancelled_timeout' });
+        continue;
+      }
+
+      const winner_id = report.winner_id;
+      const loser_id  = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
+
+      console.log(`[DeadMatch] FORFAIT reporter gagne: ${c.id}, winner=${winner_id}`);
+
+      const [winnerArr, loserArr] = await Promise.all([
+        sbGet('players', `id=eq.${winner_id}`),
+        sbGet('players', `id=eq.${loser_id}`),
+      ]);
+      if (!winnerArr.length || !loserArr.length) continue;
+
+      const winner = winnerArr[0], loser = loserArr[0];
+      const eloGain = report.is_stocks_mode
+        ? calcEloStocks(winner.points, loser.points,
+            report.winner_stocks_taken || 0, report.loser_stocks_taken || 0)
+        : calcElo(winner.points, loser.points);
+
+      await Promise.all([
+        sbPatch('players', { id: winner_id }, {
+          points: winner.points + eloGain, wins: winner.wins + 1,
+          matches_played: winner.matches_played + 1,
+          stocks_taken: (winner.stocks_taken || 0) + (report.winner_stocks_taken || 0),
+        }),
+        sbPatch('players', { id: loser_id }, {
+          points: Math.max(0, loser.points - eloGain), losses: loser.losses + 1,
+          matches_played: loser.matches_played + 1,
+          stocks_lost: (loser.stocks_lost || 0) + (report.loser_stocks_taken || 0),
+        }),
+        sbPost('matches', {
+          challenge_id: c.id, winner_id, winner_name: winner.username,
+          winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
+          loser_main: loser.main_char || '', score: report.score || 'W-L (forfait)',
+          format: c.format, elo_change: eloGain, date: new Date().toISOString(),
+        }),
+        sbPatch('challenges', { id: c.id }, { status: 'completed' }),
+      ]);
+
+      chatHistory.delete(c.id);
+
+      const timeoutMsg = { type: 'match_timeout', outcome: 'forfeit',
+        challenge_id: c.id, winner_id, elo_change: eloGain,
+        message: '⏱ Confirmation non reçue — résultat validé automatiquement par forfait.' };
+      io.to(`user_${winner_id}`).emit('match_timeout', timeoutMsg);
+      io.to(`user_${loser_id}`).emit('match_timeout', timeoutMsg);
+      await emitLeaderboardUpdate();
+      await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
+    }
+  } catch (e) {
+    console.error('[resolveDeadMatches]', e);
+  }
+}
+
 // ── START ─────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`⚔ Smash YUZU running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`⚔ Smash YUZU running on port ${PORT}`);
+  // Lancer le nettoyeur de matchs morts au démarrage puis toutes les 5 min
+  resolveDeadMatches();
+  setInterval(resolveDeadMatches, DEAD_MATCH_CHECK_INTERVAL);
+});
