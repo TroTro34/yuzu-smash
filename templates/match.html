@@ -1285,7 +1285,28 @@ function confirmStagePick() {
 }
 
 // ── Game result ──────────────────────────────────────────────────────────────
+// Chaque game suit ce flow :
+//   J1 (P1_ID) sélectionne le gagnant → soumet via socket
+//   J2 (l'autre joueur) voit le résultat soumis et confirme ou conteste
+//   Si J2 conteste → on revient à la sélection du gagnant pour J1
+
+let _selectedGameWinner = null;
+let _gameResultPending  = null;  // { winner: 'p1'|'p2' } soumis par J1, en attente de J2
+
 function renderGameResult() {
+  // Si J2 et qu'un résultat est en attente → afficher l'écran de confirmation
+  if (_gameResultPending && MY_ID !== P1_ID) {
+    renderGameResultConfirm();
+    return;
+  }
+  // Si J1 a déjà soumis → écran d'attente
+  if (_gameResultPending && MY_ID === P1_ID) {
+    renderGameResultWaiting();
+    return;
+  }
+
+  // Seul J1 (P1_ID) soumet le gagnant du game
+  const amISubmitter = MY_ID === P1_ID;
   const stage = ALL_STAGES.find(s=>s.id===boState.selectedStage);
 
   document.getElementById('score-options').innerHTML = `
@@ -1309,8 +1330,9 @@ function renderGameResult() {
             style="width:38px;height:38px;object-fit:contain;">
         </div>
       </div>
+      ${amISubmitter ? `
       <div style="font-size:0.8rem;color:var(--muted);text-align:center;margin-bottom:0.8rem;letter-spacing:1px;">
-        Who won this game?
+        Who won this game? (${P2_NAME} will confirm)
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem;">
         <div id="result-p1" onclick="selectGameWinner('p1')"
@@ -1319,7 +1341,7 @@ function renderGameResult() {
           <img src="${CHAR_ICONS[boState.p1Char]||''}" onerror="this.style.display='none'"
             style="width:52px;height:52px;object-fit:contain;margin-bottom:0.4rem;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--blue);letter-spacing:2px;">${P1_NAME}</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${boState.p1Char.replace(/_/g,' ')}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${(boState.p1Char||'').replace(/_/g,' ')}</div>
         </div>
         <div id="result-p2" onclick="selectGameWinner('p2')"
           style="border-radius:10px;padding:1.4rem 0.8rem;text-align:center;cursor:pointer;
@@ -1327,59 +1349,141 @@ function renderGameResult() {
           <img src="${CHAR_ICONS[boState.p2Char]||''}" onerror="this.style.display='none'"
             style="width:52px;height:52px;object-fit:contain;margin-bottom:0.4rem;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--accent);letter-spacing:2px;">${P2_NAME}</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${boState.p2Char.replace(/_/g,' ')}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${(boState.p2Char||'').replace(/_/g,' ')}</div>
         </div>
       </div>
-      <div style="margin-bottom:1.2rem;">
-        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;margin-bottom:0.4rem;">
-          JUSTIFICATION <span style="color:var(--accent);">*</span>
-          <span style="color:var(--muted);font-weight:normal;"> — describe how the game ended (KO, last stock, timeout…)</span>
-        </div>
-        <textarea id="game-justification" maxlength="300" placeholder="ex: Last stock KO at 120%, close game…"
-          oninput="checkGameResultReady()"
-          style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:8px;
-            padding:0.65rem 0.85rem;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.92rem;
-            outline:none;resize:vertical;min-height:70px;transition:border-color 0.15s;line-height:1.4;"
-          onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"></textarea>
-        <div style="text-align:right;font-size:0.65rem;color:var(--muted);margin-top:0.2rem;" id="justif-counter">0 / 300</div>
-      </div>
-      <button onclick="confirmGameResult()" id="btn-confirm-game" disabled
+      <button onclick="submitGameResult()" id="btn-confirm-game" disabled
         style="width:100%;padding:1rem;border-radius:8px;
           border:2px solid var(--green);background:rgba(61,220,132,0.08);
           color:var(--green);font-family:'Bebas Neue',sans-serif;
           font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;opacity:0.4;">
-        CONFIRM GAME ${boState.currentGame} RESULT
+        SUBMIT GAME ${boState.currentGame} RESULT →
       </button>
+      <div style="text-align:center;margin-top:0.6rem;font-size:0.72rem;color:var(--muted);letter-spacing:1px;">
+        ${P2_NAME} will need to confirm before proceeding
+      </div>
+      ` : `
+      <div style="text-align:center;padding:2rem 1rem;">
+        <div style="font-size:2.5rem;margin-bottom:1rem;animation:vs-pulse 2s ease-in-out infinite;">⏳</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:3px;color:var(--muted);">WAITING FOR</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:var(--blue);margin:0.3rem 0;">
+          ${P1_NAME.toUpperCase()}
+        </div>
+        <div style="font-size:0.82rem;color:var(--muted);letter-spacing:2px;margin-top:0.5rem;">
+          TO SUBMIT THE GAME RESULT…
+        </div>
+      </div>
+      `}
     </div>`;
-
-  // Compteur de caractères live
-  const ta = document.getElementById('game-justification');
-  if (ta) ta.addEventListener('input', () => {
-    const counter = document.getElementById('justif-counter');
-    if (counter) counter.textContent = `${ta.value.length} / 300`;
-  });
 }
 
-let _selectedGameWinner = null;
 function selectGameWinner(player) {
   _selectedGameWinner = player;
   const p1El = document.getElementById('result-p1');
   const p2El = document.getElementById('result-p2');
-  if (player === 'p1') {
-    p1El.style.cssText += ';border-color:var(--blue);background:rgba(79,142,247,0.12);';
-    p2El.style.cssText += ';border-color:var(--border);background:var(--surface2);';
-  } else {
-    p2El.style.cssText += ';border-color:var(--accent);background:rgba(232,64,10,0.12);';
-    p1El.style.cssText += ';border-color:var(--border);background:var(--surface2);';
+  if (p1El && p2El) {
+    if (player === 'p1') {
+      p1El.style.cssText += ';border-color:var(--blue);background:rgba(79,142,247,0.12);';
+      p2El.style.cssText += ';border-color:var(--border);background:var(--surface2);';
+    } else {
+      p2El.style.cssText += ';border-color:var(--accent);background:rgba(232,64,10,0.12);';
+      p1El.style.cssText += ';border-color:var(--border);background:var(--surface2);';
+    }
   }
   const btn = document.getElementById('btn-confirm-game');
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 
-function confirmGameResult() {
+// J1 soumet le résultat → J2 doit confirmer
+function submitGameResult() {
   if (!_selectedGameWinner) return;
-  const winner = _selectedGameWinner;
+  _gameResultPending = { winner: _selectedGameWinner };
+  emitPhase({ gameResultPending: _gameResultPending });
+  renderGameResultWaiting();
+}
+
+function renderGameResultWaiting() {
+  const winnerName = _gameResultPending.winner === 'p1' ? P1_NAME : P2_NAME;
+  const winnerColor = _gameResultPending.winner === 'p1' ? 'var(--blue)' : 'var(--accent)';
+  document.getElementById('score-options').innerHTML = `
+    <div style="width:100%;text-align:center;padding:1.5rem 1rem;">
+      <div class="section-title">GAME ${boState.currentGame} — WAITING FOR CONFIRMATION</div>
+      <div style="font-size:2.5rem;margin-bottom:1rem;animation:vs-pulse 2s ease-in-out infinite;">⏳</div>
+      <div style="font-size:0.85rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.5rem;">YOU SUBMITTED</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:${winnerColor};">
+        ${winnerName.toUpperCase()} WINS
+      </div>
+      <div style="font-size:0.82rem;color:var(--muted);letter-spacing:2px;margin-top:1rem;">
+        Waiting for ${P2_NAME} to confirm…
+      </div>
+    </div>`;
+}
+
+function renderGameResultConfirm() {
+  const winnerName  = _gameResultPending.winner === 'p1' ? P1_NAME : P2_NAME;
+  const winnerColor = _gameResultPending.winner === 'p1' ? 'var(--blue)' : 'var(--accent)';
+  document.getElementById('score-options').innerHTML = `
+    <div style="width:100%;">
+      <div class="section-title">GAME ${boState.currentGame} — CONFIRM RESULT</div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+        padding:1.2rem;margin-bottom:1.2rem;text-align:center;">
+        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.6rem;">
+          ${P1_NAME} SAYS THE WINNER IS
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;letter-spacing:4px;color:${winnerColor};">
+          ${winnerName.toUpperCase()}
+        </div>
+      </div>
+      <div style="font-size:0.85rem;color:var(--muted);text-align:center;margin-bottom:1.2rem;letter-spacing:1px;">
+        Do you agree with this result?
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.8rem;">
+        <button onclick="confirmGameResultP2()" style="width:100%;padding:1rem;border-radius:8px;
+          border:2px solid var(--green);background:rgba(61,220,132,0.1);color:var(--green);
+          font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;"
+          onmouseover="this.style.background='var(--green)';this.style.color='#07070f'"
+          onmouseout="this.style.background='rgba(61,220,132,0.1)';this.style.color='var(--green)'">
+          ✅ YES — CONFIRM
+        </button>
+        <button onclick="contestGameResultP2()" style="width:100%;padding:0.9rem;border-radius:8px;
+          border:1px solid rgba(255,85,85,0.4);background:rgba(255,85,85,0.08);color:var(--red);
+          font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:2px;cursor:pointer;transition:all 0.2s;"
+          onmouseover="this.style.background='rgba(255,85,85,0.2)'"
+          onmouseout="this.style.background='rgba(255,85,85,0.08)'">
+          ⚠ NO — CONTEST
+        </button>
+      </div>
+    </div>`;
+}
+
+// J2 confirme → on avance
+function confirmGameResultP2() {
+  if (!_gameResultPending) return;
+  const winner = _gameResultPending.winner;
+  _gameResultPending = null;
   _selectedGameWinner = null;
+  emitPhase({ gameResultConfirmed: winner });
+  applyGameResult(winner);
+}
+
+// J2 conteste → on repart à la sélection du gagnant pour J1
+function contestGameResultP2() {
+  _gameResultPending = null;
+  _selectedGameWinner = null;
+  emitPhase({ gameResultContested: true });
+  showToast('Result contested — ' + P1_NAME + ' must re-submit the game winner.', false);
+  renderGameResult();
+}
+
+// Applique le résultat d'un game (appelé quand les deux joueurs sont d'accord)
+function applyGameResult(winner) {
+  boState.games.push({ p1char: boState.p1Char, p2char: boState.p2Char,
+    stage: boState.selectedStage, winner });
+
+  if (winner === 'p1') p1Score++; else p2Score++;
+  updateScoreDisplay();
+  updateDots(boState.games.map(g => g.winner));
+  boState.prevWinner = winner;
 
   boState.games.push({ p1char: boState.p1Char, p2char: boState.p2Char,
     stage: boState.selectedStage, winner });
