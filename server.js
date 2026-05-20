@@ -82,6 +82,11 @@ env.addFilter('tojson', function(val) { return new nunjucks.runtime.SafeString(J
 env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
 env.addFilter('int', (val) => parseInt(val, 10));
 env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
+// datefmt: converts ISO string "2024-01-15T18:30:00Z" → "2024-01-15 18:30"
+env.addFilter('datefmt', (val) => {
+  if (!val) return '';
+  return String(val).slice(0, 16).replace('T', ' ');
+});
 
 // ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
 
@@ -431,8 +436,12 @@ app.get('/callback', async (req, res) => {
 app.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
-    const data   = await dashboardData(userId);
-    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches) });
+    const [data, playerRow] = await Promise.all([
+      dashboardData(userId),
+      sbGet('players', `id=eq.${userId}`),
+    ]);
+    const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
+    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
@@ -717,9 +726,21 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
       sbGet('reports', 'order=created_at.desc'),
       sbGet('players', 'order=points.desc'),
     ]);
-    // Enrichir chaque report avec les noms des joueurs
     const playersMap = Object.fromEntries(allPlayers.map(p => [p.id, p]));
-    res.render('admin_reports.html', { user: req.session.user, reports: openReports, players_map: playersMap });
+    // Enrich each report with p1/p2 player snapshots and normalized status
+    const enriched = openReports.map(r => {
+      const p1 = playersMap[r.challenger_id] || { username: r.challenger_id, points: '?', wins: 0, losses: 0 };
+      const p2 = playersMap[r.challenged_id] || { username: r.challenged_id, points: '?', wins: 0, losses: 0 };
+      const normalizedStatus = r.status === 'resolved' ? 'resolved' : 'open';
+      const winnerUsername = r.winner_id ? (playersMap[r.winner_id] || {}).username || r.winner_id : null;
+      return { ...r, p1, p2, status: normalizedStatus, winner_username: winnerUsername };
+    });
+    res.render('admin_reports.html', {
+      user: req.session.user,
+      is_admin: true,
+      reports: enriched,
+      players_map: playersMap,
+    });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
