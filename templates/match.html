@@ -1029,6 +1029,23 @@ function selectCharSingle(player, charId) {
   }
 }
 
+// ── Sync de phase : envoie l'état courant à l'adversaire ──────────────────
+function emitPhase(extraFields) {
+  if (!matchSocket || !matchSocket.connected) return;
+  matchSocket.emit('bo_phase_update', {
+    challenge_id: CHALLENGE_ID,
+    phase:        boState.phase,
+    p1Char:       boState.p1Char,
+    p2Char:       boState.p2Char,
+    bannedStages: boState.bannedStages,
+    selectedStage:boState.selectedStage,
+    currentGame:  boState.currentGame,
+    prevWinner:   boState.prevWinner,
+    games:        boState.games,
+    ...(extraFields || {})
+  });
+}
+
 function confirmCharPick(player) {
   if (player === 'p1' && !boState.p1Char) return;
   if (player === 'p2' && !boState.p2Char) return;
@@ -1041,6 +1058,7 @@ function confirmCharPick(player) {
     boState.p2PendingBans = [];
   }
   updateArenaChars();
+  emitPhase();
   renderBOPhase();
 }
 
@@ -1186,6 +1204,7 @@ function confirmBans(pendingKey) {
   boState[key] = [];
 
   boState.phase = isP1Ban ? 'p2_ban' : 'p1_pick';
+  emitPhase();
   renderBOPhase();
 }
 
@@ -1274,6 +1293,7 @@ function pickStage(stageId) {
 function confirmStagePick() {
   if (!boState.selectedStage) return;
   boState.phase = 'result';
+  emitPhase();
   renderBOPhase();
 }
 
@@ -1373,6 +1393,9 @@ function confirmGameResult() {
     if (p1div) p1div.innerHTML = '';
     if (p2div) p2div.innerHTML = '';
 
+    boState.phase = 'match_over';
+    emitPhase({ selectedResult });
+
     document.getElementById('score-options').innerHTML = `
       <div style="width:100%;text-align:center;">
         <div class="section-title">MATCH OVER</div>
@@ -1396,6 +1419,7 @@ function confirmGameResult() {
   boState.p1PendingBans = [];
   boState.p2PendingBans = [];
   boState.selectedStage = null;
+  emitPhase();
   updateArenaChars();
   renderBOPhase();
 }
@@ -1828,6 +1852,44 @@ function initMatchSocket() {
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
     checkInitialState();
+  });
+
+  matchSocket.on('bo_phase_update', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    if (FORMAT === 'STOCKS') return; // pas de sync de phase en mode stocks
+    // Appliquer l'état reçu dans boState local
+    boState.phase         = d.phase;
+    boState.p1Char        = d.p1Char        ?? boState.p1Char;
+    boState.p2Char        = d.p2Char        ?? boState.p2Char;
+    boState.bannedStages  = d.bannedStages  ?? boState.bannedStages;
+    boState.selectedStage = d.selectedStage ?? boState.selectedStage;
+    boState.currentGame   = d.currentGame   ?? boState.currentGame;
+    boState.prevWinner    = d.prevWinner    ?? boState.prevWinner;
+    boState.games         = d.games         ?? boState.games;
+    // Recalcul des scores depuis l'historique des games
+    p1Score = boState.games.filter(g => g.winner === 'p1').length;
+    p2Score = boState.games.filter(g => g.winner === 'p2').length;
+    updateScoreDisplay();
+    updateDots(boState.games.map(g => g.winner));
+    updateArenaChars();
+    if (d.phase === 'match_over') {
+      // L'autre joueur a terminé le match — afficher le même état "match over"
+      if (d.selectedResult) selectedResult = d.selectedResult;
+      document.getElementById('score-options').innerHTML = `
+        <div style="width:100%;text-align:center;">
+          <div class="section-title">MATCH OVER</div>
+          ${buildGamesHistory()}
+          <div style="margin-top:1rem;font-family:'Bebas Neue',sans-serif;font-size:2rem;
+            color:${p1Score>p2Score?'var(--blue)':'var(--accent)'};letter-spacing:3px;">
+            ${p1Score>p2Score?P1_NAME:P2_NAME} WINS ${p1Score}-${p2Score}
+          </div>
+        </div>`;
+      document.getElementById('submit-bo').disabled = false;
+      document.getElementById('submit-bo').style.display = 'block';
+      document.getElementById('submit-hint-bo').style.display = 'block';
+    } else {
+      renderBOPhase();
+    }
   });
 
   matchSocket.on('match_update', (d) => {
