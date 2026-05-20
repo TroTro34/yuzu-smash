@@ -824,9 +824,7 @@ const COUNTERPICK_STAGES = [
   { id: "town_and_city",    name: "Town & City" },
   { id: "smashville",       name: "Smashville" },
   { id: "kalos_pokemon_league", name: "Kalos" },
-  { id: "northern_cave",    name: "Northern Cave" },
   { id: "yoshi_story",      name: "Yoshi's Story" },
-  { id: "lylat_cruise",     name: "Lylat Cruise" },
 ];
 
 const ALL_STAGES = [...STARTER_STAGES, ...COUNTERPICK_STAGES];
@@ -1169,9 +1167,6 @@ function buildStageBanGrid(interactive, alreadyBanned, pendingBans, limit, color
           cursor:${cursor};transition:all 0.15s;
           background:${bg};border:2px solid ${border};opacity:${opacity};">
         <div style="font-size:0.82rem;font-weight:700;color:${nameColor};">${label}</div>
-        <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-          ${isStarter?'STARTER':'COUNTERPICK'}
-        </div>
       </div>`;
     }).join('')}
   </div>`;
@@ -1232,15 +1227,11 @@ function renderStagePick() {
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.5rem;">
           ${remaining.map(s => {
             const isSel = boState.selectedStage === s.id;
-            const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
             return `<div style="border-radius:8px;padding:0.7rem 0.4rem;text-align:center;
               background:${isSel?bgColor:'var(--surface2)'};
               border:2px solid ${isSel?colorVar:'var(--border)'};">
               <div style="font-size:0.82rem;font-weight:700;color:${isSel?colorVar:'var(--text)'};">
                 ${isSel?'✅ ':''}${s.name}
-              </div>
-              <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-                ${isStarter?'STARTER':'COUNTERPICK'}
               </div>
             </div>`;
           }).join('')}
@@ -1258,7 +1249,6 @@ function renderStagePick() {
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.6rem;margin-bottom:1.2rem;">
         ${remaining.map(s => {
           const isSel = boState.selectedStage === s.id;
-          const isStarter = !!STARTER_STAGES.find(x=>x.id===s.id);
           return `<div onclick="pickStage('${s.id}')"
             style="border-radius:8px;padding:0.8rem 0.5rem;text-align:center;cursor:pointer;
               transition:all 0.15s;
@@ -1266,9 +1256,6 @@ function renderStagePick() {
               border:2px solid ${isSel?colorVar:'var(--border)'};">
             <div style="font-size:0.85rem;font-weight:700;color:${isSel?colorVar:'var(--text)'};">
               ${isSel?'✅ ':''}${s.name}
-            </div>
-            <div style="font-size:0.62rem;color:var(--muted);margin-top:0.2rem;letter-spacing:1px;">
-              ${isStarter?'STARTER':'COUNTERPICK'}
             </div>
           </div>`;
         }).join('')}
@@ -1343,6 +1330,19 @@ function renderGameResult() {
           <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem;text-transform:capitalize;">${boState.p2Char.replace(/_/g,' ')}</div>
         </div>
       </div>
+      <div style="margin-bottom:1.2rem;">
+        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;margin-bottom:0.4rem;">
+          JUSTIFICATION <span style="color:var(--accent);">*</span>
+          <span style="color:var(--muted);font-weight:normal;"> — describe how the game ended (KO, last stock, timeout…)</span>
+        </div>
+        <textarea id="game-justification" maxlength="300" placeholder="ex: Last stock KO at 120%, close game…"
+          oninput="checkGameResultReady()"
+          style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:8px;
+            padding:0.65rem 0.85rem;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.92rem;
+            outline:none;resize:vertical;min-height:70px;transition:border-color 0.15s;line-height:1.4;"
+          onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+        <div style="text-align:right;font-size:0.65rem;color:var(--muted);margin-top:0.2rem;" id="justif-counter">0 / 300</div>
+      </div>
       <button onclick="confirmGameResult()" id="btn-confirm-game" disabled
         style="width:100%;padding:1rem;border-radius:8px;
           border:2px solid var(--green);background:rgba(61,220,132,0.08);
@@ -1351,6 +1351,13 @@ function renderGameResult() {
         CONFIRM GAME ${boState.currentGame} RESULT
       </button>
     </div>`;
+
+  // Compteur de caractères live
+  const ta = document.getElementById('game-justification');
+  if (ta) ta.addEventListener('input', () => {
+    const counter = document.getElementById('justif-counter');
+    if (counter) counter.textContent = `${ta.value.length} / 300`;
+  });
 }
 
 let _selectedGameWinner = null;
