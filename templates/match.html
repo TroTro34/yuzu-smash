@@ -1997,7 +1997,7 @@ function startHttpFallback() {
 }
 
 // ─────────────────────────────────────────────
-// MATCH TIMER — 15 minutes
+// MATCH TIMER — synchronisé avec accepted_at serveur
 // Logique :
 //   • Aucune action de personne → annulation
 //   • J1 a soumis (gameResultPending / pendingResult) mais J2 n'a pas répondu → J1 gagne
@@ -2006,6 +2006,23 @@ const MATCH_TIMER_SECONDS = 15 * 60;
 let matchTimerEnd = null;
 let matchTimerRAF = null;
 let gameTimerEnd  = null; // timer spécifique pour attente de confirmation J2
+
+// Sync le timer avec l'heure de démarrage du match côté serveur
+function syncTimerFromServer() {
+  fetch(`/api/match_status/${CHALLENGE_ID}`)
+    .then(r => r.json())
+    .then(d => {
+      const acceptedAt = d.accepted_at ? new Date(d.accepted_at).getTime() : null;
+      if (acceptedAt) {
+        // Le timer expire à accepted_at + durée totale du timer
+        const serverEnd = acceptedAt + MATCH_TIMER_SECONDS * 1000;
+        startMatchTimer(serverEnd);
+      } else {
+        startMatchTimer(); // fallback : démarre depuis maintenant
+      }
+    })
+    .catch(() => startMatchTimer());
+}
 
 function startMatchTimer(endTimestamp) {
   matchTimerEnd = endTimestamp || (Date.now() + MATCH_TIMER_SECONDS * 1000);
@@ -2108,6 +2125,7 @@ function initMatchSocket() {
     matchSocket.emit('join_match', { challenge_id: CHALLENGE_ID });
     matchSocket.emit('join_user', {});
     checkInitialState();
+    syncTimerFromServer(); // démarrer le timer synchronisé avec le serveur
   });
 
   matchSocket.on('reconnect', () => {
@@ -2199,6 +2217,22 @@ function initMatchSocket() {
   matchSocket.on('chat_message', (d) => { chatReceive(d); });
   matchSocket.on('chat_history', (msgs) => {
     msgs.forEach(d => chatReceive(d));
+  });
+
+  // Nettoyeur serveur : match expiré côté back-end
+  matchSocket.on('match_timeout', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    if (matchFinished) return;
+    matchFinished = true;
+    stopTimer();
+    document.getElementById('stocks-recap').classList.remove('show');
+    if (d.outcome === 'forfeit') {
+      showWinner(d.winner_id, 'W-L (forfait)', d.elo_change);
+      showToast(d.message || '⏱ Résultat validé automatiquement.', true);
+    } else {
+      showToast(d.message || '⏱ Match annulé — aucune activité (DRAW).', false);
+    }
+    setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
   });
 }
 
