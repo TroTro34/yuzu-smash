@@ -583,7 +583,12 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
   if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
   res.json({ success: true }); // Réponse immédiate
   await sbPatch('challenges', { id: challenge_id }, { status: 'accepted', accepted_at: new Date().toISOString() });
-  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+  // Supprimer les posts LFM des deux joueurs : un match a été trouvé
+  await Promise.all([
+    sbDelete('lfm_posts', { player_id: c.challenger_id }),
+    sbDelete('lfm_posts', { player_id: c.challenged_id }),
+  ]);
+  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id), emitLeaderboardUpdate()]);
 });
 
 app.post('/challenge/:challenge_id/decline', requireAuth, async (req, res) => {
@@ -616,6 +621,9 @@ app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
 
 // ── LFM ───────────────────────────────────────────────────────────────────────
 
+// In-memory set to prevent concurrent duplicate LFM post creation
+const lfmPostingInProgress = new Set();
+
 app.post('/lfm', requireAuth, async (req, res) => {
   const userId  = req.session.user.id;
   const fmt     = req.body.format || 'BO3';
@@ -623,24 +631,37 @@ app.post('/lfm', requireAuth, async (req, res) => {
   if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
   if (!VALID_MODES.has(mode))  return res.status(400).json({ error: 'Invalid mode' });
 
-  // Anti-spam : pas de LFM si déjà dans un match actif ou en challenge pending/accepted
-  const activeC = await sbGet('challenges',
-    `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${userId},challenged_id.eq.${userId})`);
-  if (activeC.length) return res.status(400).json({ error: 'You already have an active challenge or match — finish it first.' });
-  const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
-  await sbDelete('lfm_posts', { player_id: userId });
-  const player  = await sbGet('players', `id=eq.${userId}`);
-  const pts     = player[0]?.points || 1000;
-  const main    = player[0]?.main_char || '';
-  const avatar  = req.session.user.avatar || '';
-  const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('lfm_posts', { id: postId, player_id: userId,
-    player_name: req.session.user.username, player_avatar: avatar,
-    player_points: pts, main_char: main, format: fmt, mode, message,
-    created_at: new Date().toISOString(), expires_at: expires });
-  res.json({ success: true });
-  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
+  // Anti-spam : empêche les requêtes concurrentes du même joueur (spam du bouton)
+  if (lfmPostingInProgress.has(userId))
+    return res.status(429).json({ error: 'Request already in progress — please wait.' });
+  lfmPostingInProgress.add(userId);
+
+  try {
+    // Anti-spam : pas de LFM si déjà dans un match actif ou en challenge pending/accepted
+    const [activeC, existingPost] = await Promise.all([
+      sbGet('challenges', `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${userId},challenged_id.eq.${userId})`),
+      sbGet('lfm_posts', `player_id=eq.${userId}`),
+    ]);
+    if (activeC.length) return res.status(400).json({ error: 'You already have an active challenge or match — finish it first.' });
+    // Un seul post LFM à la fois : si un post existe déjà, on le remplace (upsert)
+    if (existingPost.length) await sbDelete('lfm_posts', { player_id: userId });
+
+    const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
+    const player  = await sbGet('players', `id=eq.${userId}`);
+    const pts     = player[0]?.points || 1000;
+    const main    = player[0]?.main_char || '';
+    const avatar  = req.session.user.avatar || '';
+    const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
+    await sbPost('lfm_posts', { id: postId, player_id: userId,
+      player_name: req.session.user.username, player_avatar: avatar,
+      player_points: pts, main_char: main, format: fmt, mode, message,
+      created_at: new Date().toISOString(), expires_at: expires });
+    res.json({ success: true });
+    await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
+  } finally {
+    lfmPostingInProgress.delete(userId);
+  }
 });
 
 app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
@@ -656,7 +677,12 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
   await sbPost('challenges', { id: cid, challenger_id: userId,
     challenger_name: req.session.user.username, challenged_id: post.player_id,
     challenged_name: post.player_name, status: 'accepted', format: post.format });
-  await sbDelete('lfm_posts', { id: post_id });
+  // Supprimer le post accepté ET tous les posts LFM des deux joueurs impliqués
+  await Promise.all([
+    sbDelete('lfm_posts', { id: post_id }),
+    sbDelete('lfm_posts', { player_id: userId }),       // LFM posts de l'accepteur
+    sbDelete('lfm_posts', { player_id: post.player_id }), // LFM posts de l'auteur (sécurité)
+  ]);
   // Redirect BOTH players to the match page via Socket.IO
   io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
