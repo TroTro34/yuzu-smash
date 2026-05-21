@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚔ Admin — Signalements</title>
+  <title>⚔ Admin — Reports</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
       --border: #252540; --accent: #e8400a; --accent2: #ff8000;
       --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
-      --blue: #4f8ef7; --gold: #ffd700;
+      --blue: #4f8ef7; --gold: #ffd700; --purple: #a855f7;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
@@ -42,8 +42,31 @@
     .btn-danger:hover { background: var(--red); color: white; }
     .btn-blue { background: rgba(79,142,247,0.15); color: var(--blue); border: 1px solid rgba(79,142,247,0.4); }
     .btn-blue:hover { background: var(--blue); color: #0a0a0f; }
+    .btn-purple { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+    .btn-purple:hover { background: var(--purple); color: white; }
 
     .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* SECTION NAV TABS */
+    .section-nav {
+      display: flex; gap: 0; margin-bottom: 2.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+    .section-tab {
+      padding: 0.7rem 1.8rem; background: transparent; border: none; cursor: pointer;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--muted); position: relative; transition: color 0.2s;
+    }
+    .section-tab::after {
+      content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px;
+      background: var(--accent); transform: scaleX(0); transition: transform 0.2s;
+    }
+    .section-tab.active { color: var(--text); }
+    .section-tab.active::after { transform: scaleX(1); }
+    .section-tab:hover { color: var(--text); }
+
+    .section-panel { display: none; }
+    .section-panel.active { display: block; }
 
     .page-title {
       font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 4px;
@@ -151,6 +174,81 @@
     .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
     .empty-state p { font-size: 1rem; letter-spacing: 1px; }
 
+    /* ── BAN SECTION ─────────────────────────────────────────────────────────── */
+
+    .ban-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 4px;
+      margin-bottom: 0.4rem;
+      background: linear-gradient(135deg, var(--purple), var(--red));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .ban-form-card {
+      background: var(--surface); border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;
+    }
+    .ban-form-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--red); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .ban-form-title::after { content: ''; flex: 1; height: 1px; background: rgba(168,85,247,0.2); }
+    .ban-form-row { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: flex-end; }
+    .ban-form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 180px; }
+    .ban-form-label {
+      font-size: 0.75rem; letter-spacing: 2px; color: var(--muted);
+      font-family: 'Bebas Neue', sans-serif;
+    }
+    .ban-select, .ban-input {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.6rem 0.9rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif;
+      font-size: 0.95rem; font-weight: 600; outline: none; transition: border-color 0.2s;
+      width: 100%;
+    }
+    .ban-select:focus, .ban-input:focus { border-color: var(--purple); }
+    .ban-select option { background: var(--surface2); }
+
+    /* BANNED PLAYERS LIST */
+    .banned-list-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--purple); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .banned-list-title::after { content: ''; flex: 1; height: 1px; background: rgba(168,85,247,0.2); }
+
+    .banned-player-row {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid rgba(168,85,247,0.2);
+      border-left: 4px solid var(--red); border-radius: 10px;
+      padding: 0.9rem 1.2rem; margin-bottom: 0.8rem;
+      transition: border-color 0.2s;
+    }
+    .banned-player-row:hover { border-color: rgba(168,85,247,0.5); }
+
+    .banned-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--surface2); border: 2px solid rgba(255,85,85,0.4);
+      flex-shrink: 0; object-fit: cover;
+    }
+    .banned-avatar-placeholder {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--surface2); border: 2px solid rgba(255,85,85,0.4);
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: var(--red);
+    }
+    .banned-info { flex: 1; min-width: 0; }
+    .banned-name {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 2px;
+    }
+    .banned-meta { font-size: 0.78rem; color: var(--muted); }
+    .banned-reason {
+      font-size: 0.82rem; color: rgba(255,85,85,0.8);
+      background: rgba(255,85,85,0.06); border: 1px solid rgba(255,85,85,0.15);
+      border-radius: 4px; padding: 0.25rem 0.6rem;
+      max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .empty-ban { text-align: center; padding: 2.5rem; color: var(--muted); }
+    .empty-ban .empty-icon { font-size: 2rem; margin-bottom: 0.6rem; }
+
     /* TOAST */
     .toast {
       position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
@@ -174,123 +272,211 @@
 </nav>
 
 <div class="container">
-  <div class="page-title">🚩 SIGNALEMENTS</div>
-  <div class="page-sub">{{ reports | length }} signalement(s) au total</div>
 
-  <!-- Filter tabs -->
-  <div class="filter-tabs">
-    <button class="filter-tab active" onclick="filterReports('all', this)">TOUS</button>
-    <button class="filter-tab" onclick="filterReports('open', this)">EN ATTENTE</button>
-    <button class="filter-tab" onclick="filterReports('resolved', this)">RÉSOLUS</button>
+  <!-- Section tabs -->
+  <div class="section-nav">
+    <button class="section-tab active" onclick="switchSection('reports', this)">🚩 REPORTS</button>
+    <button class="section-tab" onclick="switchSection('bans', this)">🔨 BAN PLAYERS</button>
   </div>
 
-  <!-- Report list -->
-  <div id="reports-list">
-    {% if reports %}
-      {% for r in reports %}
-      <div class="report-card {{ r.status }}" id="card-{{ r.id }}" data-status="{{ r.status }}" data-reason="{{ r.reason or '' }}">
+  <!-- ── REPORTS SECTION ──────────────────────────────────────────────── -->
+  <div class="section-panel active" id="panel-reports">
+    <div class="page-title">🚩 REPORTS</div>
+    <div class="page-sub">{{ reports | length }} report(s) total</div>
 
-        <!-- Header (clickable) -->
-        <div class="report-header" onclick="toggleCard('{{ r.id }}')">
-          <div class="report-title-row">
-            <div class="report-title">{{ r.title or 'Sans titre' }}</div>
-            <div class="report-meta">
-              <span class="report-badge {{ 'badge-resolved' if r.status == 'resolved' else 'badge-open' }}">
-                {{ 'RÉSOLU' if r.status == 'resolved' else 'EN ATTENTE' }}
-              </span>
-              {% if r.reason == 'timeout_no_result' or r.reason == 'timeout_no_confirm' %}
-                <span class="report-badge badge-timeout">TIMEOUT</span>
-              {% elif r.reason == 'player_report' %}
-                <span class="report-badge badge-player">JOUEUR</span>
-              {% endif %}
-              <span style="font-size:0.78rem;color:var(--muted);">{{ r.format or '' }}</span>
-              <span class="report-date">{{ r.created_at_fmt }}</span>
-            </div>
-          </div>
-          <span class="chevron">▼</span>
-        </div>
+    <!-- Filter tabs -->
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="filterReports('all', this)">ALL</button>
+      <button class="filter-tab" onclick="filterReports('open', this)">PENDING</button>
+      <button class="filter-tab" onclick="filterReports('resolved', this)">RESOLVED</button>
+    </div>
 
-        <!-- Body (expandable) -->
-        <div class="report-body">
+    <!-- Report list -->
+    <div id="reports-list">
+      {% if reports %}
+        {% for r in reports %}
+        <div class="report-card {{ r.status }}" id="card-{{ r.id }}" data-status="{{ r.status }}" data-reason="{{ r.reason or '' }}">
 
-          <!-- Players -->
-          <div class="players-row">
-            <div class="player-box p1">
-              <div class="player-box-name">{{ r.p1.username }}</div>
-              <div class="player-box-elo">{{ r.p1.points }} ELO — {{ r.p1.wins }}W / {{ r.p1.losses }}L</div>
-              {% if r.status == 'open' %}
-              <button class="btn btn-blue"
-                onclick="resolve('{{ r.id }}', '{{ r.challenger_id }}', '{{ r.p1.username }}')">
-                🏆 Victoire {{ r.p1.username }}
-              </button>
-              {% endif %}
-            </div>
-            <div style="display:flex;align-items:center;justify-content:center;
-              font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--muted);padding:0 0.5rem;">
-              VS
-            </div>
-            <div class="player-box p2">
-              <div class="player-box-name">{{ r.p2.username }}</div>
-              <div class="player-box-elo">{{ r.p2.points }} ELO — {{ r.p2.wins }}W / {{ r.p2.losses }}L</div>
-              {% if r.status == 'open' %}
-              <button class="btn btn-danger"
-                onclick="resolve('{{ r.id }}', '{{ r.challenged_id }}', '{{ r.p2.username }}')">
-                🏆 Victoire {{ r.p2.username }}
-              </button>
-              {% endif %}
-            </div>
-          </div>
-
-          <!-- Chat log -->
-          <div class="chat-log-title">💬 HISTORIQUE CHAT</div>
-          <div class="chat-log" id="chat-{{ r.id }}">
-            {% set chat = r.chat_history %}
-            {% if chat and chat | length %}
-              {% for msg in chat %}
-              <div class="chat-msg-log">
-                <span class="msg-name">{{ msg.name }}</span>
-                <span>{{ msg.text }}</span>
-                <span class="msg-time">{{ msg.ts | datefmt }}</span>
+          <!-- Header (clickable) -->
+          <div class="report-header" onclick="toggleCard('{{ r.id }}')">
+            <div class="report-title-row">
+              <div class="report-title">{{ r.title or 'Untitled' }}</div>
+              <div class="report-meta">
+                <span class="report-badge {{ 'badge-resolved' if r.status == 'resolved' else 'badge-open' }}">
+                  {{ 'RESOLVED' if r.status == 'resolved' else 'PENDING' }}
+                </span>
+                {% if r.reason == 'timeout_no_result' or r.reason == 'timeout_no_confirm' %}
+                  <span class="report-badge badge-timeout">TIMEOUT</span>
+                {% elif r.reason == 'player_report' %}
+                  <span class="report-badge badge-player">PLAYER</span>
+                {% endif %}
+                <span style="font-size:0.78rem;color:var(--muted);">{{ r.format or '' }}</span>
+                <span class="report-date">{{ r.created_at_fmt }}</span>
               </div>
-              {% endfor %}
+            </div>
+            <span class="chevron">▼</span>
+          </div>
+
+          <!-- Body (expandable) -->
+          <div class="report-body">
+
+            <!-- Players -->
+            <div class="players-row">
+              <div class="player-box p1">
+                <div class="player-box-name">{{ r.p1.username }}</div>
+                <div class="player-box-elo">{{ r.p1.points }} ELO — {{ r.p1.wins }}W / {{ r.p1.losses }}L</div>
+                {% if r.status == 'open' %}
+                <button class="btn btn-blue"
+                  onclick="resolve('{{ r.id }}', '{{ r.challenger_id }}', '{{ r.p1.username }}')">
+                  🏆 Victory {{ r.p1.username }}
+                </button>
+                {% endif %}
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;
+                font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--muted);padding:0 0.5rem;">
+                VS
+              </div>
+              <div class="player-box p2">
+                <div class="player-box-name">{{ r.p2.username }}</div>
+                <div class="player-box-elo">{{ r.p2.points }} ELO — {{ r.p2.wins }}W / {{ r.p2.losses }}L</div>
+                {% if r.status == 'open' %}
+                <button class="btn btn-danger"
+                  onclick="resolve('{{ r.id }}', '{{ r.challenged_id }}', '{{ r.p2.username }}')">
+                  🏆 Victory {{ r.p2.username }}
+                </button>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Chat log -->
+            <div class="chat-log-title">💬 CHAT HISTORY</div>
+            <div class="chat-log" id="chat-{{ r.id }}">
+              {% set chat = r.chat_history %}
+              {% if chat and chat | length %}
+                {% for msg in chat %}
+                <div class="chat-msg-log">
+                  <span class="msg-name">{{ msg.name }}</span>
+                  <span>{{ msg.text }}</span>
+                  <span class="msg-time">{{ msg.ts | datefmt }}</span>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="chat-empty-log">No messages in this match.</div>
+              {% endif %}
+            </div>
+
+            <!-- Admin actions -->
+            {% if r.status == 'open' %}
+            <div class="resolve-title">⚡ ADMIN DECISION</div>
+            <div class="resolve-actions">
+              <button class="btn btn-success"
+                onclick="resolveDrawConfirm('{{ r.id }}')">
+                ✅ Confirm DRAW
+              </button>
+            </div>
             {% else %}
-              <div class="chat-empty-log">Aucun message dans ce match.</div>
+            <div class="resolved-info">
+              ✅ Resolved on {{ r.resolved_at | datefmt if r.resolved_at else '?' }}
+              {% if r.resolution == 'winner' and r.winner_id %}
+                — Victory awarded to
+                <strong>{{ r.winner_username or r.winner_id }}</strong>
+                {% if r.elo_change %}(±{{ r.elo_change }} ELO){% endif %}
+              {% elif r.resolution == 'draw' %}
+                — DRAW confirmed
+              {% endif %}
+            </div>
             {% endif %}
-          </div>
 
-          <!-- Actions admin -->
-          {% if r.status == 'open' %}
-          <div class="resolve-title">⚡ DÉCISION ADMIN</div>
-          <div class="resolve-actions">
-            <button class="btn btn-success"
-              onclick="resolveDrawConfirm('{{ r.id }}')">
-              ✅ Confirmer DRAW
-            </button>
-          </div>
-          {% else %}
-          <div class="resolved-info">
-            ✅ Résolu le {{ r.resolved_at | datefmt if r.resolved_at else '?' }}
-            {% if r.resolution == 'winner' and r.winner_id %}
-              — Victoire attribuée à
-              <strong>{{ r.winner_username or r.winner_id }}</strong>
-              {% if r.elo_change %}(±{{ r.elo_change }} ELO){% endif %}
-            {% elif r.resolution == 'draw' %}
-              — DRAW confirmé
-            {% endif %}
-          </div>
-          {% endif %}
-
-        </div><!-- /report-body -->
-      </div><!-- /report-card -->
-      {% endfor %}
-    {% else %}
-      <div class="empty-state">
-        <div class="empty-icon">✅</div>
-        <p>Aucun signalement pour le moment.</p>
-      </div>
-    {% endif %}
+          </div><!-- /report-body -->
+        </div><!-- /report-card -->
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">✅</div>
+          <p>No reports at the moment.</p>
+        </div>
+      {% endif %}
+    </div>
   </div>
-</div>
+
+  <!-- ── BAN SECTION ─────────────────────────────────────────────────── -->
+  <div class="section-panel" id="panel-bans">
+    <div class="ban-title">🔨 BAN PLAYERS</div>
+    <div class="page-sub">Permanently ban a player from the ranking system.</div>
+
+    <!-- Ban form -->
+    <div class="ban-form-card">
+      <div class="ban-form-title">⛔ BAN A PLAYER</div>
+      <div class="ban-form-row">
+        <div class="ban-form-group" style="flex:2">
+          <label class="ban-form-label">Player</label>
+          <select class="ban-select" id="ban-player-select">
+            <option value="">— Select a player —</option>
+            {% for pid, p in players_map.items() %}
+              {% if not p.is_banned %}
+              <option value="{{ pid }}" data-name="{{ p.username }}">{{ p.username }} ({{ p.points }} ELO)</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ban-form-group" style="flex:3">
+          <label class="ban-form-label">Reason (optional)</label>
+          <input type="text" class="ban-input" id="ban-reason-input"
+            placeholder="e.g. toxic behavior, cheating, alt account…" maxlength="200">
+        </div>
+        <div class="ban-form-group" style="flex:0 0 auto;">
+          <label class="ban-form-label">&nbsp;</label>
+          <button class="btn btn-danger" style="padding:0.6rem 1.4rem;" onclick="banPlayer()">
+            🔨 BAN
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banned players list -->
+    <div class="banned-list-title">🚫 BANNED PLAYERS</div>
+    <div id="banned-list">
+      {% set banned_players = [] %}
+      {% for pid, p in players_map.items() %}
+        {% if p.is_banned %}
+          {% set _ = banned_players.append(p) %}
+        {% endif %}
+      {% endfor %}
+
+      {% if banned_players | length %}
+        {% for p in banned_players %}
+        <div class="banned-player-row" id="banned-row-{{ p.id }}">
+          {% if p.avatar %}
+            <img class="banned-avatar"
+              src="https://cdn.discordapp.com/avatars/{{ p.id }}/{{ p.avatar }}.png?size=64"
+              onerror="this.style.display='none'"
+              alt="">
+          {% else %}
+            <div class="banned-avatar-placeholder">🔨</div>
+          {% endif %}
+          <div class="banned-info">
+            <div class="banned-name">{{ p.username }}</div>
+            <div class="banned-meta">{{ p.points }} ELO · {{ p.wins }}W / {{ p.losses }}L · ID: {{ p.id }}</div>
+          </div>
+          {% if p.ban_reason %}
+          <div class="banned-reason" title="{{ p.ban_reason }}">{{ p.ban_reason }}</div>
+          {% endif %}
+          <button class="btn btn-success" style="flex-shrink:0;"
+            onclick="unbanPlayer('{{ p.id }}', '{{ p.username }}')">
+            ✅ Unban
+          </button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-ban" id="banned-empty">
+          <div class="empty-icon">✅</div>
+          <p style="color:var(--muted);font-size:0.95rem;letter-spacing:1px;">No banned players.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div><!-- /container -->
 
 <div class="toast" id="toast"></div>
 
@@ -302,16 +488,42 @@
     padding:2rem;max-width:380px;width:90%;text-align:center;">
     <div style="font-size:2rem;margin-bottom:0.8rem;">🤝</div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:3px;
-      color:var(--accent2);margin-bottom:0.8rem;">CONFIRMER LE DRAW</div>
+      color:var(--accent2);margin-bottom:0.8rem;">CONFIRM DRAW</div>
     <div style="color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem;">
-      Aucun ELO ne sera modifié. Le match restera en DRAW.
+      No ELO will be modified. The match will remain a DRAW.
     </div>
     <div style="display:flex;flex-direction:column;gap:0.7rem;">
       <button id="draw-confirm-btn" class="btn btn-success" style="padding:0.9rem;" onclick="confirmDraw()">
-        ✅ Oui, confirmer DRAW
+        ✅ Yes, confirm DRAW
       </button>
       <button class="btn btn-ghost" onclick="document.getElementById('draw-confirm-overlay').style.display='none'">
-        Annuler
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm ban dialog -->
+<div id="ban-confirm-overlay" style="
+  display:none; position:fixed; inset:0; z-index:800;
+  background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
+  <div style="background:var(--surface);border:1px solid rgba(255,85,85,0.3);border-radius:16px;
+    padding:2rem;max-width:400px;width:90%;text-align:center;">
+    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔨</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;
+      color:var(--red);margin-bottom:0.8rem;">BAN PLAYER</div>
+    <div id="ban-confirm-text" style="color:var(--muted);font-size:0.95rem;margin-bottom:0.5rem;"></div>
+    <div id="ban-confirm-reason-box" style="display:none;background:rgba(255,85,85,0.06);border:1px solid rgba(255,85,85,0.2);
+      border-radius:6px;padding:0.6rem 1rem;margin:0.8rem 0;font-size:0.88rem;color:rgba(255,85,85,0.9);"></div>
+    <div style="color:rgba(255,85,85,0.6);font-size:0.82rem;margin-bottom:1.5rem;">
+      This player will be blocked from accessing the site.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.7rem;">
+      <button class="btn btn-danger" style="padding:0.9rem;" onclick="confirmBan()">
+        🔨 Confirm ban
+      </button>
+      <button class="btn btn-ghost" onclick="document.getElementById('ban-confirm-overlay').style.display='none'">
+        Cancel
       </button>
     </div>
   </div>
@@ -319,7 +531,18 @@
 
 <script>
 let pendingDrawReportId = null;
+let pendingBanPlayerId  = null;
+let pendingBanReason    = '';
 
+// ── Section switch ──────────────────────────────────────────────────────────
+function switchSection(name, btn) {
+  document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── Reports ─────────────────────────────────────────────────────────────────
 function toggleCard(id) {
   const card = document.getElementById('card-' + id);
   card.classList.toggle('expanded');
@@ -336,7 +559,7 @@ function filterReports(filter, btn) {
 }
 
 function resolve(reportId, winnerId, winnerName) {
-  if (!confirm(`Attribuer la victoire à ${winnerName} ?\n\nL'ELO sera calculé et appliqué immédiatement.`)) return;
+  if (!confirm(`Award the victory to ${winnerName}?\n\nELO will be calculated and applied immediately.`)) return;
   fetch(`/admin/reports/${reportId}/resolve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -345,20 +568,19 @@ function resolve(reportId, winnerId, winnerName) {
   .then(r => r.json())
   .then(d => {
     if (d.success) {
-      showToast(`✅ Victoire attribuée à ${winnerName} (+${d.elo_change} ELO)`, true);
+      showToast(`✅ Victory awarded to ${winnerName} (+${d.elo_change} ELO)`, true);
       const card = document.getElementById('card-' + reportId);
       if (card) {
         card.dataset.status = 'resolved';
         card.classList.remove('open');
         card.classList.add('resolved');
-        // Recharger la page après 1.5s pour afficher le résultat à jour
         setTimeout(() => location.reload(), 1500);
       }
     } else {
-      showToast(d.error || 'Erreur', false);
+      showToast(d.error || 'Error', false);
     }
   })
-  .catch(() => showToast('Erreur réseau', false));
+  .catch(() => showToast('Network error', false));
 }
 
 function resolveDrawConfirm(reportId) {
@@ -377,16 +599,86 @@ function confirmDraw() {
   .then(r => r.json())
   .then(d => {
     if (d.success) {
-      showToast('✅ DRAW confirmé.', true);
+      showToast('✅ DRAW confirmed.', true);
       setTimeout(() => location.reload(), 1200);
     } else {
-      showToast(d.error || 'Erreur', false);
+      showToast(d.error || 'Error', false);
     }
   })
-  .catch(() => showToast('Erreur réseau', false));
+  .catch(() => showToast('Network error', false));
   pendingDrawReportId = null;
 }
 
+// ── Bans ─────────────────────────────────────────────────────────────────────
+function banPlayer() {
+  const sel    = document.getElementById('ban-player-select');
+  const reason = document.getElementById('ban-reason-input').value.trim();
+  const pid    = sel.value;
+  const pname  = sel.options[sel.selectedIndex]?.dataset?.name || pid;
+  if (!pid) { showToast('Please select a player.', false); return; }
+
+  pendingBanPlayerId = pid;
+  pendingBanReason   = reason;
+
+  document.getElementById('ban-confirm-text').textContent =
+    `You are about to ban ${pname}.`;
+  const rb = document.getElementById('ban-confirm-reason-box');
+  if (reason) {
+    rb.style.display = 'block';
+    rb.textContent   = `Reason: ${reason}`;
+  } else {
+    rb.style.display = 'none';
+  }
+  document.getElementById('ban-confirm-overlay').style.display = 'flex';
+}
+
+function confirmBan() {
+  if (!pendingBanPlayerId) return;
+  document.getElementById('ban-confirm-overlay').style.display = 'none';
+  fetch('/admin/ban', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_id: pendingBanPlayerId, reason: pendingBanReason }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast(`🔨 Player banned.`, true);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(d.error || 'Error', false);
+    }
+  })
+  .catch(() => showToast('Network error', false));
+  pendingBanPlayerId = null;
+}
+
+function unbanPlayer(pid, pname) {
+  if (!confirm(`Unban ${pname}? They will regain access to the site.`)) return;
+  fetch('/admin/unban', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_id: pid }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast(`✅ ${pname} has been unbanned.`, true);
+      const row = document.getElementById('banned-row-' + pid);
+      if (row) row.remove();
+      const list = document.getElementById('banned-list');
+      if (list && !list.querySelector('.banned-player-row')) {
+        list.innerHTML = `<div class="empty-ban"><div class="empty-icon">✅</div>
+          <p style="color:var(--muted);font-size:0.95rem;letter-spacing:1px;">No banned players.</p></div>`;
+      }
+    } else {
+      showToast(d.error || 'Error', false);
+    }
+  })
+  .catch(() => showToast('Network error', false));
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, success = true) {
   const t = document.getElementById('toast');
