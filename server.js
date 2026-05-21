@@ -1,1088 +1,730 @@
-'use strict';
-
-const express    = require('express');
-const http       = require('http');
-const { Server } = require('socket.io');
-const session    = require('express-session');
-const nunjucks   = require('nunjucks');
-const crypto     = require('crypto');
-const fetch      = require('node-fetch');
-const path       = require('path');
-
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-
-const SECRET_KEY          = process.env.SECRET_KEY;
-if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
-
-const CLIENT_ID           = '1504467669712240861';
-const CLIENT_SECRET       = process.env.DISCORD_CLIENT_SECRET || '';
-const GUILD_ID            = '1051577844318339172';
-const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onrender.com/callback';
-const SUPABASE_URL        = process.env.SUPABASE_URL || '';
-const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
-const ADMIN_DISCORD_ID    = process.env.ADMIN_DISCORD_ID || '';
-
-const DISCORD_AUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
-
-const ELO_K          = 32;
-const VALID_FORMATS  = new Set(['BO1', 'BO3', 'BO5', 'STOCKS']);
-const VALID_MODES    = new Set(['sets', 'stocks']);
-const MAX_CHAR_NAME  = 32;
-const MAX_MESSAGE    = 200;
-const MAX_STOCKS     = 8;
-const VALID_ID_RE    = /^[a-zA-Z0-9_\-]+$/;
-
-// ── ANTI-SPAM / DEAD MATCH CONFIG ────────────────────────────────────────────
-// Délai avant qu'un match "accepted" sans résultat soumis soit annulé (draw)
-const MATCH_ACCEPTED_TIMEOUT_MS  = 2 * 60 * 60 * 1000; // 2h
-// Délai avant qu'un match "reported" sans confirmation soit auto-validé
-const MATCH_REPORTED_TIMEOUT_MS  = 30 * 60 * 1000;      // 30min
-// Intervalle de vérification du nettoyeur
-const DEAD_MATCH_CHECK_INTERVAL  = 5 * 60 * 1000;        // toutes les 5min
-// Max challenges pending envoyés simultanément par un joueur
-const MAX_PENDING_CHALLENGES_SENT = 1;
-// Rate-limit chat Socket.IO : N messages par fenêtre
-const CHAT_RATE_LIMIT_COUNT  = 5;
-const CHAT_RATE_LIMIT_WINDOW = 4000; // ms
-
-// ── APP ───────────────────────────────────────────────────────────────────────
-
-const app    = express();
-const server = http.createServer(app);
-const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
-
-// Sessions
-const sessionMiddleware = session({
-  secret: SECRET_KEY,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
-});
-app.use(sessionMiddleware);
-
-// Share session with Socket.IO
-io.engine.use(sessionMiddleware);
-
-// Body parsing
-// Limite par défaut 100 kb — augmentée à 6 Mo sur /report pour les screenshots base64
-const jsonDefault = express.json();
-const jsonLarge   = express.json({ limit: '6mb' });
-app.use((req, res, next) => {
-  if (req.path.startsWith('/report/')) return jsonLarge(req, res, next);
-  return jsonDefault(req, res, next);
-});
-app.use(express.urlencoded({ extended: false }));
-
-// Static files
-app.use('/static', express.static(path.join(__dirname, 'static')));
-
-// Templates (Nunjucks — compatible avec les fichiers HTML Jinja2)
-const env = nunjucks.configure(path.join(__dirname, 'templates'), {
-  autoescape: true,
-  express: app,
-  noCache: false,
-});
-
-// Filtre tojson pour compatibilité Jinja
-env.addFilter('tojson', function(val) { return new nunjucks.runtime.SafeString(JSON.stringify(val)); });
-env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
-env.addFilter('int', (val) => parseInt(val, 10));
-env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
-// datefmt: converts ISO string "2024-01-15T18:30:00Z" → "2024-01-15 18:30"
-env.addFilter('datefmt', (val) => {
-  if (!val) return '';
-  return String(val).slice(0, 16).replace('T', ' ');
-});
-
-// ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
-
-function sbHeaders() {
-  return {
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
-  };
-}
-
-async function sbGet(table, params = '') {
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: sbHeaders() });
-    return r.ok ? r.json() : [];
-  } catch { return []; }
-}
-
-async function sbPost(table, data) {
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-      method: 'POST', headers: sbHeaders(), body: JSON.stringify(data)
-    });
-    if (!r.ok) console.error(`[sbPost ERROR] ${table}: ${r.status} ${await r.text()}`);
-    return r.ok ? r.json() : null;
-  } catch (e) { console.error('[sbPost]', e); return null; }
-}
-
-async function sbPatch(table, match, data) {
-  try {
-    const params = Object.entries(match).map(([k, v]) => `${k}=eq.${v}`).join('&');
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-      method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(data)
-    });
-    if (!r.ok) console.error(`[sbPatch ERROR] ${table}: ${r.status} ${await r.text()}`);
-    return r.ok;
-  } catch (e) { console.error('[sbPatch]', e); return false; }
-}
-
-async function sbDelete(table, match) {
-  try {
-    const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
-    const parts = Object.entries(match).map(([k, v]) => {
-      const s = String(v);
-      const op = s.split('.')[0];
-      return OPERATORS.has(op) ? `${k}=${s}` : `${k}=eq.${s}`;
-    });
-    const params = parts.join('&');
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-      method: 'DELETE', headers: sbHeaders()
-    });
-    return r.ok;
-  } catch (e) { console.error('[sbDelete]', e); return false; }
-}
-
-async function getPlayerMatches(userId, limit = 10) {
-  const [wins, losses] = await Promise.all([
-    sbGet('matches', `winner_id=eq.${userId}&order=date.desc&limit=${limit}`),
-    sbGet('matches', `loser_id=eq.${userId}&order=date.desc&limit=${limit}`),
-  ]);
-  const seen = new Set();
-  const merged = [];
-  for (const m of [...(wins||[]), ...(losses||[])]) {
-    if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
-  }
-  merged.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  return merged.slice(0, limit);
-}
-
-// ── ELO ───────────────────────────────────────────────────────────────────────
-
-function calcElo(wp, lp) {
-  const expected = 1 / (1 + 10 ** ((lp - wp) / 400));
-  return Math.max(Math.round(ELO_K * (1 - expected)), 1);
-}
-
-function calcEloStocks(wp, lp, wSt, lSt) {
-  const expected = 1 / (1 + 10 ** ((lp - wp) / 400));
-  const base = ELO_K * (1 - expected);
-  const total = wSt + lSt;
-  const diffRatio = total > 0 ? (wSt - lSt) / total : 0;
-  return Math.max(Math.round(base * (1.0 + diffRatio * 0.5)), 1);
-}
-
-// ── VALIDATION ────────────────────────────────────────────────────────────────
-
-function validateId(v) { return v && VALID_ID_RE.test(String(v)); }
-function sanitizeStr(v, max) { return String(v || '').trim().slice(0, max); }
-function validateStocks(v) {
-  const n = parseInt(v, 10);
-  return (!isNaN(n) && n >= 0 && n <= MAX_STOCKS) ? n : null;
-}
-
-// ── DATA ──────────────────────────────────────────────────────────────────────
-
-async function dashboardData(userId, excludeChallengeIds = []) {
-  const [players, allChallenges, myMatches] = await Promise.all([
-    sbGet('players', 'order=points.desc'),
-    sbGet('challenges', 'status=in.(pending,accepted,reported)'),
-    getPlayerMatches(userId, 10),
-  ]);
-  const player = players.find(p => p.id === userId) || null;
-  const rank   = players.findIndex(p => p.id === userId) + 1 || null;
-
-  const challengesReceived = {};
-  const challengesSent     = {};
-  const activeMatches      = {};
-  const awaitingConf       = {};
-  const excludeSet = new Set(excludeChallengeIds);
-
-  for (const c of allChallenges) {
-    if (excludeSet.has(c.id)) continue;
-    if (c.challenged_id === userId && c.status === 'pending')
-      challengesReceived[c.id] = c;
-    if (c.challenger_id === userId && c.status === 'pending')
-      challengesSent[c.id] = c;
-    if (c.status === 'accepted' && [c.challenger_id, c.challenged_id].includes(userId))
-      activeMatches[c.id] = c;
-    if (c.status === 'reported' && c.reported_by !== userId && [c.challenger_id, c.challenged_id].includes(userId))
-      awaitingConf[c.id] = c;
-  }
-
-  return { player, players, rank,
-    challenges_received: challengesReceived,
-    challenges_sent: challengesSent,
-    active_matches: activeMatches,
-    awaiting_confirmation: awaitingConf,
-    my_matches: myMatches };
-}
-
-async function leaderboardData() {
-  const now = new Date().toISOString();
-  const [players, recentMatches, lfmPosts] = await Promise.all([
-    sbGet('players', 'order=points.desc'),
-    sbGet('matches', 'order=date.desc&limit=10'),
-    sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`),
-  ]);
-  return { players, recent_matches: recentMatches, lfm_posts: lfmPosts };
-}
-
-// ── SOCKET.IO EMITTERS ────────────────────────────────────────────────────────
-
-async function emitDashboardUpdate(userId, excludeChallengeIds = []) {
-  try {
-    const data = await dashboardData(userId, excludeChallengeIds);
-    io.to(`user_${userId}`).emit('dashboard_update', data);
-  } catch (e) { console.error('[emitDashboardUpdate]', e); }
-}
-
-async function emitMatchUpdate(challengeId, override = {}) {
-  try {
-    const challenges = await sbGet('challenges', `id=eq.${challengeId}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    const report = typeof c.report === 'object' ? c.report : {};
-    const payload = {
-      challenge_id: challengeId,
-      status:      override.status      ?? c.status,
-      reported_by: override.reported_by ?? c.reported_by,
-      report:      c.report,
-      winner_id:   override.winner_id   ?? report?.winner_id  ?? null,
-      score:       override.score       ?? report?.score       ?? null,
-      elo_change:  override.elo_change  ?? c.elo_change        ?? null,
-    };
-    // Envoi dans la room match ET directement à chaque joueur (comme les notifications)
-    // → garanti même si un joueur a perdu sa room après reconnexion
-    io.to(`match_${challengeId}`).emit('match_update', payload);
-    io.to(`user_${c.challenger_id}`).emit('match_update', payload);
-    io.to(`user_${c.challenged_id}`).emit('match_update', payload);
-    // Si le match vient d'être complété, exclure ce challenge du dashboard_update
-    // pour éviter la race condition Supabase (le PATCH completed pas encore lisible)
-    const excludeIds = (payload.status === 'completed' || payload.status === 'disputed')
-      ? [challengeId]
-      : [];
-    await Promise.all([c.challenger_id, c.challenged_id].map(uid => emitDashboardUpdate(uid, excludeIds)));
-  } catch (e) { console.error('[emitMatchUpdate]', e); }
-}
-
-async function emitLeaderboardUpdate() {
-  try {
-    const data = await leaderboardData();
-    io.emit('leaderboard_update', data);
-  } catch (e) { console.error('[emitLeaderboardUpdate]', e); }
-}
-
-// ── SOCKET.IO EVENTS ──────────────────────────────────────────────────────────
-
-// In-memory chat history per match (max 50 messages)
-const chatHistory = new Map();
-const CHAT_MAX = 50;
-// Rate-limit chat : { uid -> { count, windowStart } }
-const chatRateMap = new Map();
-
-function isChatRateLimited(uid) {
-  const now = Date.now();
-  const entry = chatRateMap.get(uid) || { count: 0, windowStart: now };
-  if (now - entry.windowStart > CHAT_RATE_LIMIT_WINDOW) {
-    entry.count = 0; entry.windowStart = now;
-  }
-  entry.count++;
-  chatRateMap.set(uid, entry);
-  return entry.count > CHAT_RATE_LIMIT_COUNT;
-}
-
-io.on('connection', (socket) => {
-  const req = socket.request;
-
-  socket.on('join_user', async (data, cb) => {
-    const uid = req.session?.user?.id;
-    if (uid) {
-      socket.join(`user_${uid}`);
-      if (typeof cb === 'function') cb(true);
-      // Émettre immédiatement un dashboard_update propre avec les IDs exclus
-      // fournis par le client (matchs terminés qu'il connaît déjà)
-      // → résout la race condition quand J2 arrive sur /dashboard après confirmation
-      const excludeIds = Array.isArray(data?.exclude) ? data.exclude.filter(v => validateId(String(v))) : [];
-      try {
-        const dashData = await dashboardData(uid, excludeIds);
-        socket.emit('dashboard_update', dashData);
-      } catch (e) { console.error('[join_user dashboard_update]', e); }
-    } else {
-      if (typeof cb === 'function') cb(false);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚔ Admin — Reports</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+      --blue: #4f8ef7; --gold: #ffd700; --purple: #a855f7;
     }
-  });
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
 
-  socket.on('join_match', async (data) => {
-    const cid = data?.challenge_id || '';
-    if (!validateId(cid)) return;
-    const uid = req.session?.user?.id;
-    if (!uid) return;
-    // Vérifier que l'utilisateur est bien un des deux joueurs du match
-    const challenges = await sbGet('challenges', `id=eq.${cid}`);
-    if (!challenges.length) return;
-    const c = challenges[0];
-    if (![c.challenger_id, c.challenged_id].includes(uid)) return;
-    socket.join(`match_${cid}`);
-    const history = chatHistory.get(cid) || [];
-    if (history.length) socket.emit('chat_history', history);
-  });
+    nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .admin-badge {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem; letter-spacing: 3px;
+      color: var(--gold); border: 1px solid var(--gold); padding: 0.2rem 0.7rem;
+      border-radius: 3px; background: rgba(255,215,0,0.08);
+    }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.4); }
+    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .btn-danger:hover { background: var(--red); color: white; }
+    .btn-blue { background: rgba(79,142,247,0.15); color: var(--blue); border: 1px solid rgba(79,142,247,0.4); }
+    .btn-blue:hover { background: var(--blue); color: #0a0a0f; }
+    .btn-purple { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+    .btn-purple:hover { background: var(--purple); color: white; }
 
-  socket.on('leave_match', (data) => {
-    const cid = data?.challenge_id || '';
-    if (validateId(cid)) socket.leave(`match_${cid}`);
-  });
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 
-  // Relai des transitions de phase BO entre les deux joueurs
-  socket.on('bo_phase_update', (data) => {
-    const cid = data && data.challenge_id;
-    if (!cid) return;
-    // Rediffuser à toute la room sauf l'émetteur
-    socket.to(`match_${cid}`).emit('bo_phase_update', data);
-  });
+    /* SECTION NAV TABS */
+    .section-nav {
+      display: flex; gap: 0; margin-bottom: 2.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+    .section-tab {
+      padding: 0.7rem 1.8rem; background: transparent; border: none; cursor: pointer;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--muted); position: relative; transition: color 0.2s;
+    }
+    .section-tab::after {
+      content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px;
+      background: var(--accent); transform: scaleX(0); transition: transform 0.2s;
+    }
+    .section-tab.active { color: var(--text); }
+    .section-tab.active::after { transform: scaleX(1); }
+    .section-tab:hover { color: var(--text); }
 
-  socket.on('chat_message', (data) => {
-    const uid  = req.session?.user?.id;
-    const name = req.session?.user?.username || 'Unknown';
-    const cid  = data?.challenge_id || '';
-    const text = (data?.text || '').toString().slice(0, 200).trim();
-    if (!uid || !validateId(cid) || !text) return;
-    if (isChatRateLimited(uid)) return; // silencieux côté serveur
-    const payload = { uid, name, text, ts: new Date().toISOString() };
-    if (!chatHistory.has(cid)) chatHistory.set(cid, []);
-    const hist = chatHistory.get(cid);
-    hist.push(payload);
-    if (hist.length > CHAT_MAX) hist.shift();
-    io.to(`match_${cid}`).emit('chat_message', payload);
-  });
-});
+    .section-panel { display: none; }
+    .section-panel.active { display: block; }
 
-// ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
+    .page-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 4px;
+      margin-bottom: 0.4rem;
+      background: linear-gradient(135deg, var(--red), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .page-sub { color: var(--muted); font-size: 0.9rem; letter-spacing: 1px; margin-bottom: 2rem; }
 
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.redirect('/login');
-  next();
+    /* FILTER TABS */
+    .filter-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .filter-tab {
+      padding: 0.35rem 1rem; border-radius: 4px; cursor: pointer;
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem; letter-spacing: 2px;
+      border: 1px solid var(--border); color: var(--muted); background: transparent;
+      transition: all 0.2s;
+    }
+    .filter-tab.active { border-color: var(--accent2); color: var(--accent2); }
+    .filter-tab:hover { color: var(--text); border-color: var(--text); }
+
+    /* REPORT CARD */
+    .report-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      margin-bottom: 1.2rem; overflow: hidden; transition: border-color 0.2s;
+    }
+    .report-card.open { border-left: 4px solid var(--red); }
+    .report-card.resolved { border-left: 4px solid var(--green); opacity: 0.7; }
+    .report-card:hover { border-color: var(--accent2); }
+
+    .report-header {
+      padding: 1.2rem 1.5rem; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+    }
+    .report-header:hover { background: rgba(255,255,255,0.02); }
+    .report-title-row { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
+    .report-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 2px;
+    }
+    .report-meta { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; }
+    .report-badge {
+      font-size: 0.7rem; letter-spacing: 1px; padding: 0.15rem 0.5rem;
+      border-radius: 3px; font-weight: 700;
+    }
+    .badge-open { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .badge-resolved { background: rgba(61,220,132,0.12); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
+    .badge-timeout { background: rgba(255,128,0,0.12); color: var(--accent2); border: 1px solid rgba(255,128,0,0.3); }
+    .badge-player { background: rgba(255,85,85,0.08); color: rgba(255,85,85,0.8); border: 1px solid rgba(255,85,85,0.2); }
+    .report-date { font-size: 0.75rem; color: var(--muted); }
+    .chevron { color: var(--muted); font-size: 1.2rem; transition: transform 0.25s; }
+    .report-card.expanded .chevron { transform: rotate(180deg); }
+
+    /* REPORT BODY */
+    .report-body { display: none; padding: 0 1.5rem 1.5rem; }
+    .report-card.expanded .report-body { display: block; }
+
+    .players-row {
+      display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+    }
+    .player-box {
+      flex: 1; min-width: 180px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.2rem; text-align: center;
+    }
+    .player-box.p1 { border-top: 3px solid var(--blue); }
+    .player-box.p2 { border-top: 3px solid var(--accent); }
+    .player-box-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 2px; margin-bottom: 0.3rem; }
+    .player-box-elo { font-size: 0.78rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 0.8rem; }
+    .player-box .btn { width: 100%; }
+
+    /* CHAT LOG */
+    .chat-log-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 3px;
+      color: var(--accent2); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .chat-log-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .chat-log {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      max-height: 280px; overflow-y: auto; padding: 0.8rem;
+      display: flex; flex-direction: column; gap: 0.4rem;
+      margin-bottom: 1.5rem;
+    }
+    .chat-log::-webkit-scrollbar { width: 4px; }
+    .chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .chat-msg-log { font-size: 0.85rem; line-height: 1.4; }
+    .chat-msg-log .msg-name { color: var(--accent2); font-weight: 700; margin-right: 0.4rem; }
+    .chat-msg-log .msg-time { color: var(--muted); font-size: 0.72rem; margin-left: 0.4rem; }
+    .chat-empty-log { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 1rem; }
+
+    /* RESOLVE ACTIONS */
+    .resolve-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 3px;
+      color: var(--gold); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .resolve-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .resolve-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+
+    /* RESOLVED INFO */
+    .resolved-info {
+      background: rgba(61,220,132,0.06); border: 1px solid rgba(61,220,132,0.2);
+      border-radius: 8px; padding: 0.9rem 1.2rem;
+      font-size: 0.88rem; color: var(--green);
+    }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .empty-state p { font-size: 1rem; letter-spacing: 1px; }
+
+    /* ── BAN SECTION ─────────────────────────────────────────────────────────── */
+
+    .ban-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 4px;
+      margin-bottom: 0.4rem;
+      background: linear-gradient(135deg, var(--purple), var(--red));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .ban-form-card {
+      background: var(--surface); border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;
+    }
+    .ban-form-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--red); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .ban-form-title::after { content: ''; flex: 1; height: 1px; background: rgba(168,85,247,0.2); }
+    .ban-form-row { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: flex-end; }
+    .ban-form-group { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 180px; }
+    .ban-form-label {
+      font-size: 0.75rem; letter-spacing: 2px; color: var(--muted);
+      font-family: 'Bebas Neue', sans-serif;
+    }
+    .ban-select, .ban-input {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.6rem 0.9rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif;
+      font-size: 0.95rem; font-weight: 600; outline: none; transition: border-color 0.2s;
+      width: 100%;
+    }
+    .ban-select:focus, .ban-input:focus { border-color: var(--purple); }
+    .ban-select option { background: var(--surface2); }
+
+    /* BANNED PLAYERS LIST */
+    .banned-list-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--purple); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .banned-list-title::after { content: ''; flex: 1; height: 1px; background: rgba(168,85,247,0.2); }
+
+    .banned-player-row {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid rgba(168,85,247,0.2);
+      border-left: 4px solid var(--red); border-radius: 10px;
+      padding: 0.9rem 1.2rem; margin-bottom: 0.8rem;
+      transition: border-color 0.2s;
+    }
+    .banned-player-row:hover { border-color: rgba(168,85,247,0.5); }
+
+    .banned-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--surface2); border: 2px solid rgba(255,85,85,0.4);
+      flex-shrink: 0; object-fit: cover;
+    }
+    .banned-avatar-placeholder {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--surface2); border: 2px solid rgba(255,85,85,0.4);
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: var(--red);
+    }
+    .banned-info { flex: 1; min-width: 0; }
+    .banned-name {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 2px;
+    }
+    .banned-meta { font-size: 0.78rem; color: var(--muted); }
+    .banned-reason {
+      font-size: 0.82rem; color: rgba(255,85,85,0.8);
+      background: rgba(255,85,85,0.06); border: 1px solid rgba(255,85,85,0.15);
+      border-radius: 4px; padding: 0.25rem 0.6rem;
+      max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .empty-ban { text-align: center; padding: 2.5rem; color: var(--muted); }
+    .empty-ban .empty-icon { font-size: 2rem; margin-bottom: 0.6rem; }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
+      border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
+      border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-color: var(--green); }
+    .toast.error { border-color: var(--red); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">⚔ YUZU</a>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <span class="admin-badge">⚡ ADMIN</span>
+    <a href="/dashboard" class="btn btn-ghost">← Dashboard</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Section tabs -->
+  <div class="section-nav">
+    <button class="section-tab active" onclick="switchSection('reports', this)">🚩 REPORTS</button>
+    <button class="section-tab" onclick="switchSection('bans', this)">🔨 BAN PLAYERS</button>
+  </div>
+
+  <!-- ── REPORTS SECTION ──────────────────────────────────────────────── -->
+  <div class="section-panel active" id="panel-reports">
+    <div class="page-title">🚩 REPORTS</div>
+    <div class="page-sub">{{ reports | length }} report(s) total</div>
+
+    <!-- Filter tabs -->
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="filterReports('all', this)">ALL</button>
+      <button class="filter-tab" onclick="filterReports('open', this)">PENDING</button>
+      <button class="filter-tab" onclick="filterReports('resolved', this)">RESOLVED</button>
+    </div>
+
+    <!-- Report list -->
+    <div id="reports-list">
+      {% if reports %}
+        {% for r in reports %}
+        <div class="report-card {{ r.status }}" id="card-{{ r.id }}" data-status="{{ r.status }}" data-reason="{{ r.reason or '' }}">
+
+          <!-- Header (clickable) -->
+          <div class="report-header" onclick="toggleCard('{{ r.id }}')">
+            <div class="report-title-row">
+              <div class="report-title">{{ r.title or 'Untitled' }}</div>
+              <div class="report-meta">
+                <span class="report-badge {{ 'badge-resolved' if r.status == 'resolved' else 'badge-open' }}">
+                  {{ 'RESOLVED' if r.status == 'resolved' else 'PENDING' }}
+                </span>
+                {% if r.reason == 'timeout_no_result' or r.reason == 'timeout_no_confirm' %}
+                  <span class="report-badge badge-timeout">TIMEOUT</span>
+                {% elif r.reason == 'player_report' %}
+                  <span class="report-badge badge-player">PLAYER</span>
+                {% endif %}
+                <span style="font-size:0.78rem;color:var(--muted);">{{ r.format or '' }}</span>
+                <span class="report-date">{{ r.created_at_fmt }}</span>
+              </div>
+            </div>
+            <span class="chevron">▼</span>
+          </div>
+
+          <!-- Body (expandable) -->
+          <div class="report-body">
+
+            <!-- Players -->
+            <div class="players-row">
+              <div class="player-box p1">
+                <div class="player-box-name">{{ r.p1.username }}</div>
+                <div class="player-box-elo">{{ r.p1.points }} ELO — {{ r.p1.wins }}W / {{ r.p1.losses }}L</div>
+                {% if r.status == 'open' %}
+                <button class="btn btn-blue"
+                  onclick="resolve('{{ r.id }}', '{{ r.challenger_id }}', '{{ r.p1.username }}')">
+                  🏆 Victory {{ r.p1.username }}
+                </button>
+                {% endif %}
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;
+                font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--muted);padding:0 0.5rem;">
+                VS
+              </div>
+              <div class="player-box p2">
+                <div class="player-box-name">{{ r.p2.username }}</div>
+                <div class="player-box-elo">{{ r.p2.points }} ELO — {{ r.p2.wins }}W / {{ r.p2.losses }}L</div>
+                {% if r.status == 'open' %}
+                <button class="btn btn-danger"
+                  onclick="resolve('{{ r.id }}', '{{ r.challenged_id }}', '{{ r.p2.username }}')">
+                  🏆 Victory {{ r.p2.username }}
+                </button>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Chat log -->
+            <div class="chat-log-title">💬 CHAT HISTORY</div>
+            <div class="chat-log" id="chat-{{ r.id }}">
+              {% set chat = r.chat_history %}
+              {% if chat and chat | length %}
+                {% for msg in chat %}
+                <div class="chat-msg-log">
+                  <span class="msg-name">{{ msg.name }}</span>
+                  <span>{{ msg.text }}</span>
+                  <span class="msg-time">{{ msg.ts | datefmt }}</span>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="chat-empty-log">No messages in this match.</div>
+              {% endif %}
+            </div>
+
+            {% if r.has_screenshot %}
+            <!-- Screenshot — chargée via route dédiée, pas inline base64 -->
+            <div class="chat-log-title">📸 CAPTURE D'ÉCRAN</div>
+            <div style="margin-bottom:1.5rem;">
+              <img id="ss-{{ r.id }}"
+                src="/admin/report-screenshot/{{ r.id }}"
+                alt="screenshot"
+                onclick="openScreenshot('{{ r.id }}')"
+                style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;
+                  border:1px solid rgba(255,128,0,0.3);background:var(--surface2);
+                  cursor:zoom-in;display:block;transition:opacity 0.2s;"
+                onmouseover="this.style.opacity='0.85'"
+                onmouseout="this.style.opacity='1'">
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:0.4rem;letter-spacing:1px;">
+                Cliquer pour agrandir
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Admin actions -->
+            {% if r.status == 'open' %}
+            <div class="resolve-title">⚡ ADMIN DECISION</div>
+            <div class="resolve-actions">
+              <button class="btn btn-success"
+                onclick="resolveDrawConfirm('{{ r.id }}')">
+                ✅ Confirm DRAW
+              </button>
+            </div>
+            {% else %}
+            <div class="resolved-info">
+              ✅ Resolved on {{ r.resolved_at | datefmt if r.resolved_at else '?' }}
+              {% if r.resolution == 'winner' and r.winner_id %}
+                — Victory awarded to
+                <strong>{{ r.winner_username or r.winner_id }}</strong>
+                {% if r.elo_change %}(±{{ r.elo_change }} ELO){% endif %}
+              {% elif r.resolution == 'draw' %}
+                — DRAW confirmed
+              {% endif %}
+            </div>
+            {% endif %}
+
+          </div><!-- /report-body -->
+        </div><!-- /report-card -->
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">✅</div>
+          <p>No reports at the moment.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── BAN SECTION ─────────────────────────────────────────────────── -->
+  <div class="section-panel" id="panel-bans">
+    <div class="ban-title">🔨 BAN PLAYERS</div>
+    <div class="page-sub">Permanently ban a player from the ranking system.</div>
+
+    <!-- Ban form -->
+    <div class="ban-form-card">
+      <div class="ban-form-title">⛔ BAN A PLAYER</div>
+      <div class="ban-form-row">
+        <div class="ban-form-group" style="flex:2">
+          <label class="ban-form-label">Player</label>
+          <select class="ban-select" id="ban-player-select">
+            <option value="">— Select a player —</option>
+            {% for p in players %}
+              {% if not p.is_banned %}
+              <option value="{{ p.id }}" data-name="{{ p.username }}">{{ p.username }} ({{ p.points }} ELO)</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ban-form-group" style="flex:3">
+          <label class="ban-form-label">Reason (optional)</label>
+          <input type="text" class="ban-input" id="ban-reason-input"
+            placeholder="e.g. toxic behavior, cheating, alt account…" maxlength="200">
+        </div>
+        <div class="ban-form-group" style="flex:0 0 auto;">
+          <label class="ban-form-label">&nbsp;</label>
+          <button class="btn btn-danger" style="padding:0.6rem 1.4rem;" onclick="banPlayer()">
+            🔨 BAN
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banned players list -->
+    <div class="banned-list-title">🚫 BANNED PLAYERS</div>
+    <div id="banned-list">
+      {% if players | selectattr("is_banned") | list | length %}
+        {% for p in players | selectattr("is_banned") | list %}
+        <div class="banned-player-row" id="banned-row-{{ p.id }}">
+          {% if p.avatar %}
+            <img class="banned-avatar"
+              src="https://cdn.discordapp.com/avatars/{{ p.id }}/{{ p.avatar }}.png?size=64"
+              onerror="this.style.display='none'"
+              alt="">
+          {% else %}
+            <div class="banned-avatar-placeholder">🔨</div>
+          {% endif %}
+          <div class="banned-info">
+            <div class="banned-name">{{ p.username }}</div>
+            <div class="banned-meta">{{ p.points }} ELO · {{ p.wins }}W / {{ p.losses }}L · ID: {{ p.id }}</div>
+          </div>
+          {% if p.ban_reason %}
+          <div class="banned-reason" title="{{ p.ban_reason }}">{{ p.ban_reason }}</div>
+          {% endif %}
+          <button class="btn btn-success" style="flex-shrink:0;"
+            onclick="unbanPlayer('{{ p.id }}', '{{ p.username }}')">
+            ✅ Unban
+          </button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-ban" id="banned-empty">
+          <div class="empty-icon">✅</div>
+          <p style="color:var(--muted);font-size:0.95rem;letter-spacing:1px;">No banned players.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="toast" id="toast"></div>
+
+<!-- Screenshot lightbox -->
+<div id="screenshot-lightbox" onclick="this.style.display='none'" style="
+  display:none; position:fixed; inset:0; z-index:1000;
+  background:rgba(0,0,0,0.94); align-items:center; justify-content:center;
+  cursor:zoom-out;">
+  <img id="screenshot-lightbox-img" src="" alt="screenshot"
+    style="max-width:92vw;max-height:90vh;object-fit:contain;border-radius:8px;
+      border:1px solid rgba(255,128,0,0.4);box-shadow:0 0 60px rgba(0,0,0,0.8);">
+  <div style="position:fixed;top:1rem;right:1.5rem;color:rgba(255,255,255,0.4);
+    font-size:1.8rem;pointer-events:none;">✕</div>
+</div>
+
+<!-- Confirm draw dialog -->
+<div id="draw-confirm-overlay" style="
+  display:none; position:fixed; inset:0; z-index:800;
+  background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:2rem;max-width:380px;width:90%;text-align:center;">
+    <div style="font-size:2rem;margin-bottom:0.8rem;">🤝</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:3px;
+      color:var(--accent2);margin-bottom:0.8rem;">CONFIRM DRAW</div>
+    <div style="color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem;">
+      No ELO will be modified. The match will remain a DRAW.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.7rem;">
+      <button id="draw-confirm-btn" class="btn btn-success" style="padding:0.9rem;" onclick="confirmDraw()">
+        ✅ Yes, confirm DRAW
+      </button>
+      <button class="btn btn-ghost" onclick="document.getElementById('draw-confirm-overlay').style.display='none'">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm ban dialog -->
+<div id="ban-confirm-overlay" style="
+  display:none; position:fixed; inset:0; z-index:800;
+  background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
+  <div style="background:var(--surface);border:1px solid rgba(255,85,85,0.3);border-radius:16px;
+    padding:2rem;max-width:400px;width:90%;text-align:center;">
+    <div style="font-size:2.5rem;margin-bottom:0.8rem;">🔨</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;
+      color:var(--red);margin-bottom:0.8rem;">BAN PLAYER</div>
+    <div id="ban-confirm-text" style="color:var(--muted);font-size:0.95rem;margin-bottom:0.5rem;"></div>
+    <div id="ban-confirm-reason-box" style="display:none;background:rgba(255,85,85,0.06);border:1px solid rgba(255,85,85,0.2);
+      border-radius:6px;padding:0.6rem 1rem;margin:0.8rem 0;font-size:0.88rem;color:rgba(255,85,85,0.9);"></div>
+    <div style="color:rgba(255,85,85,0.6);font-size:0.82rem;margin-bottom:1.5rem;">
+      This player will be blocked from accessing the site.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.7rem;">
+      <button class="btn btn-danger" style="padding:0.9rem;" onclick="confirmBan()">
+        🔨 Confirm ban
+      </button>
+      <button class="btn btn-ghost" onclick="document.getElementById('ban-confirm-overlay').style.display='none'">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let pendingDrawReportId = null;
+let pendingBanPlayerId  = null;
+let pendingBanReason    = '';
+
+// ── Section switch ──────────────────────────────────────────────────────────
+function switchSection(name, btn) {
+  document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
 }
 
-// ── ROUTES ────────────────────────────────────────────────────────────────────
+// ── Reports ─────────────────────────────────────────────────────────────────
+function toggleCard(id) {
+  const card = document.getElementById('card-' + id);
+  card.classList.toggle('expanded');
+}
 
-// Index
-app.get('/', async (req, res) => {
-  try {
-    const now = new Date().toISOString();
-    await sbDelete('lfm_posts', { expires_at: `lt.${now}` });
-    const [players, matches, lfm] = await Promise.all([
-      sbGet('players', 'order=points.desc'),
-      sbGet('matches', 'order=date.desc&limit=10'),
-      sbGet('lfm_posts', 'order=created_at.desc'),
-    ]);
-    res.render('index.html', { user: req.session.user || null, players, recent_matches: matches, lfm_posts: lfm });
-  } catch (e) { console.error(e); res.status(500).send('Server error'); }
-});
+function filterReports(filter, btn) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.report-card').forEach(card => {
+    const status = card.dataset.status;
+    if (filter === 'all') { card.style.display = ''; return; }
+    card.style.display = (status === filter) ? '' : 'none';
+  });
+}
 
-// Login
-app.get('/login', (req, res) => {
-  const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauth_state = state;
-  res.redirect(DISCORD_AUTH_URL + `&state=${state}`);
-});
-
-// OAuth Callback
-app.get('/callback', async (req, res) => {
-  const { code, state } = req.query;
-  const expected = req.session.oauth_state;
-  delete req.session.oauth_state;
-  if (!state || state !== expected) return res.status(403).send('Invalid state — possible CSRF attack.');
-  if (!code) return res.redirect('/');
-
-  try {
-    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
-        grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
-    });
-    if (!tokenRes.ok) return res.status(400).send(`Discord Error: ${await tokenRes.text()}`);
-    const { access_token: token } = await tokenRes.json();
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const [userData, guilds, memberData] = await Promise.all([
-      fetch('https://discord.com/api/users/@me', { headers }).then(r => r.json()),
-      fetch('https://discord.com/api/users/@me/guilds', { headers }).then(r => r.json()),
-      fetch(`https://discord.com/api/users/@me/guilds/${GUILD_ID}/member`, { headers }).then(r => r.json()),
-    ]);
-
-    if (!guilds.find(g => g.id === GUILD_ID)) return res.render('not_member.html');
-
-    const displayName = memberData.nick || userData.global_name || userData.username;
-    const avatar      = userData.avatar || null;
-    const uid         = userData.id;
-
-    req.session.user = { id: uid, username: displayName, avatar };
-
-    const existing = await sbGet('players', `id=eq.${uid}`);
-    if (!existing.length) {
-      await sbPost('players', { id: uid, username: displayName, avatar,
-        points: 1000, wins: 0, losses: 0, matches_played: 0,
-        main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0 });
-    } else {
-      // Check ban before updating profile
-      if (existing[0].is_banned) {
-        req.session.destroy(() => {});
-        return res.render('banned.html', {
-          user_id: uid,
-          ban_reason: existing[0].ban_reason || null,
-        });
+function resolve(reportId, winnerId, winnerName) {
+  if (!confirm(`Award the victory to ${winnerName}?\n\nELO will be calculated and applied immediately.`)) return;
+  fetch(`/admin/reports/${reportId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ winner_id: winnerId }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast(`✅ Victory awarded to ${winnerName} (+${d.elo_change} ELO)`, true);
+      const card = document.getElementById('card-' + reportId);
+      if (card) {
+        card.dataset.status = 'resolved';
+        card.classList.remove('open');
+        card.classList.add('resolved');
+        setTimeout(() => location.reload(), 1500);
       }
-      await sbPatch('players', { id: uid }, { username: displayName, avatar });
+    } else {
+      showToast(d.error || 'Error', false);
     }
-    res.redirect('/dashboard');
-  } catch (e) { console.error(e); res.status(500).send('Auth error'); }
-});
-
-// Dashboard
-app.get('/dashboard', requireAuth, async (req, res) => {
-  try {
-    const userId = req.session.user.id;
-    const [data, playerRow] = await Promise.all([
-      dashboardData(userId),
-      sbGet('players', `id=eq.${userId}`),
-    ]);
-    const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
-    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin });
-  } catch (e) { console.error(e); res.status(500).send('Server error'); }
-});
-
-// Player profile
-app.get('/player/:player_id', async (req, res) => {
-  const { player_id } = req.params;
-  if (req.session.user?.id === player_id) return res.redirect('/dashboard');
-  try {
-    const [players, myMatches] = await Promise.all([
-      sbGet('players', 'order=points.desc'),
-      getPlayerMatches(player_id, 10),
-    ]);
-    const player = players.find(p => p.id === player_id);
-    if (!player) return res.redirect('/');
-    const rank = players.findIndex(p => p.id === player_id) + 1;
-    res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches });
-  } catch (e) { console.error(e); res.status(500).send('Server error'); }
-});
-
-// Match page
-app.get('/match/:challenge_id', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.redirect('/dashboard');
-  const userId = req.session.user.id;
-  try {
-    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-    if (!challenges.length) return res.redirect('/dashboard');
-    const c = challenges[0];
-    if (![c.challenger_id, c.challenged_id].includes(userId)) return res.redirect('/dashboard');
-    if (!['accepted', 'reported'].includes(c.status)) return res.redirect('/dashboard');
-    const [challenger, challenged] = await Promise.all([
-      sbGet('players', `id=eq.${c.challenger_id}`),
-      sbGet('players', `id=eq.${c.challenged_id}`),
-    ]);
-    if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
-    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0] });
-  } catch (e) { console.error(e); res.status(500).send('Server error'); }
-});
-
-// Logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
-});
-
-// ── API ───────────────────────────────────────────────────────────────────────
-
-app.get('/api/dashboard', requireAuth, async (req, res) => {
-  try { res.json(await dashboardData(req.session.user.id)); }
-  catch (e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.get('/api/leaderboard', async (req, res) => {
-  try { res.json(await leaderboardData()); }
-  catch (e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.get('/api/lfm', async (req, res) => {
-  const now = new Date().toISOString();
-  res.json(await sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`));
-});
-
-app.get('/api/players/search', async (req, res) => {
-  const q = (req.query.q || '').toLowerCase();
-  let players = await sbGet('players', 'order=points.desc');
-  if (q) players = players.filter(p => p.username.toLowerCase().includes(q));
-  res.json(players);
-});
-
-app.get('/api/match_status/:challenge_id', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  const report = typeof c.report === 'object' ? c.report : {};
-  res.json({ status: c.status, reported_by: c.reported_by, report: c.report,
-    winner_id: report?.winner_id || null, score: report?.score || null,
-    elo_change: c.elo_change || null, accepted_at: c.accepted_at || null,
-    reported_at: c.reported_at || null });
-});
-
-app.post('/api/update_profile', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const update = {};
-  if (req.body.main_char      !== undefined) update.main_char      = sanitizeStr(req.body.main_char,      MAX_CHAR_NAME);
-  if (req.body.secondary_char !== undefined) update.secondary_char = sanitizeStr(req.body.secondary_char, MAX_CHAR_NAME);
-  if (!Object.keys(update).length) return res.json({ success: true });
-  await sbPatch('players', { id: userId }, update);
-  res.json({ success: true });
-});
-
-// ── CHALLENGES ────────────────────────────────────────────────────────────────
-
-app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
-  const { opponent_id } = req.params;
-  if (!validateId(opponent_id)) return res.status(400).json({ error: 'Invalid opponent ID' });
-  const userId = req.session.user.id;
-  if (userId === opponent_id) return res.status(400).json({ error: "You can't challenge yourself" });
-  const opponent = await sbGet('players', `id=eq.${opponent_id}`);
-  if (!opponent.length) return res.status(404).json({ error: 'Player not found' });
-  const existing = await sbGet('challenges', `status=in.(pending,accepted)&or=(and(challenger_id.eq.${userId},challenged_id.eq.${opponent_id}),and(challenger_id.eq.${opponent_id},challenged_id.eq.${userId}))`);
-  if (existing.length) return res.status(400).json({ error: 'A challenge is already pending between you' });
-
-  // Anti-spam : un seul challenge envoyé en pending à la fois
-  const sentPending = await sbGet('challenges', `challenger_id=eq.${userId}&status=eq.pending`);
-  if (sentPending.length >= MAX_PENDING_CHALLENGES_SENT)
-    return res.status(429).json({ error: `You already have a pending challenge — cancel it first.` });
-  const fmt = req.body.format || 'BO3';
-  if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
-  const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: req.session.user.username,
-    challenged_id: opponent_id, challenged_name: opponent[0].username, status: 'pending', format: fmt });
-  // Notify challenged player with dedicated event for popup
-  io.to(`user_${opponent_id}`).emit('new_challenge', {
-    challenger_name: req.session.user.username,
-    format: fmt,
-    challenge_id: cid,
-  });
-  await Promise.all([emitDashboardUpdate(opponent_id), emitDashboardUpdate(userId)]);
-  res.json({ success: true });
-});
-
-app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
-  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  res.json({ success: true }); // Réponse immédiate
-  await sbPatch('challenges', { id: challenge_id }, { status: 'accepted', accepted_at: new Date().toISOString() });
-  // Supprimer les posts LFM des deux joueurs : un match a été trouvé
-  await Promise.all([
-    sbDelete('lfm_posts', { player_id: c.challenger_id }),
-    sbDelete('lfm_posts', { player_id: c.challenged_id }),
-  ]);
-  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id), emitLeaderboardUpdate()]);
-});
-
-app.post('/challenge/:challenge_id/decline', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
-  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  await sbPatch('challenges', { id: challenge_id }, { status: 'declined' });
-  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
-  res.json({ success: true });
-});
-
-app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (c.challenger_id !== userId) return res.status(403).json({ error: 'Only the challenger can cancel' });
-  if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  await sbDelete('challenges', { id: challenge_id });
-  await Promise.all([emitDashboardUpdate(c.challenged_id), emitDashboardUpdate(c.challenger_id)]);
-  res.json({ success: true });
-});
-
-// ── LFM ───────────────────────────────────────────────────────────────────────
-
-// In-memory set to prevent concurrent duplicate LFM post creation
-const lfmPostingInProgress = new Set();
-
-app.post('/lfm', requireAuth, async (req, res) => {
-  const userId  = req.session.user.id;
-  const fmt     = req.body.format || 'BO3';
-  const mode    = req.body.mode || 'sets';
-  if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
-  if (!VALID_MODES.has(mode))  return res.status(400).json({ error: 'Invalid mode' });
-
-  // Anti-spam : empêche les requêtes concurrentes du même joueur (spam du bouton)
-  if (lfmPostingInProgress.has(userId))
-    return res.status(429).json({ error: 'Request already in progress — please wait.' });
-  lfmPostingInProgress.add(userId);
-
-  try {
-    // Anti-spam : pas de LFM si déjà dans un match actif ou en challenge pending/accepted
-    const [activeC, existingPost] = await Promise.all([
-      sbGet('challenges', `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${userId},challenged_id.eq.${userId})`),
-      sbGet('lfm_posts', `player_id=eq.${userId}`),
-    ]);
-    if (activeC.length) return res.status(400).json({ error: 'You already have an active challenge or match — finish it first.' });
-    // Un seul post LFM à la fois : si un post existe déjà, on le remplace (upsert)
-    if (existingPost.length) await sbDelete('lfm_posts', { player_id: userId });
-
-    const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
-    const player  = await sbGet('players', `id=eq.${userId}`);
-    const pts     = player[0]?.points || 1000;
-    const main    = player[0]?.main_char || '';
-    const avatar  = req.session.user.avatar || '';
-    const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
-    await sbPost('lfm_posts', { id: postId, player_id: userId,
-      player_name: req.session.user.username, player_avatar: avatar,
-      player_points: pts, main_char: main, format: fmt, mode, message,
-      created_at: new Date().toISOString(), expires_at: expires });
-    res.json({ success: true });
-    await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
-  } finally {
-    lfmPostingInProgress.delete(userId);
-  }
-});
-
-app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
-  const { post_id } = req.params;
-  if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
-  if (!posts.length) return res.status(404).json({ error: 'Not found' });
-  const post = posts[0];
-  if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
-  const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
-  res.json({ success: true, challenge_id: cid }); // Réponse immédiate
-  await sbPost('challenges', { id: cid, challenger_id: userId,
-    challenger_name: req.session.user.username, challenged_id: post.player_id,
-    challenged_name: post.player_name, status: 'accepted', format: post.format });
-  // Supprimer le post accepté ET tous les posts LFM des deux joueurs impliqués
-  await Promise.all([
-    sbDelete('lfm_posts', { id: post_id }),
-    sbDelete('lfm_posts', { player_id: userId }),       // LFM posts de l'accepteur
-    sbDelete('lfm_posts', { player_id: post.player_id }), // LFM posts de l'auteur (sécurité)
-  ]);
-  // Redirect BOTH players to the match page via Socket.IO
-  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
-  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
-  await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
-});
-
-app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
-  const { post_id } = req.params;
-  if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
-  if (!posts.length) return res.status(404).json({ error: 'Not found' });
-  if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
-  await sbDelete('lfm_posts', { id: post_id });
-  res.json({ success: true });
-  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
-});
-
-// ── REPORT (joueur) ───────────────────────────────────────────────────────────
-
-app.post('/report/:challenge_id', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId = req.session.user.id;
-
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (![c.challenger_id, c.challenged_id].includes(userId))
-    return res.status(403).json({ error: 'Not part of this match' });
-  if (!['accepted', 'reported'].includes(c.status))
-    return res.status(400).json({ error: 'Cannot report this match' });
-
-  const title = sanitizeStr(req.body.title || '', 120) ||
-    `${c.challenger_name} vs ${c.challenged_name}`;
-
-  // Draw immédiat
-  await sbPatch('challenges', { id: challenge_id }, { status: 'draw_reported' });
-
-  // Créer le signalement avec snapshot du chat
-  await createReport({
-    challenge_id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
-    format: c.format, title,
-    reason: 'player_report',
-    chat_history_snapshot: chatHistory.get(challenge_id) || [],
-  });
-  chatHistory.delete(challenge_id);
-
-  // Notifier les deux joueurs
-  const msg = { type: 'match_timeout', outcome: 'draw', challenge_id,
-    message: '🚩 Match signalé — résultat en DRAW en attendant la décision admin.' };
-  io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
-  io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
-  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
-
-  res.json({ success: true });
-});
-
-// ── ADMIN MIDDLEWARE ──────────────────────────────────────────────────────────
-
-async function requireAdmin(req, res, next) {
-  if (!req.session.user) return res.redirect('/login');
-  const players = await sbGet('players', `id=eq.${req.session.user.id}`);
-  if (!players.length || !players[0].is_admin)
-    return res.status(403).render('not_member.html');
-  req.adminPlayer = players[0];
-  next();
+  })
+  .catch(() => showToast('Network error', false));
 }
 
-// ── ADMIN — PAGE SIGNALEMENTS ─────────────────────────────────────────────────
+function resolveDrawConfirm(reportId) {
+  pendingDrawReportId = reportId;
+  document.getElementById('draw-confirm-overlay').style.display = 'flex';
+}
 
-app.get('/admin/reports', requireAdmin, async (req, res) => {
-  try {
-    const [openReports, allPlayers] = await Promise.all([
-      sbGet('reports', 'order=created_at.desc'),
-      sbGet('players', 'order=points.desc'),
-    ]);
-    const playersMap = Object.fromEntries(allPlayers.map(p => [p.id, p]));
-    // Enrich each report with p1/p2 player snapshots and normalized status
-    const enriched = openReports.map(r => {
-      const p1 = playersMap[r.challenger_id] || { username: r.challenger_id, points: '?', wins: 0, losses: 0 };
-      const p2 = playersMap[r.challenged_id] || { username: r.challenged_id, points: '?', wins: 0, losses: 0 };
-      const normalizedStatus = r.status === 'resolved' ? 'resolved' : 'open';
-      const winnerUsername = r.winner_id ? (playersMap[r.winner_id] || {}).username || r.winner_id : null;
-      return { ...r, p1, p2, status: normalizedStatus, winner_username: winnerUsername };
-    });
-    res.render('admin_reports.html', {
-      user: req.session.user,
-      is_admin: true,
-      reports: enriched,
-      players_map: playersMap,
-      players: allPlayers,
-    });
-  } catch (e) { console.error(e); res.status(500).send('Server error'); }
-});
+function confirmDraw() {
+  if (!pendingDrawReportId) return;
+  document.getElementById('draw-confirm-overlay').style.display = 'none';
+  fetch(`/admin/reports/${pendingDrawReportId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast('✅ DRAW confirmed.', true);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(d.error || 'Error', false);
+    }
+  })
+  .catch(() => showToast('Network error', false));
+  pendingDrawReportId = null;
+}
 
-app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => {
-  const { report_id } = req.params;
-  if (!validateId(report_id)) return res.status(400).json({ error: 'Invalid ID' });
+// ── Bans ─────────────────────────────────────────────────────────────────────
+function banPlayer() {
+  const sel    = document.getElementById('ban-player-select');
+  const reason = document.getElementById('ban-reason-input').value.trim();
+  const pid    = sel.value;
+  const pname  = sel.options[sel.selectedIndex]?.dataset?.name || pid;
+  if (!pid) { showToast('Please select a player.', false); return; }
 
-  const reports = await sbGet('reports', `id=eq.${report_id}`);
-  if (!reports.length) return res.status(404).json({ error: 'Not found' });
-  const report = reports[0];
-  if (report.status === 'resolved') return res.status(400).json({ error: 'Already resolved' });
+  pendingBanPlayerId = pid;
+  pendingBanReason   = reason;
 
-  const { winner_id } = req.body;
-  if (!winner_id) {
-    // Clôturer sans vainqueur (draw confirmé)
-    await sbPatch('reports', { id: report_id }, {
-      status: 'resolved', resolved_by: req.session.user.id,
-      resolved_at: new Date().toISOString(), resolution: 'draw'
-    });
-    return res.json({ success: true, resolution: 'draw' });
-  }
-
-  if (![report.challenger_id, report.challenged_id].includes(winner_id))
-    return res.status(400).json({ error: 'Invalid winner' });
-
-  const loser_id = winner_id === report.challenger_id ? report.challenged_id : report.challenger_id;
-  const [winnerArr, loserArr] = await Promise.all([
-    sbGet('players', `id=eq.${winner_id}`),
-    sbGet('players', `id=eq.${loser_id}`),
-  ]);
-  if (!winnerArr.length || !loserArr.length)
-    return res.status(404).json({ error: 'Player not found' });
-
-  const winner = winnerArr[0], loser = loserArr[0];
-  const eloGain = calcElo(winner.points, loser.points);
-
-  await Promise.all([
-    sbPatch('players', { id: winner_id }, {
-      points: winner.points + eloGain, wins: winner.wins + 1,
-      matches_played: winner.matches_played + 1,
-    }),
-    sbPatch('players', { id: loser_id }, {
-      points: Math.max(0, loser.points - eloGain), losses: loser.losses + 1,
-      matches_played: loser.matches_played + 1,
-    }),
-    sbPost('matches', {
-      challenge_id: report.challenge_id, winner_id, winner_name: winner.username,
-      winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
-      loser_main: loser.main_char || '', score: 'W-L (admin)',
-      format: report.format || 'BO3', elo_change: eloGain, date: new Date().toISOString(),
-    }),
-    sbPatch('challenges', { id: report.challenge_id }, { status: 'completed' }),
-    sbPatch('reports', { id: report_id }, {
-      status: 'resolved', resolved_by: req.session.user.id,
-      resolved_at: new Date().toISOString(), resolution: 'winner',
-      winner_id, elo_change: eloGain,
-    }),
-  ]);
-
-  await emitLeaderboardUpdate();
-  await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
-  // Notifier les joueurs de la décision admin
-  const notify = (uid, won) => io.to(`user_${uid}`).emit('admin_decision', {
-    challenge_id: report.challenge_id,
-    message: won
-      ? `✅ Décision admin : vous remportez le match (+${eloGain} ELO).`
-      : `❌ Décision admin : vous perdez le match (−${eloGain} ELO).`,
-    won, elo_change: eloGain,
-  });
-  notify(winner_id, true);
-  notify(loser_id, false);
-
-  res.json({ success: true, resolution: 'winner', elo_change: eloGain });
-});
-
-
-// ── ADMIN — BAN / UNBAN ───────────────────────────────────────────────────────
-
-app.post("/admin/ban", requireAdmin, async (req, res) => {
-  const { player_id, reason } = req.body;
-  if (!validateId(player_id)) return res.status(400).json({ error: "Invalid player ID" });
-  if (player_id === req.session.user.id)
-    return res.status(400).json({ error: "You cannot ban yourself" });
-  const players = await sbGet("players", `id=eq.${player_id}`);
-  if (!players.length) return res.status(404).json({ error: "Player not found" });
-  if (players[0].is_banned) return res.status(400).json({ error: "Player is already banned" });
-  if (players[0].is_admin) return res.status(403).json({ error: "Cannot ban another admin" });
-  const banReason = sanitizeStr(reason || "", 200) || null;
-  await sbPatch("players", { id: player_id }, {
-    is_banned: true, ban_reason: banReason,
-    banned_at: new Date().toISOString(), banned_by: req.session.user.id,
-  });
-  const activeChallenges = await sbGet("challenges",
-    `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${player_id},challenged_id.eq.${player_id})`);
-  for (const c of activeChallenges) {
-    await sbPatch("challenges", { id: c.id }, { status: "cancelled" });
-    const otherId = c.challenger_id === player_id ? c.challenged_id : c.challenger_id;
-    io.to(`user_${otherId}`).emit("match_timeout", { type: "match_cancelled", challenge_id: c.id,
-      message: "u26a0 Your opponent has been banned. The match has been cancelled." });
-    await emitDashboardUpdate(otherId);
-  }
-  console.log(`[ADMIN] ${req.session.user.username} banned player ${player_id}`);
-  res.json({ success: true });
-});
-
-app.post("/admin/unban", requireAdmin, async (req, res) => {
-  const { player_id } = req.body;
-  if (!validateId(player_id)) return res.status(400).json({ error: "Invalid player ID" });
-  const players = await sbGet("players", `id=eq.${player_id}`);
-  if (!players.length) return res.status(404).json({ error: "Player not found" });
-  if (!players[0].is_banned) return res.status(400).json({ error: "Player is not banned" });
-  await sbPatch("players", { id: player_id }, {
-    is_banned: false, ban_reason: null, banned_at: null, banned_by: null,
-  });
-  console.log(`[ADMIN] ${req.session.user.username} unbanned player ${player_id}`);
-  res.json({ success: true });
-});
-
-// ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
-
-app.post('/result/:challenge_id', requireAuth, async (req, res) => {
-  const { challenge_id } = req.params;
-  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
-  const userId     = req.session.user.id;
-  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
-  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
-  const c = challenges[0];
-  if (![c.challenger_id, c.challenged_id].includes(userId)) return res.status(403).json({ error: 'Not part of this match' });
-
-  const { winner_id, score: rawScore } = req.body;
-  const isStocks = c.format === 'STOCKS';
-
-  // En mode STOCKS : le front envoie les TOTAUX CUMULÉS sur l'ensemble des matchs.
-  // On calcule le delta = total saisi - total précédemment enregistré.
-  let wStRaw = parseInt(req.body.winner_stocks_taken ?? 0, 10);
-  let lStRaw = parseInt(req.body.loser_stocks_taken  ?? 0, 10);
-  if (isNaN(wStRaw) || isNaN(lStRaw) || wStRaw < 0 || lStRaw < 0) {
-    return res.status(400).json({ error: 'Stocks must be >= 0' });
-  }
-
-  let wSt = wStRaw, lSt = lStRaw;
-  let scoreStr;
-
-  if (isStocks) {
-    const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
-    const prevW = prev.winner_stocks_total || 0;
-    const prevL = prev.loser_stocks_total  || 0;
-    wSt = Math.max(0, wStRaw - prevW); // delta pour ce match
-    lSt = Math.max(0, lStRaw - prevL);
-    scoreStr = `${wStRaw}-${lStRaw}`; // score = totaux pour l'affichage
+  document.getElementById('ban-confirm-text').textContent =
+    `You are about to ban ${pname}.`;
+  const rb = document.getElementById('ban-confirm-reason-box');
+  if (reason) {
+    rb.style.display = 'block';
+    rb.textContent   = `Reason: ${reason}`;
   } else {
-    const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
-    if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
-    scoreStr = sanitizeStr(rawScore || '', 20);
+    rb.style.display = 'none';
   }
+  document.getElementById('ban-confirm-overlay').style.display = 'flex';
+}
 
-  if (![c.challenger_id, c.challenged_id].includes(winner_id)) return res.status(400).json({ error: 'Invalid winner' });
-  const loser_id = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
+function confirmBan() {
+  if (!pendingBanPlayerId) return;
+  document.getElementById('ban-confirm-overlay').style.display = 'none';
+  fetch('/admin/ban', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_id: pendingBanPlayerId, reason: pendingBanReason }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast(`🔨 Player banned.`, true);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(d.error || 'Error', false);
+    }
+  })
+  .catch(() => showToast('Network error', false));
+  pendingBanPlayerId = null;
+}
 
-  if (c.status === 'accepted') {
-    await sbPatch('challenges', { id: challenge_id }, {
-      status: 'reported', reported_by: userId, reported_at: new Date().toISOString(),
-      report: {
-        winner_id, score: scoreStr,
-        winner_stocks_taken: wSt, loser_stocks_taken: lSt,
-        winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
-        is_stocks_mode: isStocks
-      }
-    });
-    await emitMatchUpdate(challenge_id);
-    return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
-  }
-
-  if (c.status === 'reported' && c.reported_by !== userId) {
-    const report = typeof c.report === 'object' ? c.report : {};
-    if (String(winner_id) === String(report.winner_id)) {
-      const [winnerArr, loserArr] = await Promise.all([
-        sbGet('players', `id=eq.${winner_id}`),
-        sbGet('players', `id=eq.${loser_id}`),
-      ]);
-      if (winnerArr.length && loserArr.length) {
-        const winner = winnerArr[0], loser = loserArr[0];
-        const wp = winner.points, lp = loser.points;
-        const eloGain = report.is_stocks_mode
-          ? calcEloStocks(wp, lp, report.winner_stocks_taken || 0, report.loser_stocks_taken || 0)
-          : calcElo(wp, lp);
-        await Promise.all([
-          sbPatch('players', { id: winner_id }, { points: wp + eloGain, wins: winner.wins + 1,
-            matches_played: winner.matches_played + 1,
-            stocks_taken: (winner.stocks_taken || 0) + (report.winner_stocks_taken || 0) }),
-          sbPatch('players', { id: loser_id }, { points: Math.max(0, lp - eloGain), losses: loser.losses + 1,
-            matches_played: loser.matches_played + 1,
-            stocks_lost: (loser.stocks_lost || 0) + (report.loser_stocks_taken || 0) }),
-          sbPost('matches', { challenge_id, winner_id, winner_name: winner.username,
-            winner_main: winner.main_char || '', loser_id, loser_name: loser.username,
-            loser_main: loser.main_char || '', score: report.score || scoreStr,
-            format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
-          sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
-        ]);
-        // Petit délai pour laisser Supabase propager le PATCH avant les re-queries
-        await new Promise(r => setTimeout(r, 300));
-        await emitMatchUpdate(challenge_id, {
-          status: 'completed',
-          winner_id,
-          score: report.score || scoreStr,
-          elo_change: eloGain,
-        });
-        await emitLeaderboardUpdate();
-        chatHistory.delete(challenge_id); // clear chat history on match end
-        return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
+function unbanPlayer(pid, pname) {
+  if (!confirm(`Unban ${pname}? They will regain access to the site.`)) return;
+  fetch('/admin/unban', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_id: pid }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast(`✅ ${pname} has been unbanned.`, true);
+      const row = document.getElementById('banned-row-' + pid);
+      if (row) row.remove();
+      const list = document.getElementById('banned-list');
+      if (list && !list.querySelector('.banned-player-row')) {
+        list.innerHTML = `<div class="empty-ban"><div class="empty-icon">✅</div>
+          <p style="color:var(--muted);font-size:0.95rem;letter-spacing:1px;">No banned players.</p></div>`;
       }
     } else {
-      await sbPatch('challenges', { id: challenge_id }, { status: 'disputed' });
-      await new Promise(r => setTimeout(r, 300));
-      await emitMatchUpdate(challenge_id);
-      return res.json({ success: true, message: 'Conflict detected! Contact an admin.' });
+      showToast(d.error || 'Error', false);
     }
-  }
-
-  res.status(400).json({ error: 'Invalid action' });
-});
-
-// ── DEAD MATCH CLEANUP ────────────────────────────────────────────────────────
-// Tournant en arrière-plan, résout les matchs abandonnés :
-//   • status=accepted  depuis > 2h  → DRAW + signalement admin
-//   • status=reported  depuis > 30min → DRAW + signalement admin (plus de forfait auto)
-
-async function createReport({ challenge_id, challenger_id, challenged_id, format, title, reason, chat_history_snapshot }) {
-  const rid = `rep_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('reports', {
-    id: rid, challenge_id, challenger_id, challenged_id, format,
-    title: title || 'Signalement sans titre',
-    reason: reason || 'unknown',
-    chat_history: chat_history_snapshot || [],
-    status: 'open',
-    created_at: new Date().toISOString(),
-  });
-  return rid;
+  })
+  .catch(() => showToast('Network error', false));
 }
 
-async function resolveDeadMatches() {
-  try {
-    const now = new Date();
-
-    // ── 1. Matchs accepted expirés → DRAW + signalement ───────────────────────
-    const acceptedExpiry = new Date(now - MATCH_ACCEPTED_TIMEOUT_MS).toISOString();
-    const deadAccepted = await sbGet('challenges',
-      `status=eq.accepted&accepted_at=lt.${acceptedExpiry}`);
-
-    for (const c of deadAccepted) {
-      console.log(`[DeadMatch] DRAW (timeout accepted): ${c.id}`);
-      await sbPatch('challenges', { id: c.id }, { status: 'draw_timeout' });
-      await createReport({
-        challenge_id: c.id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
-        format: c.format,
-        title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — aucun résultat soumis`,
-        reason: 'timeout_no_result',
-        chat_history_snapshot: chatHistory.get(c.id) || [],
-      });
-      chatHistory.delete(c.id);
-      const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
-        message: '⏱ Temps écoulé — aucun résultat soumis. Match annulé (DRAW), un admin peut trancher.' };
-      io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
-      io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
-      await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
-    }
-
-    // ── 2. Matchs reported expirés → DRAW + signalement ──────────────────────
-    const reportedExpiry = new Date(now - MATCH_REPORTED_TIMEOUT_MS).toISOString();
-    const deadReported = await sbGet('challenges',
-      `status=eq.reported&reported_at=lt.${reportedExpiry}`);
-
-    for (const c of deadReported) {
-      const report = typeof c.report === 'object' && c.report ? c.report : {};
-      console.log(`[DeadMatch] DRAW (timeout reported): ${c.id}`);
-      await sbPatch('challenges', { id: c.id }, { status: 'draw_timeout' });
-      await createReport({
-        challenge_id: c.id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
-        format: c.format,
-        title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — confirmation expirée`,
-        reason: 'timeout_no_confirm',
-        chat_history_snapshot: chatHistory.get(c.id) || [],
-      });
-      chatHistory.delete(c.id);
-      const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
-        message: '⏱ Confirmation non reçue à temps — match en DRAW. Un admin va trancher.' };
-      io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
-      io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
-      await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
-    }
-  } catch (e) {
-    console.error('[resolveDeadMatches]', e);
-  }
+// ── Screenshot lightbox ──────────────────────────────────────────────────────
+function openScreenshot(reportId) {
+  const img = document.getElementById('ss-' + reportId);
+  if (!img) return;
+  document.getElementById('screenshot-lightbox-img').src = img.src;
+  const lb = document.getElementById('screenshot-lightbox');
+  lb.style.display = 'flex';
 }
 
-// ── START ─────────────────────────────────────────────────────────────────────
-
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-  console.log(`⚔ Smash YUZU running on port ${PORT}`);
-  // Lancer le nettoyeur de matchs morts au démarrage puis toutes les 5 min
-  resolveDeadMatches();
-  setInterval(resolveDeadMatches, DEAD_MATCH_CHECK_INTERVAL);
+// Fermer le lightbox avec Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('screenshot-lightbox').style.display = 'none';
 });
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, success = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (success ? 'success' : 'error');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
