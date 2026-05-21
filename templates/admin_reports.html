@@ -365,11 +365,13 @@
               {% endif %}
             </div>
 
-            {% if r.screenshot %}
-            <!-- Screenshot -->
+            {% if r.has_screenshot %}
+            <!-- Screenshot — chargée via route dédiée, pas inline base64 -->
             <div class="chat-log-title">📸 CAPTURE D'ÉCRAN</div>
             <div style="margin-bottom:1.5rem;">
-              <img id="ss-{{ r.id }}" src="{{ r.screenshot | safe }}" alt="screenshot"
+              <img id="ss-{{ r.id }}"
+                src="/admin/report-screenshot/{{ r.id }}"
+                alt="screenshot"
                 onclick="openScreenshot('{{ r.id }}')"
                 style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;
                   border:1px solid rgba(255,128,0,0.3);background:var(--surface2);
