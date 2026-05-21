@@ -748,6 +748,7 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
       is_admin: true,
       reports: enriched,
       players_map: playersMap,
+      players: allPlayers,
     });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
