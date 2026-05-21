@@ -2532,7 +2532,7 @@ async function submitReport() {
       showToast(data.error || 'Erreur lors du signalement.', false);
     }
   } catch (e) {
-    showToast('Erreur réseau.', false);
+    showToast('Erreur réseau — réessaie sans image ou avec une image plus petite.', false);
   }
 }
 
