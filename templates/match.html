@@ -540,7 +540,7 @@
 <!-- ── MATCH TIMER ── -->
 <div id="match-timer">
   <div id="timer-dot"></div>
-  <span id="timer-display">15:00</span>
+  <span id="timer-display">30:00</span>
 </div>
 
 <div class="page-body">
@@ -1156,6 +1156,7 @@ function emitPhase(extraFields) {
 function confirmCharPick(player) {
   if (player === 'p1' && !boState.p1Char) return;
   if (player === 'p2' && !boState.p2Char) return;
+  resetMatchTimer(); // reset timer à chaque action
   // Après p1 → p2 pick ; après p2 → stage bans
   boState.phase = player === 'p1' ? 'p2_char' : 'p1_ban';
   if (boState.phase === 'p1_ban') {
@@ -1177,10 +1178,26 @@ function confirmCharPick(player) {
 function renderStageBans() {
   const phase     = boState.phase;
   const isP1Ban   = phase === 'p1_ban';
-  const bannerID  = isP1Ban ? P1_ID : P2_ID;
-  const bannerName= isP1Ban ? P1_NAME : P2_NAME;
-  const colorVar  = isP1Ban ? 'var(--blue)' : 'var(--accent)';
-  const bgColor   = isP1Ban ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
+
+  // Alternance : au game 1 P1 ban 2, P2 ban 4. Au game 2 P2 ban 2, P1 ban 4. Etc.
+  // bannerSmall = celui qui fait 2 bans (et qui pickera ensuite)
+  // bannerBig   = celui qui fait 4 bans (et qui ne peut PAS picker)
+  const gameIsOdd = (boState.currentGame % 2 === 1); // game 1,3,5... = impair
+  // impair → P1 ban 2 (p1_ban), P2 ban 4 (p2_ban)
+  // pair   → P2 ban 2 (p1_ban), P1 ban 4 (p2_ban)
+  const [bannerSmallID, bannerSmallName] = gameIsOdd
+    ? [P1_ID, P1_NAME] : [P2_ID, P2_NAME];
+  const [bannerBigID, bannerBigName] = gameIsOdd
+    ? [P2_ID, P2_NAME] : [P1_ID, P1_NAME];
+
+  const bannerID   = isP1Ban ? bannerSmallID : bannerBigID;
+  const bannerName = isP1Ban ? bannerSmallName : bannerBigName;
+  const colorVar   = isP1Ban
+    ? (gameIsOdd ? 'var(--blue)' : 'var(--accent)')
+    : (gameIsOdd ? 'var(--accent)' : 'var(--blue)');
+  const bgColor    = isP1Ban
+    ? (gameIsOdd ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)')
+    : (gameIsOdd ? 'rgba(232,64,10,0.1)' : 'rgba(79,142,247,0.1)');
   const limit     = isP1Ban ? 2 : 4;
   const amIBanner = MY_ID === bannerID;
 
@@ -1307,6 +1324,8 @@ function confirmBans(pendingKey) {
   const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
   if (!boState[key] || boState[key].length < (isP1Ban ? 2 : 4)) return;
 
+  resetMatchTimer(); // reset timer à chaque action
+
   boState.bannedStages = [...boState.bannedStages, ...boState[key]];
   boState[key] = [];
 
@@ -1395,6 +1414,7 @@ function pickStage(stageId) {
 
 function confirmStagePick() {
   if (!boState.selectedStage) return;
+  resetMatchTimer(); // reset timer à chaque action
   boState.phase = 'result';
   emitPhase();
   renderBOPhase();
@@ -1513,6 +1533,8 @@ function selectGameWinner(player) {
 // J1 soumet le résultat → J2 doit confirmer
 function submitGameResult() {
   if (!_selectedGameWinner) return;
+  resetMatchTimer(); // reset timer à chaque action
+  resetGameTimer();  // reset le timer de confirmation aussi
   _gameResultPending = { winner: _selectedGameWinner };
   emitPhase({ gameResultPending: _gameResultPending });
   renderGameResultWaiting();
@@ -1575,6 +1597,7 @@ function renderGameResultConfirm() {
 // J2 confirme → on avance
 function confirmGameResultP2() {
   if (!_gameResultPending) return;
+  resetMatchTimer(); // reset timer à chaque action
   const winner = _gameResultPending.winner;
   _gameResultPending = null;
   _selectedGameWinner = null;
@@ -1791,6 +1814,7 @@ function confirmStockGame() {
   if (delta1 === delta2) {
     showToast('Tie not allowed — there must be a winner!', false); return;
   }
+  resetMatchTimer(); // reset timer à chaque action
   // Enregistre le game
   stockGameHistory.push({ p1: medalsP1, p2: medalsP2 });
   currentGameMinP1 = medalsP1;
@@ -2057,7 +2081,7 @@ function startHttpFallback() {
 //   • Aucune action de personne → annulation
 //   • J1 a soumis (gameResultPending / pendingResult) mais J2 n'a pas répondu → J1 gagne
 // ─────────────────────────────────────────────
-const MATCH_TIMER_SECONDS = 15 * 60;
+const MATCH_TIMER_SECONDS = 30 * 60;
 let matchTimerEnd = null;
 let matchTimerRAF = null;
 let gameTimerEnd  = null; // timer spécifique pour attente de confirmation J2
@@ -2083,6 +2107,11 @@ function startMatchTimer(endTimestamp) {
   matchTimerEnd = endTimestamp || (Date.now() + MATCH_TIMER_SECONDS * 1000);
   if (matchTimerRAF) cancelAnimationFrame(matchTimerRAF);
   tickTimer();
+}
+
+// Reset le timer principal à 30 min depuis maintenant (à appeler à chaque action)
+function resetMatchTimer() {
+  matchTimerEnd = Date.now() + MATCH_TIMER_SECONDS * 1000;
 }
 
 function resetGameTimer() {
