@@ -426,6 +426,14 @@ app.get('/callback', async (req, res) => {
         points: 1000, wins: 0, losses: 0, matches_played: 0,
         main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0 });
     } else {
+      // Check ban before updating profile
+      if (existing[0].is_banned) {
+        req.session.destroy(() => {});
+        return res.render('banned.html', {
+          user_id: uid,
+          ban_reason: existing[0].ban_reason || null,
+        });
+      }
       await sbPatch('players', { id: uid }, { username: displayName, avatar });
     }
     res.redirect('/dashboard');
@@ -814,6 +822,49 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
   notify(loser_id, false);
 
   res.json({ success: true, resolution: 'winner', elo_change: eloGain });
+});
+
+
+// ── ADMIN — BAN / UNBAN ───────────────────────────────────────────────────────
+
+app.post("/admin/ban", requireAdmin, async (req, res) => {
+  const { player_id, reason } = req.body;
+  if (!validateId(player_id)) return res.status(400).json({ error: "Invalid player ID" });
+  if (player_id === req.session.user.id)
+    return res.status(400).json({ error: "You cannot ban yourself" });
+  const players = await sbGet("players", `id=eq.${player_id}`);
+  if (!players.length) return res.status(404).json({ error: "Player not found" });
+  if (players[0].is_banned) return res.status(400).json({ error: "Player is already banned" });
+  if (players[0].is_admin) return res.status(403).json({ error: "Cannot ban another admin" });
+  const banReason = sanitizeStr(reason || "", 200) || null;
+  await sbPatch("players", { id: player_id }, {
+    is_banned: true, ban_reason: banReason,
+    banned_at: new Date().toISOString(), banned_by: req.session.user.id,
+  });
+  const activeChallenges = await sbGet("challenges",
+    `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${player_id},challenged_id.eq.${player_id})`);
+  for (const c of activeChallenges) {
+    await sbPatch("challenges", { id: c.id }, { status: "cancelled" });
+    const otherId = c.challenger_id === player_id ? c.challenged_id : c.challenger_id;
+    io.to(`user_${otherId}`).emit("match_timeout", { type: "match_cancelled", challenge_id: c.id,
+      message: "u26a0 Your opponent has been banned. The match has been cancelled." });
+    await emitDashboardUpdate(otherId);
+  }
+  console.log(`[ADMIN] ${req.session.user.username} banned player ${player_id}`);
+  res.json({ success: true });
+});
+
+app.post("/admin/unban", requireAdmin, async (req, res) => {
+  const { player_id } = req.body;
+  if (!validateId(player_id)) return res.status(400).json({ error: "Invalid player ID" });
+  const players = await sbGet("players", `id=eq.${player_id}`);
+  if (!players.length) return res.status(404).json({ error: "Player not found" });
+  if (!players[0].is_banned) return res.status(400).json({ error: "Player is not banned" });
+  await sbPatch("players", { id: player_id }, {
+    is_banned: false, ban_reason: null, banned_at: null, banned_by: null,
+  });
+  console.log(`[ADMIN] ${req.session.user.username} unbanned player ${player_id}`);
+  res.json({ success: true });
 });
 
 // ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
