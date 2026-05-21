@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
+  <title>Banned — Smash YUZU</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #0a0a0f; --accent: #f04a00; --text: #e8e8f0; --muted: #6b6b8a; --red: #ff3333; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+
+    /* animated BG bars */
+    .bg-bars {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      display: flex; gap: 3px; opacity: 0.04;
+    }
+    .bg-bars span {
+      flex: 1; background: var(--red);
+      animation: pulse-bar 3s ease-in-out infinite;
+    }
+    .bg-bars span:nth-child(odd)  { animation-delay: 0.2s; }
+    .bg-bars span:nth-child(3n)   { animation-delay: 0.5s; }
+    @keyframes pulse-bar { 0%,100% { opacity:0.3; } 50% { opacity:1; } }
+
+    /* glow orb */
+    .glow-orb {
+      position: fixed; width: 500px; height: 500px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,51,51,0.12) 0%, transparent 70%);
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      pointer-events: none; z-index: 0;
+      animation: orb-pulse 4s ease-in-out infinite;
+    }
+    @keyframes orb-pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); opacity:0.7; }
+                           50%       { transform: translate(-50%,-50%) scale(1.2); opacity:1; } }
+
+    .box {
+      position: relative; z-index: 1; text-align: center; padding: 3rem 3.5rem;
+      background: rgba(15,15,26,0.85); border: 1px solid rgba(255,51,51,0.25);
+      border-radius: 16px; max-width: 520px; width: 90%;
+      box-shadow: 0 0 60px rgba(255,51,51,0.1), 0 0 0 1px rgba(255,51,51,0.08);
+      backdrop-filter: blur(8px);
+    }
+
+    .icon { font-size: 4rem; margin-bottom: 1rem; display: block;
+      animation: icon-shake 0.6s ease 0.5s both; }
+    @keyframes icon-shake {
+      0%,100% { transform: rotate(0); }
+      20%     { transform: rotate(-8deg); }
+      40%     { transform: rotate(8deg); }
+      60%     { transform: rotate(-5deg); }
+      80%     { transform: rotate(5deg); }
+    }
+
+    h1 {
+      font-family: 'Bebas Neue', sans-serif; font-size: 4.5rem; letter-spacing: 6px;
+      color: var(--red); line-height: 1;
+      text-shadow: 0 0 30px rgba(255,51,51,0.5);
+      animation: flicker 5s ease-in-out infinite;
+    }
+    @keyframes flicker {
+      0%,95%,100% { opacity: 1; }
+      96%         { opacity: 0.7; }
+      97%         { opacity: 1; }
+      98%         { opacity: 0.5; }
+      99%         { opacity: 1; }
+    }
+
+    .divider {
+      width: 60px; height: 3px; margin: 1.2rem auto;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+    }
+
+    p { color: var(--muted); font-size: 1.05rem; line-height: 1.7; margin-bottom: 0.5rem; }
+    p strong { color: var(--text); }
+
+    .reason-box {
+      margin: 1.5rem 0; background: rgba(255,51,51,0.06);
+      border: 1px solid rgba(255,51,51,0.2); border-radius: 8px;
+      padding: 1rem 1.2rem; font-size: 0.9rem;
+    }
+    .reason-label {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem; letter-spacing: 3px;
+      color: var(--red); margin-bottom: 0.4rem;
+    }
+    .reason-text { color: var(--text); font-size: 0.95rem; }
+
+    {% if not ban_reason %}
+    .reason-box { display: none; }
+    {% endif %}
+
+    a.btn-home {
+      display: inline-block; margin-top: 1.5rem;
+      background: transparent; color: var(--muted); padding: 0.7rem 1.8rem;
+      border-radius: 6px; text-decoration: none; font-weight: 700;
+      border: 1px solid rgba(107,107,138,0.4); transition: all 0.2s; letter-spacing: 1px;
+    }
+    a.btn-home:hover { color: var(--text); border-color: var(--muted); }
+
+    .case-id {
+      margin-top: 1.5rem; font-size: 0.72rem; letter-spacing: 2px;
+      color: rgba(107,107,138,0.4); font-family: 'Bebas Neue', sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-bars">
+    {% for i in range(40) %}<span></span>{% endfor %}
+  </div>
+  <div class="glow-orb"></div>
+
+  <div class="box">
+    <span class="icon">🔨</span>
+    <h1>BANNED</h1>
+    <div class="divider"></div>
+
+    <p>Your account has been <strong>permanently suspended</strong> from<br><strong>Smash YUZU</strong> by an administrator.</p>
+
+    {% if ban_reason %}
+    <div class="reason-box">
+      <div class="reason-label">⚠ Reason</div>
+      <div class="reason-text">{{ ban_reason }}</div>
+    </div>
+    {% endif %}
+
+    <p>If you believe this is a mistake, contact a server moderator<br>directly on the <strong>Smash YUZU</strong> Discord server.</p>
+
+    <a href="/" class="btn-home">← Back to home</a>
+
+    <div class="case-id">ACCOUNT ID: {{ user_id or '—' }}</div>
+  </div>
+</body>
+</html>
