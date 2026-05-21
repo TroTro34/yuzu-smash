@@ -743,7 +743,7 @@
       Un admin recevra le signalement avec l'historique du chat<br>
       et pourra attribuer la victoire.
     </div>
-    <div style="text-align:left;margin-bottom:1.5rem;">
+    <div style="text-align:left;margin-bottom:1rem;">
       <label style="font-size:0.78rem;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:0.4rem;">
         TITRE DU SIGNALEMENT (optionnel)
       </label>
@@ -754,6 +754,34 @@
           outline:none;transition:border-color 0.15s;"
         onfocus="this.style.borderColor='var(--red)'"
         onblur="this.style.borderColor='var(--border)'">
+    </div>
+    <div style="text-align:left;margin-bottom:1.5rem;">
+      <label style="font-size:0.78rem;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:0.4rem;">
+        CAPTURE D'ÉCRAN (optionnel · PNG/JPG · max 4 Mo)
+      </label>
+      <label id="report-img-label" style="
+        display:flex;align-items:center;gap:0.7rem;
+        background:var(--surface2);border:1px dashed var(--border);border-radius:6px;
+        padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.15s;
+        color:var(--muted);font-size:0.88rem;letter-spacing:0.5px;"
+        onmouseover="this.style.borderColor='var(--red)'"
+        onmouseout="this.style.borderColor='var(--border)'">
+        <span style="font-size:1.2rem;">📎</span>
+        <span id="report-img-label-text">Choisir une image…</span>
+        <input id="report-img-input" type="file" accept="image/png,image/jpeg,image/webp"
+          style="display:none;" onchange="handleReportImage(this)">
+      </label>
+      <!-- Preview -->
+      <div id="report-img-preview-wrap" style="display:none;margin-top:0.6rem;position:relative;">
+        <img id="report-img-preview" src="" alt="preview"
+          style="width:100%;max-height:160px;object-fit:contain;border-radius:6px;
+            border:1px solid rgba(255,85,85,0.3);background:var(--surface2);">
+        <button onclick="clearReportImage()" title="Supprimer" style="
+          position:absolute;top:4px;right:4px;
+          background:rgba(0,0,0,0.7);border:1px solid var(--red);color:var(--red);
+          border-radius:50%;width:22px;height:22px;font-size:0.75rem;line-height:1;
+          cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:0.7rem;">
       <button onclick="submitReport()" style="
@@ -2452,7 +2480,37 @@ function doEndMatch() {
 
 
 // ─────────────────────────────────────────────
-// REPORT MATCH
+// REPORT MATCH — image helpers
+// ─────────────────────────────────────────────
+let reportImageBase64 = null; // "data:image/png;base64,..."
+
+function handleReportImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) {
+    showToast('Image trop lourde (max 4 Mo).', false);
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    reportImageBase64 = e.target.result; // full data URL
+    document.getElementById('report-img-preview').src = reportImageBase64;
+    document.getElementById('report-img-preview-wrap').style.display = 'block';
+    document.getElementById('report-img-label-text').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearReportImage() {
+  reportImageBase64 = null;
+  document.getElementById('report-img-input').value = '';
+  document.getElementById('report-img-preview-wrap').style.display = 'none';
+  document.getElementById('report-img-label-text').textContent = 'Choisir une image…';
+}
+
+// ─────────────────────────────────────────────
+// REPORT MATCH — submit
 // ─────────────────────────────────────────────
 async function submitReport() {
   const title = document.getElementById('report-title-input').value.trim();
@@ -2460,7 +2518,7 @@ async function submitReport() {
     const res = await fetch(`/report/${CHALLENGE_ID}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, screenshot: reportImageBase64 || null }),
     });
     const data = await res.json();
     if (data.success) {
