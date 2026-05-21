@@ -436,15 +436,8 @@
     <!-- Banned players list -->
     <div class="banned-list-title">🚫 BANNED PLAYERS</div>
     <div id="banned-list">
-      {% set banned_players = [] %}
-      {% for p in players %}
-        {% if p.is_banned %}
-          {% set _ = banned_players.append(p) %}
-        {% endif %}
-      {% endfor %}
-
-      {% if banned_players | length %}
-        {% for p in banned_players %}
+      {% if players | selectattr("is_banned") | list | length %}
+        {% for p in players | selectattr("is_banned") | list %}
         <div class="banned-player-row" id="banned-row-{{ p.id }}">
           {% if p.avatar %}
             <img class="banned-avatar"
