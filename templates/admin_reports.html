@@ -412,9 +412,9 @@
           <label class="ban-form-label">Player</label>
           <select class="ban-select" id="ban-player-select">
             <option value="">— Select a player —</option>
-            {% for pid, p in players_map.items() %}
+            {% for p in players %}
               {% if not p.is_banned %}
-              <option value="{{ pid }}" data-name="{{ p.username }}">{{ p.username }} ({{ p.points }} ELO)</option>
+              <option value="{{ p.id }}" data-name="{{ p.username }}">{{ p.username }} ({{ p.points }} ELO)</option>
               {% endif %}
             {% endfor %}
           </select>
@@ -437,7 +437,7 @@
     <div class="banned-list-title">🚫 BANNED PLAYERS</div>
     <div id="banned-list">
       {% set banned_players = [] %}
-      {% for pid, p in players_map.items() %}
+      {% for p in players %}
         {% if p.is_banned %}
           {% set _ = banned_players.append(p) %}
         {% endif %}
