@@ -719,6 +719,13 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
   const title = sanitizeStr(req.body.title || '', 120) ||
     `${c.challenger_name} vs ${c.challenged_name}`;
 
+  // Valider screenshot optionnel (data URL base64 image, max ~4 Mo)
+  let screenshot = null;
+  const rawScreenshot = req.body.screenshot;
+  if (rawScreenshot && typeof rawScreenshot === 'string' && rawScreenshot.startsWith('data:image/')) {
+    if (rawScreenshot.length <= 5.5 * 1024 * 1024) screenshot = rawScreenshot;
+  }
+
   // Draw immédiat
   await sbPatch('challenges', { id: challenge_id }, { status: 'draw_reported' });
 
@@ -728,6 +735,7 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
     format: c.format, title,
     reason: 'player_report',
     chat_history_snapshot: chatHistory.get(challenge_id) || [],
+    screenshot,
   });
   chatHistory.delete(challenge_id);
 
@@ -1003,16 +1011,22 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
 //   • status=accepted  depuis > 2h  → DRAW + signalement admin
 //   • status=reported  depuis > 30min → DRAW + signalement admin (plus de forfait auto)
 
-async function createReport({ challenge_id, challenger_id, challenged_id, format, title, reason, chat_history_snapshot }) {
+async function createReport({ challenge_id, challenger_id, challenged_id, format, title, reason, chat_history_snapshot, screenshot }) {
   const rid = `rep_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('reports', {
+  const payload = {
     id: rid, challenge_id, challenger_id, challenged_id, format,
     title: title || 'Signalement sans titre',
     reason: reason || 'unknown',
     chat_history: chat_history_snapshot || [],
     status: 'open',
     created_at: new Date().toISOString(),
-  });
+  };
+  // Valider et attacher le screenshot (data URL base64, max ~4 Mo binaire)
+  if (screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/')) {
+    const MAX_B64 = 5.5 * 1024 * 1024; // ~4 Mo binaire → ~5.5 Mo base64
+    if (screenshot.length <= MAX_B64) payload.screenshot = screenshot;
+  }
+  await sbPost('reports', payload);
   return rid;
 }
 
