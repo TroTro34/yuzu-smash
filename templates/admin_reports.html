@@ -365,6 +365,23 @@
               {% endif %}
             </div>
 
+            {% if r.screenshot %}
+            <!-- Screenshot -->
+            <div class="chat-log-title">📸 CAPTURE D'ÉCRAN</div>
+            <div style="margin-bottom:1.5rem;">
+              <img src="{{ r.screenshot }}" alt="screenshot"
+                onclick="openScreenshot('{{ r.id }}')"
+                style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;
+                  border:1px solid rgba(255,128,0,0.3);background:var(--surface2);
+                  cursor:zoom-in;display:block;transition:opacity 0.2s;"
+                onmouseover="this.style.opacity='0.85'"
+                onmouseout="this.style.opacity='1'">
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:0.4rem;letter-spacing:1px;">
+                Cliquer pour agrandir
+              </div>
+            </div>
+            {% endif %}
+
             <!-- Admin actions -->
             {% if r.status == 'open' %}
             <div class="resolve-title">⚡ ADMIN DECISION</div>
@@ -472,6 +489,18 @@
 </div><!-- /container -->
 
 <div class="toast" id="toast"></div>
+
+<!-- Screenshot lightbox -->
+<div id="screenshot-lightbox" onclick="this.style.display='none'" style="
+  display:none; position:fixed; inset:0; z-index:1000;
+  background:rgba(0,0,0,0.94); align-items:center; justify-content:center;
+  cursor:zoom-out;">
+  <img id="screenshot-lightbox-img" src="" alt="screenshot"
+    style="max-width:92vw;max-height:90vh;object-fit:contain;border-radius:8px;
+      border:1px solid rgba(255,128,0,0.4);box-shadow:0 0 60px rgba(0,0,0,0.8);">
+  <div style="position:fixed;top:1rem;right:1.5rem;color:rgba(255,255,255,0.4);
+    font-size:1.8rem;pointer-events:none;">✕</div>
+</div>
 
 <!-- Confirm draw dialog -->
 <div id="draw-confirm-overlay" style="
@@ -670,6 +699,20 @@ function unbanPlayer(pid, pname) {
   })
   .catch(() => showToast('Network error', false));
 }
+
+// ── Screenshot lightbox ──────────────────────────────────────────────────────
+function openScreenshot(reportId) {
+  const img = document.querySelector('#card-' + reportId + ' img[onclick]');
+  if (!img) return;
+  document.getElementById('screenshot-lightbox-img').src = img.src;
+  const lb = document.getElementById('screenshot-lightbox');
+  lb.style.display = 'flex';
+}
+
+// Fermer le lightbox avec Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('screenshot-lightbox').style.display = 'none';
+});
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
