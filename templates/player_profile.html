@@ -48,32 +48,34 @@
     .profile-card { display: grid; grid-template-columns: auto 1fr; gap: 2rem;
       padding: 2rem; background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
+    /* Orange left bar — always visible */
     .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-      background: linear-gradient(to bottom, var(--accent), var(--accent2)); z-index: 2; }
-    /* Banner background — fixed, no stretch, no grid participation */
-    .profile-banner-bg {
-      position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
-      /* Escape the grid so it takes no cell space */
-      grid-column: 1 / -1; grid-row: 1 / -1;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2)); z-index: 4; }
+    /* Banner via CSS variable on the card — pseudo-element covers 100% reliably */
+    .profile-card[data-banner]::after {
+      content: '';
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background-image: var(--banner-url);
+      background-size: cover; background-position: center 30%;
+      opacity: 0.18;
     }
-    .profile-banner-bg img {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%; object-fit: cover; object-position: center 30%;
-      opacity: 0.18; display: block;
+    .profile-card[data-banner]::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2)); z-index: 4;
     }
-    .profile-banner-bg::after { content: ''; position: absolute; inset: 0;
-      background: linear-gradient(90deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.45) 100%); }
-    .profile-card > *:not(.profile-banner-bg):not(.profile-skin-badge) { position: relative; z-index: 1; }
+    /* Dark overlay on top of the banner image */
+    .profile-banner-overlay {
+      position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: linear-gradient(90deg, rgba(7,7,15,0.55) 0%, rgba(7,7,15,0.2) 50%, rgba(7,7,15,0.5) 100%);
+    }
+    .profile-card > *:not(.profile-banner-overlay):not(.profile-skin-badge) { position: relative; z-index: 2; }
     /* Skin badge */
     .profile-skin-badge {
-      position: absolute; top: 0.7rem; right: 0.8rem; z-index: 3;
-      grid-column: 1 / -1; grid-row: 1 / -1;
+      position: absolute; top: 0.7rem; right: 0.8rem; z-index: 5;
       background: rgba(7,7,15,0.75); border: 1px solid rgba(255,128,0,0.35);
       border-radius: 5px; padding: 3px 8px; font-size: 0.7rem;
       letter-spacing: 2px; color: var(--accent2); font-family: 'Bebas Neue', sans-serif;
       backdrop-filter: blur(4px);
-      /* Align to top-right corner of the card */
-      align-self: start; justify-self: end; margin: 0;
     }
     .profile-left { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; min-width: 120px; }
     .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); }
@@ -144,15 +146,17 @@
 <div class="container">
   {% set wr = (player.wins / player.matches_played * 100)|round(1) if player.matches_played > 0 else 0 %}
 
-  <div class="profile-card">
-    {% set prof_banner_img = null %}
-    {% if player.banner_lb and banners_map and banners_map[player.banner_lb] %}
-      {% set prof_banner_img = banners_map[player.banner_lb].img_lb or banners_map[player.banner_lb].img_dash %}
-    {% elif player.banner_dash and banners_map and banners_map[player.banner_dash] %}
-      {% set prof_banner_img = banners_map[player.banner_dash].img_dash %}
-    {% endif %}
+  {% set prof_banner_img = null %}
+  {% if player.banner_lb and banners_map and banners_map[player.banner_lb] %}
+    {% set prof_banner_img = banners_map[player.banner_lb].img_lb or banners_map[player.banner_lb].img_dash %}
+  {% elif player.banner_dash and banners_map and banners_map[player.banner_dash] %}
+    {% set prof_banner_img = banners_map[player.banner_dash].img_dash %}
+  {% endif %}
+
+  <div class="profile-card"
+    {% if prof_banner_img %}data-banner="1" style="--banner-url: url('{{ prof_banner_img }}')"{% endif %}>
     {% if prof_banner_img %}
-    <div class="profile-banner-bg"><img src="{{ prof_banner_img }}" alt=""></div>
+    <div class="profile-banner-overlay"></div>
     <div class="profile-skin-badge">✦ SKIN</div>
     {% endif %}
     <div class="profile-left">
