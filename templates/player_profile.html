@@ -50,9 +50,12 @@
       border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
     .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
       background: linear-gradient(to bottom, var(--accent), var(--accent2)); z-index: 2; }
-    /* Banner background — same as dashboard */
-    /* Banner background — fixed, no stretch */
-    .profile-banner-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+    /* Banner background — fixed, no stretch, no grid participation */
+    .profile-banner-bg {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+      /* Escape the grid so it takes no cell space */
+      grid-column: 1 / -1; grid-row: 1 / -1;
+    }
     .profile-banner-bg img {
       position: absolute; inset: 0;
       width: 100%; height: 100%; object-fit: cover; object-position: center 30%;
@@ -60,14 +63,17 @@
     }
     .profile-banner-bg::after { content: ''; position: absolute; inset: 0;
       background: linear-gradient(90deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.45) 100%); }
-    .profile-card > *:not(.profile-banner-bg) { position: relative; z-index: 1; }
+    .profile-card > *:not(.profile-banner-bg):not(.profile-skin-badge) { position: relative; z-index: 1; }
     /* Skin badge */
     .profile-skin-badge {
-      position: absolute; top: 0.8rem; right: 0.8rem; z-index: 3;
+      position: absolute; top: 0.7rem; right: 0.8rem; z-index: 3;
+      grid-column: 1 / -1; grid-row: 1 / -1;
       background: rgba(7,7,15,0.75); border: 1px solid rgba(255,128,0,0.35);
       border-radius: 5px; padding: 3px 8px; font-size: 0.7rem;
       letter-spacing: 2px; color: var(--accent2); font-family: 'Bebas Neue', sans-serif;
       backdrop-filter: blur(4px);
+      /* Align to top-right corner of the card */
+      align-self: start; justify-self: end; margin: 0;
     }
     .profile-left { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; min-width: 120px; }
     .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); }
