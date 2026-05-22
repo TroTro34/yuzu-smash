@@ -701,17 +701,21 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
   const post = posts[0];
   if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
-  res.json({ success: true, challenge_id: cid }); // Réponse immédiate
+  // Créer le challenge EN BASE avant de répondre au client
+  // (évite la race condition : le client redirigeait vers /match/cid avant que le challenge existe)
   await sbPost('challenges', { id: cid, challenger_id: userId,
     challenger_name: req.session.user.username, challenged_id: post.player_id,
-    challenged_name: post.player_name, status: 'accepted', format: post.format });
+    challenged_name: post.player_name, status: 'accepted', format: post.format,
+    accepted_at: new Date().toISOString() });
   // Supprimer le post accepté ET tous les posts LFM des deux joueurs impliqués
   await Promise.all([
     sbDelete('lfm_posts', { id: post_id }),
-    sbDelete('lfm_posts', { player_id: userId }),       // LFM posts de l'accepteur
-    sbDelete('lfm_posts', { player_id: post.player_id }), // LFM posts de l'auteur (sécurité)
+    sbDelete('lfm_posts', { player_id: userId }),
+    sbDelete('lfm_posts', { player_id: post.player_id }),
   ]);
-  // Redirect BOTH players to the match page via Socket.IO
+  // Répondre au client maintenant que tout est en base
+  res.json({ success: true, challenge_id: cid });
+  // Rediriger les deux joueurs via Socket.IO
   io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
