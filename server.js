@@ -68,7 +68,7 @@ io.engine.use(sessionMiddleware);
 const jsonDefault = express.json();
 const jsonLarge   = express.json({ limit: '6mb' });
 app.use((req, res, next) => {
-  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/shop')) return jsonLarge(req, res, next);
+  if (req.path.startsWith('/report/')) return jsonLarge(req, res, next);
   return jsonDefault(req, res, next);
 });
 app.use(express.urlencoded({ extended: false }));
@@ -88,6 +88,12 @@ env.addFilter('tojson', function(val) { return new nunjucks.runtime.SafeString(J
 env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
 env.addFilter('int', (val) => parseInt(val, 10));
 env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
+// selectattr : compatibilité Jinja2 → filtre un tableau sur un attribut
+env.addFilter('selectattr', function(arr, attr, op, val) {
+  if (!Array.isArray(arr)) return [];
+  if (op === 'equalto') return arr.filter(item => item[attr] === val);
+  return arr;
+});
 // datefmt: converts ISO string "2024-01-15T18:30:00Z" → "2024-01-15 18:30"
 env.addFilter('datefmt', (val) => {
   if (!val) return '';
@@ -226,12 +232,14 @@ async function dashboardData(userId, excludeChallengeIds = []) {
 
 async function leaderboardData() {
   const now = new Date().toISOString();
-  const [players, recentMatches, lfmPosts] = await Promise.all([
+  const [players, recentMatches, lfmPosts, bannersArr] = await Promise.all([
     sbGet('players', 'order=points.desc'),
     sbGet('matches', 'order=date.desc&limit=10'),
     sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`),
+    sbGet('banners', 'select=id,img_dash,img_lb'),
   ]);
-  return { players, recent_matches: recentMatches, lfm_posts: lfmPosts };
+  const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
+  return { players, recent_matches: recentMatches, lfm_posts: lfmPosts, banners_map };
 }
 
 // ── SOCKET.IO EMITTERS ────────────────────────────────────────────────────────
