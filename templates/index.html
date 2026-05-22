@@ -466,7 +466,7 @@
           <div class="lfm-timer">⏱ Expires in ~30 min</div>
           <div class="lfm-actions">
             {% if user and post.player_id != user.id %}
-              <button class="btn btn-primary" style="flex:1;" onclick="acceptLFM('{{ post.id }}')">⚔ Accept Challenge</button>
+              <button class="btn btn-primary" style="flex:1;" onclick="acceptLFM('{{ post.id }}', '{{ post.player_name | replace("'", "\\'") }}')">⚔ Accept Challenge</button>
             {% elif not user %}
               <a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>
             {% else %}
@@ -522,6 +522,8 @@
     document.getElementById('panel-' + name).classList.add('active');
     el.classList.add('active');
   }
+
+  const currentUserName = {{ (user.username if user else '') | tojson }};
 
   function postLFM() {
     const val = document.getElementById('lfm-format').value;
