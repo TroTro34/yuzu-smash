@@ -60,7 +60,13 @@
       padding: 2rem; background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; margin-bottom: 2rem; position: relative; overflow: hidden; }
     .profile-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-      background: linear-gradient(to bottom, var(--accent), var(--accent2)); }
+      background: linear-gradient(to bottom, var(--accent), var(--accent2)); z-index: 2; }
+    /* Banner background */
+    .profile-banner-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+    .profile-banner-bg img { width: 100%; height: 100%; object-fit: cover; opacity: 0.2; display: block; }
+    .profile-banner-bg::after { content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.45) 100%); }
+    .profile-card > *:not(.profile-banner-bg) { position: relative; z-index: 1; }
     .profile-left { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; min-width: 120px; }
     .profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); }
     .profile-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--muted); letter-spacing: 2px; }
@@ -325,6 +331,7 @@
   <div class="nav-links">
     <span id="ws-status" title="WebSocket connection"><span class="live-dot" id="ws-dot" style="background:var(--muted);"></span><span class="live-label" id="ws-label" style="color:var(--muted);">Connecting…</span></span>
     <a href="/" class="btn btn-ghost">Leaderboard</a>
+    <a href="/shop" class="btn btn-ghost">🖼 Shop</a>
     {% if is_admin %}
     <a href="/admin/reports" class="btn btn-ghost" style="color:var(--gold);border-color:var(--gold);">⚡ Admin</a>
     {% endif %}
@@ -336,7 +343,14 @@
 
   <!-- PROFILE CARD -->
   {% set wr = (player.wins / player.matches_played * 100)|round(1) if player.matches_played > 0 else 0 %}
+  {% set dash_banner = null %}
+  {% for b in banners %}{% if b.id == player.banner_dash %}{% set dash_banner = b %}{% endif %}{% endfor %}
   <div class="profile-card">
+    {% if dash_banner %}
+    <div class="profile-banner-bg">
+      <img src="{{ dash_banner.img_dash or dash_banner.img_lb }}" alt="">
+    </div>
+    {% endif %}
     <div class="profile-left">
       {% if user.avatar %}
         <img class="profile-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="">
