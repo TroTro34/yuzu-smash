@@ -52,6 +52,24 @@
     .admin-nav-link:hover { color: var(--text); border-color: var(--text); }
     .admin-nav-link.active { color: var(--gold); border-color: var(--gold); background: rgba(255,215,0,0.06); }
 
+    /* SECTION NAV TABS */
+    .section-nav {
+      display: flex; gap: 0; margin-bottom: 2.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+    .section-tab {
+      padding: 0.7rem 1.8rem; background: transparent; border: none; cursor: pointer;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--muted); position: relative; transition: color 0.2s; display: inline-block;
+    }
+    .section-tab::after {
+      content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px;
+      background: var(--gold); transform: scaleX(0); transition: transform 0.2s;
+    }
+    .section-tab.active { color: var(--gold); }
+    .section-tab.active::after { transform: scaleX(1); }
+    .section-tab:hover { color: var(--text); }
+
     /* ── PAGE HEADER ── */
     .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 5px;
       background: linear-gradient(135deg, var(--gold), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -185,10 +203,11 @@
 
 <div class="container">
 
-  <!-- ADMIN SECTION NAV -->
-  <div class="admin-nav">
-    <a href="/admin/reports" class="admin-nav-link">📋 Reports</a>
-    <a href="/admin/shop"    class="admin-nav-link active">🖼 Banner Shop</a>
+  <!-- Section tabs -->
+  <div class="section-nav">
+    <a href="/admin/reports" class="section-tab" style="text-decoration:none;">🚩 REPORTS</a>
+    <a href="/admin/reports" class="section-tab" style="text-decoration:none;">🔨 BAN PLAYERS</a>
+    <span class="section-tab active">🖼 BANNER SHOP</span>
   </div>
 
   <div class="page-title">🖼 BANNER SHOP</div>
