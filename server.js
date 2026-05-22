@@ -474,7 +474,8 @@ app.get('/dashboard', requireAuth, async (req, res) => {
       sbGet('banners', 'select=id,img_dash,img_lb'),
     ]);
     const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
-    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin, banners });
+    const banners_map = Object.fromEntries(banners.map(b => [b.id, b]));
+    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin, banners, banners_map });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
@@ -483,14 +484,16 @@ app.get('/player/:player_id', async (req, res) => {
   const { player_id } = req.params;
   if (req.session.user?.id === player_id) return res.redirect('/dashboard');
   try {
-    const [players, myMatches] = await Promise.all([
+    const [players, myMatches, bannersArr] = await Promise.all([
       sbGet('players', 'order=points.desc'),
       getPlayerMatches(player_id, 10),
+      sbGet('banners', 'select=id,img_dash,img_lb'),
     ]);
     const player = players.find(p => p.id === player_id);
     if (!player) return res.redirect('/');
     const rank = players.findIndex(p => p.id === player_id) + 1;
-    res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches });
+    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
+    res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches, banners_map });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
