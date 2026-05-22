@@ -396,6 +396,14 @@ app.get('/', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Rankings
+app.get('/ranking', async (req, res) => {
+  try {
+    const players = await sbGet('players', 'order=points.desc');
+    res.render('ranking.html', { user: req.session.user || null, players });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
 // Login
 app.get('/login', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
