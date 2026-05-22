@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rankings — Smash YUZU</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --gold: #ffd700; --silver: #c0c0c0; --bronze: #cd7f32;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+
+      /* Tier colors */
+      --veteran-color:   #ffd700;
+      --veteran-glow:    rgba(255,215,0,0.25);
+      --veteran-border:  rgba(255,215,0,0.35);
+      --veteran-bg:      rgba(255,215,0,0.04);
+
+      --midlevel-color:  #e8400a;
+      --midlevel-glow:   rgba(232,64,10,0.2);
+      --midlevel-border: rgba(232,64,10,0.35);
+      --midlevel-bg:     rgba(232,64,10,0.04);
+
+      --rising-color:    #3ddc84;
+      --rising-glow:     rgba(61,220,132,0.18);
+      --rising-border:   rgba(61,220,132,0.3);
+      --rising-bg:       rgba(61,220,132,0.03);
+
+      --rookie-color:    #5b9bd5;
+      --rookie-glow:     rgba(91,155,213,0.18);
+      --rookie-border:   rgba(91,155,213,0.3);
+      --rookie-bg:       rgba(91,155,213,0.03);
+
+      --beginner-color:  #9b59b6;
+      --beginner-glow:   rgba(155,89,182,0.18);
+      --beginner-border: rgba(155,89,182,0.3);
+      --beginner-bg:     rgba(155,89,182,0.03);
+
+      --casual-color:    #6060a0;
+      --casual-glow:     rgba(96,96,160,0.12);
+      --casual-border:   rgba(96,96,160,0.25);
+      --casual-bg:       rgba(96,96,160,0.025);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 15% 0%, rgba(255,215,0,0.06) 0%, transparent 40%),
+        radial-gradient(ellipse at 85% 100%, rgba(155,89,182,0.07) 0%, transparent 45%);
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px);
+    }
+    .logo {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 0.8rem; align-items: center; }
+    .user-chip { display: flex; align-items: center; gap: 0.6rem; }
+    .user-chip img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--accent); }
+
+    .btn {
+      padding: 0.5rem 1.2rem; border: none; border-radius: 6px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-flex;
+      align-items: center; gap: 0.4rem; white-space: nowrap;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; box-shadow: 0 2px 16px rgba(232,64,10,0.3); }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-ghost { background: rgba(255,255,255,0.04); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent2); color: var(--accent2); }
+    .btn-discord { background: #5865F2; color: white; box-shadow: 0 2px 14px rgba(88,101,242,0.3); }
+    .btn-discord:hover { background: #4752c4; transform: translateY(-1px); }
+
+    /* ── PAGE HEADER ── */
+    .page-header { text-align: center; padding: 4rem 2rem 2rem; position: relative; }
+    .page-header-bg {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, rgba(255,215,0,0.05) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .page-header h1 {
+      font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem, 8vw, 6rem);
+      letter-spacing: 8px; line-height: 0.9;
+      background: linear-gradient(135deg, #fff 0%, var(--gold) 60%, var(--accent2) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .page-header p { margin-top: 0.8rem; color: var(--muted); letter-spacing: 4px; font-size: 0.9rem; text-transform: uppercase; }
+
+    /* ── TIER LEGEND ── */
+    .tier-legend {
+      display: flex; justify-content: center; gap: 0.6rem; flex-wrap: wrap;
+      padding: 1.5rem 2rem; max-width: 900px; margin: 0 auto;
+    }
+    .legend-pill {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.9rem; border-radius: 20px; font-size: 0.82rem; font-weight: 700;
+      letter-spacing: 1px; border: 1px solid; cursor: pointer; transition: all 0.2s;
+      text-decoration: none;
+    }
+    .legend-pill:hover { transform: translateY(-1px); }
+    .legend-pill.veteran   { color: var(--veteran-color);  border-color: var(--veteran-border);  background: var(--veteran-bg); }
+    .legend-pill.midlevel  { color: var(--midlevel-color); border-color: var(--midlevel-border); background: var(--midlevel-bg); }
+    .legend-pill.rising    { color: var(--rising-color);   border-color: var(--rising-border);   background: var(--rising-bg); }
+    .legend-pill.rookie    { color: var(--rookie-color);   border-color: var(--rookie-border);   background: var(--rookie-bg); }
+    .legend-pill.beginner  { color: var(--beginner-color); border-color: var(--beginner-border); background: var(--beginner-bg); }
+    .legend-pill.casual    { color: var(--casual-color);   border-color: var(--casual-border);   background: var(--casual-bg); }
+
+    /* ── CONTAINER ── */
+    .container { max-width: 1000px; margin: 0 auto; padding: 1rem 1.5rem 5rem; }
+
+    /* ── TIER SECTION ── */
+    .tier-section { margin-bottom: 3rem; }
+
+    .tier-header {
+      display: flex; align-items: center; gap: 1.2rem; margin-bottom: 1.2rem;
+      padding: 1.1rem 1.5rem; border-radius: 10px; position: relative; overflow: hidden;
+      border: 1px solid;
+    }
+    .tier-header::before {
+      content: ''; position: absolute; inset: 0; opacity: 0.5;
+      background: inherit; filter: blur(0); pointer-events: none;
+    }
+    .tier-header > * { position: relative; z-index: 1; }
+
+    .tier-header.veteran  { background: var(--veteran-bg);  border-color: var(--veteran-border);  box-shadow: 0 0 40px var(--veteran-glow); }
+    .tier-header.midlevel { background: var(--midlevel-bg); border-color: var(--midlevel-border); box-shadow: 0 0 40px var(--midlevel-glow); }
+    .tier-header.rising   { background: var(--rising-bg);   border-color: var(--rising-border);   box-shadow: 0 0 40px var(--rising-glow); }
+    .tier-header.rookie   { background: var(--rookie-bg);   border-color: var(--rookie-border);   box-shadow: 0 0 40px var(--rookie-glow); }
+    .tier-header.beginner { background: var(--beginner-bg); border-color: var(--beginner-border); box-shadow: 0 0 40px var(--beginner-glow); }
+    .tier-header.casual   { background: var(--casual-bg);   border-color: var(--casual-border);   box-shadow: 0 0 30px var(--casual-glow); }
+
+    .tier-icon { font-size: 2.2rem; line-height: 1; }
+    .tier-info { flex: 1; }
+    .tier-name {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px; line-height: 1;
+    }
+    .veteran  .tier-name { color: var(--veteran-color); }
+    .midlevel .tier-name { color: var(--midlevel-color); }
+    .rising   .tier-name { color: var(--rising-color); }
+    .rookie   .tier-name { color: var(--rookie-color); }
+    .beginner .tier-name { color: var(--beginner-color); }
+    .casual   .tier-name { color: var(--casual-color); }
+
+    .tier-range { font-size: 0.8rem; color: var(--muted); letter-spacing: 2px; margin-top: 0.1rem; text-transform: uppercase; }
+    .tier-count {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 2px;
+      padding: 0.3rem 0.8rem; border-radius: 4px; border: 1px solid;
+    }
+    .veteran  .tier-count { color: var(--veteran-color);  border-color: var(--veteran-border);  background: rgba(255,215,0,0.08); }
+    .midlevel .tier-count { color: var(--midlevel-color); border-color: var(--midlevel-border); background: rgba(232,64,10,0.08); }
+    .rising   .tier-count { color: var(--rising-color);   border-color: var(--rising-border);   background: rgba(61,220,132,0.08); }
+    .rookie   .tier-count { color: var(--rookie-color);   border-color: var(--rookie-border);   background: rgba(91,155,213,0.08); }
+    .beginner .tier-count { color: var(--beginner-color); border-color: var(--beginner-border); background: rgba(155,89,182,0.08); }
+    .casual   .tier-count { color: var(--casual-color);   border-color: var(--casual-border);   background: rgba(96,96,160,0.06); }
+
+    /* ── PLAYER GRID ── */
+    .player-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0.5rem;
+    }
+
+    .player-card {
+      display: flex; align-items: center; gap: 0.9rem;
+      padding: 0.8rem 1.1rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; transition: all 0.2s; cursor: pointer; position: relative; overflow: hidden;
+    }
+    .player-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+    .veteran  .player-card::before { background: var(--veteran-color); }
+    .midlevel .player-card::before { background: var(--midlevel-color); }
+    .rising   .player-card::before { background: var(--rising-color); }
+    .rookie   .player-card::before { background: var(--rookie-color); }
+    .beginner .player-card::before { background: var(--beginner-color); }
+    .casual   .player-card::before { background: var(--casual-color); }
+
+    .player-card:hover { background: var(--surface2); transform: translateX(3px); }
+    .veteran  .player-card:hover { border-color: var(--veteran-border); }
+    .midlevel .player-card:hover { border-color: var(--midlevel-border); }
+    .rising   .player-card:hover { border-color: var(--rising-border); }
+    .rookie   .player-card:hover { border-color: var(--rookie-border); }
+    .beginner .player-card:hover { border-color: var(--beginner-border); }
+    .casual   .player-card:hover { border-color: var(--casual-border); }
+
+    .card-rank {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--muted);
+      min-width: 32px; text-align: center;
+    }
+    .card-avatar-wrap { position: relative; flex-shrink: 0; }
+    .card-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border); }
+    .card-char-icon { position: absolute; bottom: -3px; right: -3px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--bg); background: var(--surface3); object-fit: cover; }
+    .card-info { flex: 1; min-width: 0; }
+    .card-name { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
+    .card-pts {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--accent2);
+      text-align: right; white-space: nowrap; flex-shrink: 0;
+    }
+    .card-pts span { font-size: 0.7rem; color: var(--muted); font-family: 'Rajdhani', sans-serif; }
+
+    /* ── EMPTY TIER ── */
+    .tier-empty {
+      text-align: center; padding: 2rem; color: var(--muted);
+      background: var(--surface); border: 1px dashed var(--border); border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 700px) {
+      .page-header h1 { font-size: 3rem; }
+      nav { padding: 0.8rem 1rem; }
+      .player-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a href="/" class="logo">⚔ YUZU</a>
+  <div class="nav-links">
+    <a href="/" class="btn btn-ghost">🏠 Home</a>
+    {% if user %}
+      <div class="user-chip">
+        {% if user.avatar %}<img src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="">{% endif %}
+        <span style="font-weight:700;">{{ user.username }}</span>
+      </div>
+      <a href="/dashboard" class="btn btn-primary">⚡ Dashboard</a>
+      <a href="/shop" class="btn btn-ghost">🖼 Shop</a>
+      <a href="/logout" class="btn btn-ghost">Log Out</a>
+    {% else %}
+      <a href="/login" class="btn btn-discord">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.055a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        Sign In
+      </a>
+    {% endif %}
+  </div>
+</nav>
+
+<!-- ── PAGE HEADER ── -->
+<div class="page-header">
+  <div class="page-header-bg"></div>
+  <h1>RANKINGS</h1>
+  <p>Season 1 · All Players · Sorted by Tier</p>
+</div>
+
+<!-- ── TIER LEGEND ── -->
+<div class="tier-legend">
+  <a class="legend-pill veteran"  href="#tier-veteran" >🏆 Veteran</a>
+  <a class="legend-pill midlevel" href="#tier-midlevel">⚔ Mid Level</a>
+  <a class="legend-pill rising"   href="#tier-rising"  >📈 Rising Star</a>
+  <a class="legend-pill rookie"   href="#tier-rookie"  >🎯 Rookie</a>
+  <a class="legend-pill beginner" href="#tier-beginner">🌱 Beginner</a>
+  <a class="legend-pill casual"   href="#tier-casual"  >🎮 Casual</a>
+</div>
+
+<!-- ── MAIN CONTENT ── -->
+<div class="container">
+
+  {# ─────────────────────────────────────────────────────────
+     Tier logic:
+     veteran   ≥ 1400 ELO
+     mid level  1200–1399
+     rising star 1000–1199
+     rookie      800–999
+     beginner    600–799
+     casual      < 600 (or 0 matches)
+  ──────────────────────────────────────────────────────────── #}
+
+  {% set tiers = [
+    { "key": "veteran",  "label": "VETERAN",    "icon": "🏆", "range": "1400+ ELO",      "desc": "Elite — top of the server" },
+    { "key": "midlevel", "label": "MID LEVEL",  "icon": "⚔",  "range": "1200 – 1399 ELO","desc": "Solid competitors" },
+    { "key": "rising",   "label": "RISING STAR","icon": "📈", "range": "1000 – 1199 ELO","desc": "On the climb" },
+    { "key": "rookie",   "label": "ROOKIE",     "icon": "🎯", "range": "800 – 999 ELO",  "desc": "Learning the meta" },
+    { "key": "beginner", "label": "BEGINNER",   "icon": "🌱", "range": "600 – 799 ELO",  "desc": "Just starting out" },
+    { "key": "casual",   "label": "CASUAL",     "icon": "🎮", "range": "< 600 ELO",      "desc": "Here for the fun" }
+  ] %}
+
+  {% macro tier_of(player) %}
+    {% if player.points >= 1400 %}veteran
+    {% elif player.points >= 1200 %}midlevel
+    {% elif player.points >= 1000 %}rising
+    {% elif player.points >= 800  %}rookie
+    {% elif player.points >= 600  %}beginner
+    {% else %}casual{% endif %}
+  {% endmacro %}
+
+  {% for tier in tiers %}
+    {% set ns = namespace(members=[]) %}
+    {% for player in players %}
+      {% if (tier.key == "veteran"  and player.points >= 1400) or
+            (tier.key == "midlevel" and player.points >= 1200 and player.points < 1400) or
+            (tier.key == "rising"   and player.points >= 1000 and player.points < 1200) or
+            (tier.key == "rookie"   and player.points >= 800  and player.points < 1000) or
+            (tier.key == "beginner" and player.points >= 600  and player.points < 800)  or
+            (tier.key == "casual"   and player.points < 600) %}
+        {% set ns.members = ns.members + [player] %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="tier-section {{ tier.key }}" id="tier-{{ tier.key }}">
+
+      <div class="tier-header {{ tier.key }}">
+        <div class="tier-icon">{{ tier.icon }}</div>
+        <div class="tier-info">
+          <div class="tier-name">{{ tier.label }}</div>
+          <div class="tier-range">{{ tier.range }} · {{ tier.desc }}</div>
+        </div>
+        <div class="tier-count">{{ ns.members|length }} PLAYER{{ 's' if ns.members|length != 1 }}</div>
+      </div>
+
+      {% if ns.members %}
+        <div class="player-grid">
+          {% for player in ns.members %}
+          {% set wr = (player.wins / player.matches_played * 100)|round(0)|int if player.matches_played > 0 else 0 %}
+          <div class="player-card" onclick="{% if user %}window.location='/player/{{ player.id }}'{% endif %}">
+            <div class="card-rank">#{{ loop.index }}</div>
+            <div class="card-avatar-wrap">
+              {% if player.avatar %}
+                <img class="card-avatar" src="https://cdn.discordapp.com/avatars/{{ player.id }}/{{ player.avatar }}.png" alt="">
+              {% else %}
+                <div class="card-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>
+              {% endif %}
+              {% if player.main_char %}
+                <img class="card-char-icon" data-char="{{ player.main_char }}" src="" alt="" style="display:none;">
+              {% endif %}
+            </div>
+            <div class="card-info">
+              <div class="card-name">{{ player.username }}</div>
+              <div class="card-sub">{{ player.wins }}W {{ player.losses }}L · {{ wr }}% WR{% if player.main_char %} · {{ player.main_char }}{% endif %}</div>
+            </div>
+            <div class="card-pts">{{ player.points }} <span>ELO</span></div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="tier-empty">No players in this tier yet.</div>
+      {% endif %}
+
+    </div>
+  {% endfor %}
+
+</div>
+
+<script>
+  const CHAR_ICONS = {
+    mario:"https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png",donkey_kong:"https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png",link:"https://www.smashbros.com/assets_v2/img/fighter/pict/link.png",samus:"https://www.smashbros.com/assets_v2/img/fighter/pict/samus.png",dark_samus:"https://www.smashbros.com/assets_v2/img/fighter/pict/dark_samus.png",yoshi:"https://www.smashbros.com/assets_v2/img/fighter/pict/yoshi.png",kirby:"https://www.smashbros.com/assets_v2/img/fighter/pict/kirby.png",fox:"https://www.smashbros.com/assets_v2/img/fighter/pict/fox.png",pikachu:"https://www.smashbros.com/assets_v2/img/fighter/pict/pikachu.png",luigi:"https://www.smashbros.com/assets_v2/img/fighter/pict/luigi.png",ness:"https://www.smashbros.com/assets_v2/img/fighter/pict/ness.png",captain_falcon:"https://www.smashbros.com/assets_v2/img/fighter/pict/captain_falcon.png",jigglypuff:"https://www.smashbros.com/assets_v2/img/fighter/pict/purin.png",peach:"https://www.smashbros.com/assets_v2/img/fighter/pict/peach.png",daisy:"https://www.smashbros.com/assets_v2/img/fighter/pict/daisy.png",bowser:"https://www.smashbros.com/assets_v2/img/fighter/pict/koopa.png",ice_climbers:"https://www.smashbros.com/assets_v2/img/fighter/pict/ice_climber.png",sheik:"https://www.smashbros.com/assets_v2/img/fighter/pict/sheik.png",zelda:"https://www.smashbros.com/assets_v2/img/fighter/pict/zelda.png",dr_mario:"https://www.smashbros.com/assets_v2/img/fighter/pict/drmario.png",pichu:"https://www.smashbros.com/assets_v2/img/fighter/pict/pichu.png",falco:"https://www.smashbros.com/assets_v2/img/fighter/pict/falco.png",marth:"https://www.smashbros.com/assets_v2/img/fighter/pict/marth.png",lucina:"https://www.smashbros.com/assets_v2/img/fighter/pict/lucina.png",young_link:"https://www.smashbros.com/assets_v2/img/fighter/pict/young_link.png",ganondorf:"https://www.smashbros.com/assets_v2/img/fighter/pict/ganondorf.png",mewtwo:"https://www.smashbros.com/assets_v2/img/fighter/pict/mewtwo.png",roy:"https://www.smashbros.com/assets_v2/img/fighter/pict/roy.png",chrom:"https://www.smashbros.com/assets_v2/img/fighter/pict/chrom.png",mr_game_and_watch:"https://ssb.wiki.gallery/images/thumb/6/6b/MrGame%26WatchHeadSSBU.png/48px-MrGame%26WatchHeadSSBU.png",meta_knight:"https://ssb.wiki.gallery/images/thumb/d/de/MetaKnightHeadSSBU.png/48px-MetaKnightHeadSSBU.png",pit:"https://www.smashbros.com/assets_v2/img/fighter/pict/pit.png",dark_pit:"https://ssb.wiki.gallery/images/thumb/e/ed/DarkPitHeadSSBU.png/48px-DarkPitHeadSSBU.png",zero_suit_samus:"https://ssb.wiki.gallery/images/thumb/7/71/ZeroSuitSamusHeadSSBU.png/48px-ZeroSuitSamusHeadSSBU.png",wario:"https://www.smashbros.com/assets_v2/img/fighter/pict/wario.png",snake:"https://www.smashbros.com/assets_v2/img/fighter/pict/snake.png",ike:"https://www.smashbros.com/assets_v2/img/fighter/pict/ike.png",pokemon_trainer:"https://www.smashbros.com/assets_v2/img/fighter/pict/pokemon_trainer.png",diddy_kong:"https://www.smashbros.com/assets_v2/img/fighter/pict/diddy_kong.png",lucas:"https://www.smashbros.com/assets_v2/img/fighter/pict/lucas.png",sonic:"https://www.smashbros.com/assets_v2/img/fighter/pict/sonic.png",dedede:"https://www.smashbros.com/assets_v2/img/fighter/pict/dedede.png",olimar:"https://ssb.wiki.gallery/images/thumb/9/97/OlimarHeadSSBUWebsite.png/180px-OlimarHeadSSBUWebsite.png",lucario:"https://www.smashbros.com/assets_v2/img/fighter/pict/lucario.png",rob:"https://www.smashbros.com/assets_v2/img/fighter/pict/robot.png",toon_link:"https://www.smashbros.com/assets_v2/img/fighter/pict/toon_link.png",wolf:"https://www.smashbros.com/assets_v2/img/fighter/pict/wolf.png",villager:"https://www.smashbros.com/assets_v2/img/fighter/pict/murabito.png",mega_man:"https://www.smashbros.com/assets_v2/img/fighter/pict/rockman.png",wii_fit_trainer:"https://ssb.wiki.gallery/images/thumb/8/87/WiiFitTrainerHeadSSBU.png/48px-WiiFitTrainerHeadSSBU.png",rosalina_and_luma:"https://ssb.wiki.gallery/images/thumb/e/e8/RosalinaHeadSSBU.png/48px-RosalinaHeadSSBU.png",little_mac:"https://ssb.wiki.gallery/images/thumb/1/10/LittleMacHeadSSBU.png/48px-LittleMacHeadSSBU.png",greninja:"https://www.smashbros.com/assets_v2/img/fighter/pict/gekkouga.png",palutena:"https://www.smashbros.com/assets_v2/img/fighter/pict/palutena.png",pac_man:"https://ssb.wiki.gallery/images/thumb/4/45/Pac-ManHeadSSBU.png/48px-Pac-ManHeadSSBU.png",robin:"https://www.smashbros.com/assets_v2/img/fighter/pict/reflet.png",shulk:"https://www.smashbros.com/assets_v2/img/fighter/pict/shulk.png",bowser_jr:"https://ssb.wiki.gallery/images/thumb/0/07/BowserJrHeadSSBU.png/48px-BowserJrHeadSSBU.png",duck_hunt:"https://ssb.wiki.gallery/images/thumb/3/38/DuckHuntHeadSSBUWebsite.png/180px-DuckHuntHeadSSBUWebsite.png",ryu:"https://www.smashbros.com/assets_v2/img/fighter/pict/ryu.png",ken:"https://www.smashbros.com/assets_v2/img/fighter/pict/ken.png",cloud:"https://www.smashbros.com/assets_v2/img/fighter/pict/cloud.png",corrin:"https://www.smashbros.com/assets_v2/img/fighter/pict/kamui.png",bayonetta:"https://www.smashbros.com/assets_v2/img/fighter/pict/bayonetta.png",inkling:"https://www.smashbros.com/assets_v2/img/fighter/pict/inkling.png",ridley:"https://www.smashbros.com/assets_v2/img/fighter/pict/ridley.png",simon:"https://www.smashbros.com/assets_v2/img/fighter/pict/simon.png",richter:"https://www.smashbros.com/assets_v2/img/fighter/pict/richter.png",king_k_rool:"https://ssb.wiki.gallery/images/thumb/d/de/KingKRoolHeadSSBU.png/48px-KingKRoolHeadSSBU.png",isabelle:"https://www.smashbros.com/assets_v2/img/fighter/pict/shizue.png",incineroar:"https://www.smashbros.com/assets_v2/img/fighter/pict/gaogaen.png",piranha_plant:"https://ssb.wiki.gallery/images/thumb/3/38/PiranhaPlantHeadSSBU.png/48px-PiranhaPlantHeadSSBU.png",joker:"https://ssb.wiki.gallery/images/thumb/6/63/JokerHeadSSBUWebsite.png/180px-JokerHeadSSBUWebsite.png",hero:"https://ssb.wiki.gallery/images/thumb/1/1e/HeroHeadSSBUWebsite.png/180px-HeroHeadSSBUWebsite.png",banjo_and_kazooie:"https://ssb.wiki.gallery/images/thumb/1/12/Banjo%26KazooieHeadSSBUWebsite.png/180px-Banjo%26KazooieHeadSSBUWebsite.png",terry:"https://ssb.wiki.gallery/images/thumb/2/2e/TerryHeadSSBUWebsite.png/180px-TerryHeadSSBUWebsite.png",byleth:"https://ssb.wiki.gallery/images/thumb/8/86/BylethHeadSSBUWebsite.png/180px-BylethHeadSSBUWebsite.png",min_min:"https://ssb.wiki.gallery/images/thumb/f/fc/MinMinHeadSSBUWebsite.png/180px-MinMinHeadSSBUWebsite.png",steve:"https://ssb.wiki.gallery/images/thumb/4/4f/SteveHeadSSBUWebsite.png/180px-SteveHeadSSBUWebsite.png",sephiroth:"https://ssb.wiki.gallery/images/thumb/6/64/SephirothHeadSSBUWebsite.png/180px-SephirothHeadSSBUWebsite.png",pyra_mythra:"https://ssb.wiki.gallery/images/f/fc/PyraMythraHeadSSBU.png",kazuya:"https://ssb.wiki.gallery/images/thumb/8/85/KazuyaHeadSSBUWebsite.png/180px-KazuyaHeadSSBUWebsite.png",sora:"https://ssb.wiki.gallery/images/thumb/6/61/SoraHeadSSBUWebsite.png/180px-SoraHeadSSBUWebsite.png"
+  };
+  document.querySelectorAll('img.card-char-icon[data-char]').forEach(img => {
+    const url = CHAR_ICONS[img.dataset.char];
+    if (url) { img.src = url; img.style.display = ''; }
+  });
+
+  // Smooth scroll for legend pills
+  document.querySelectorAll('a.legend-pill').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  });
+</script>
+</body>
+</html>
