@@ -36,8 +36,23 @@
     .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
     .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
     .btn-danger:hover { background: var(--red); color: white; }
-    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
-    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+    /* Nav layout */
+    .nav-left { display: flex; align-items: center; gap: 1.2rem; }
+    .nav-center { display: flex; gap: 0.6rem; align-items: center; }
+    .nav-right { display: flex; gap: 0.6rem; align-items: center; }
+    .nav-divider { width: 1px; height: 24px; background: var(--border); margin: 0 0.2rem; }
+    .btn-home {
+      background: rgba(255,255,255,0.05); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-home:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,128,0,0.06); }
+    .btn-shop {
+      background: linear-gradient(135deg, #1a0a3a 0%, #3a1070 100%);
+      color: #e0b8ff; border: 1px solid rgba(180,80,255,0.5);
+      box-shadow: 0 2px 14px rgba(160,60,255,0.25), inset 0 0 20px rgba(160,60,255,0.05);
+      position: relative; overflow: hidden;
+    }
+    .btn-shop:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 22px rgba(160,60,255,0.45); }
     .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
     .live-label { font-size: 0.75rem; color: var(--green); letter-spacing: 2px; text-transform: uppercase; }
@@ -131,8 +146,23 @@
     .players-grid { display: flex; flex-direction: column; gap: 0.5rem; }
     .player-card { display: flex; align-items: center; justify-content: space-between;
       padding: 0.9rem 1.2rem; background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; transition: all 0.15s; }
+      border-radius: 8px; transition: all 0.15s; position: relative; overflow: hidden; }
     .player-card:hover { border-color: var(--accent); background: var(--surface2); }
+    /* Banner on player card */
+    .player-card-banner { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+    .player-card-banner img { width: 100%; height: 100%; object-fit: cover; opacity: 0.12; display: block; }
+    .player-card-banner::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.15) 60%, rgba(7,7,15,0.45) 100%);
+    }
+    .player-card > *:not(.player-card-banner) { position: relative; z-index: 1; }
+    /* Skin badge */
+    .player-card-skin-badge {
+      position: absolute; top: 0.4rem; right: 0.4rem; z-index: 2;
+      background: rgba(7,7,15,0.7); border: 1px solid rgba(255,128,0,0.3);
+      border-radius: 3px; padding: 1px 5px; font-size: 0.6rem;
+      letter-spacing: 1px; color: var(--accent2); font-family: 'Bebas Neue', sans-serif;
+    }
     .player-card-left { display: flex; align-items: center; gap: 0.8rem; }
     .mini-avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); }
     .player-card-name { font-weight: 700; font-size: 1rem; }
@@ -327,15 +357,20 @@
 <body>
 
 <nav>
-  <a href="/" class="logo">⚔ YUZU</a>
-  <div class="nav-links">
-    <span id="ws-status" title="WebSocket connection"><span class="live-dot" id="ws-dot" style="background:var(--muted);"></span><span class="live-label" id="ws-label" style="color:var(--muted);">Connecting…</span></span>
-    <a href="/" class="btn btn-ghost">Leaderboard</a>
-    <a href="/shop" class="btn btn-ghost">🖼 Shop</a>
+  <div class="nav-left">
+    <a href="/" class="logo">⚔ YUZU</a>
+    <div class="nav-center">
+      <span id="ws-status" title="WebSocket connection"><span class="live-dot" id="ws-dot" style="background:var(--muted);"></span><span class="live-label" id="ws-label" style="color:var(--muted);">Connecting…</span></span>
+    </div>
+  </div>
+  <div class="nav-right">
+    <a href="/" class="btn btn-home">🏠 Home</a>
+    <a href="/shop" class="btn btn-shop">✨ Shop</a>
     {% if is_admin %}
     <a href="/admin/reports" class="btn btn-ghost" style="color:var(--gold);border-color:var(--gold);">⚡ Admin</a>
     {% endif %}
-    <a href="/logout" class="btn btn-ghost">Log Out</a>
+    <div class="nav-divider"></div>
+    <a href="/logout" class="btn btn-ghost" style="font-size:0.85rem;padding:0.4rem 0.9rem;">↩ Out</a>
   </div>
 </nav>
 
@@ -514,6 +549,16 @@
         {% if p.id != user.id %}
         {% set pwr = (p.wins / p.matches_played * 100)|round if p.matches_played > 0 else 0 %}
         <div class="player-card" data-name="{{ p.username|lower }}">
+          {% set pc_banner_img = null %}
+          {% if p.banner_lb and banners_map and banners_map[p.banner_lb] %}
+            {% set pc_banner_img = banners_map[p.banner_lb].img_lb or banners_map[p.banner_lb].img_dash %}
+          {% elif p.banner_dash and banners_map and banners_map[p.banner_dash] %}
+            {% set pc_banner_img = banners_map[p.banner_dash].img_dash %}
+          {% endif %}
+          {% if pc_banner_img %}
+          <div class="player-card-banner"><img src="{{ pc_banner_img }}" alt=""></div>
+          <div class="player-card-skin-badge">✦ SKIN</div>
+          {% endif %}
           <div class="player-card-left">
             {% if p.avatar %}
               <img class="mini-avatar" src="https://cdn.discordapp.com/avatars/{{ p.id }}/{{ p.avatar }}.png" alt="">
