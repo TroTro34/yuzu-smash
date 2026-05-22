@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <title>Banner Shop — Smash YUZU</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+      --common:   #8899aa;
+      --rare:     #4f8ef7;
+      --epic:     #a855f7;
+      --legendary:#ffd700;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
+      background-image: radial-gradient(ellipse at 10% 0%, rgba(232,64,10,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 100%, rgba(155,89,182,0.06) 0%, transparent 50%); }
+
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .nav-links { display: flex; gap: 0.8rem; align-items: center; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+
+    /* ── HEADER ── */
+    .shop-header { margin-bottom: 2.5rem; }
+    .shop-title { font-family: 'Bebas Neue', sans-serif; font-size: 3.5rem; letter-spacing: 6px; line-height: 1;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 40%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .shop-sub { color: var(--muted); letter-spacing: 1px; margin-top: 0.4rem; font-size: 0.95rem; }
+
+    /* ── FILTERS ── */
+    .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
+    .filter-btn { padding: 0.45rem 1.2rem; border-radius: 20px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; font-weight: 700; letter-spacing: 1px;
+      transition: all 0.2s; }
+    .filter-btn:hover { color: var(--text); border-color: var(--text); }
+    .filter-btn.active { color: var(--bg); }
+    .filter-btn[data-rarity="all"].active   { background: var(--accent); border-color: var(--accent); color: white; }
+    .filter-btn[data-rarity="common"].active   { background: var(--common); border-color: var(--common); }
+    .filter-btn[data-rarity="rare"].active     { background: var(--rare); border-color: var(--rare); }
+    .filter-btn[data-rarity="epic"].active     { background: var(--epic); border-color: var(--epic); }
+    .filter-btn[data-rarity="legendary"].active { background: var(--legendary); border-color: var(--legendary); }
+
+    /* ── RARITY SECTION ── */
+    .rarity-section { margin-bottom: 3rem; }
+    .rarity-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 4px;
+      margin-bottom: 1.2rem; display: flex; align-items: center; gap: 1rem; padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .rarity-title .rarity-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .rarity-title .rarity-count { font-size: 0.8rem; color: var(--muted); letter-spacing: 2px; font-family: 'Rajdhani', sans-serif; }
+    .rarity-title.legendary { color: var(--legendary); }
+    .rarity-title.epic      { color: var(--epic); }
+    .rarity-title.rare      { color: var(--rare); }
+    .rarity-title.common    { color: var(--common); }
+
+    /* ── BANNER GRID ── */
+    .banners-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.2rem; }
+
+    .banner-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; transition: all 0.25s; position: relative;
+    }
+    .banner-card:hover { transform: translateY(-3px); }
+    .banner-card.equipped { border-color: var(--green); box-shadow: 0 0 0 1px var(--green), 0 0 20px rgba(61,220,132,0.15); }
+    .banner-card.legendary-card { box-shadow: 0 0 0 1px rgba(255,215,0,0.3), 0 0 25px rgba(255,215,0,0.08); }
+    .banner-card.legendary-card:hover { box-shadow: 0 0 0 1px rgba(255,215,0,0.6), 0 0 35px rgba(255,215,0,0.15); }
+    .banner-card.epic-card  { box-shadow: 0 0 0 1px rgba(168,85,247,0.25); }
+    .banner-card.epic-card:hover { box-shadow: 0 0 0 1px rgba(168,85,247,0.5), 0 0 25px rgba(168,85,247,0.12); }
+    .banner-card.rare-card  { box-shadow: 0 0 0 1px rgba(79,142,247,0.2); }
+    .banner-card.rare-card:hover { box-shadow: 0 0 0 1px rgba(79,142,247,0.5), 0 0 20px rgba(79,142,247,0.1); }
+
+    /* Dash banner preview (tall) */
+    .banner-preview-dash {
+      width: 100%; height: 100px; position: relative; overflow: hidden;
+      background: var(--surface2);
+    }
+    .banner-preview-dash img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .banner-preview-dash .preview-label {
+      position: absolute; top: 6px; left: 8px; font-size: 0.6rem; font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 2px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px; color: var(--muted);
+    }
+    /* Leaderboard banner preview (short) */
+    .banner-preview-lb {
+      width: 100%; height: 44px; position: relative; overflow: hidden;
+      background: var(--surface2); border-top: 1px solid var(--border);
+    }
+    .banner-preview-lb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .banner-preview-lb .preview-label {
+      position: absolute; top: 4px; left: 8px; font-size: 0.6rem; font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 2px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px; color: var(--muted);
+    }
+
+    /* Shimmer for legendary */
+    .banner-card.legendary-card .banner-preview-dash::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(105deg, transparent 40%, rgba(255,215,0,0.15) 50%, transparent 60%);
+      animation: shimmer 3s infinite;
+    }
+    @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+
+    .banner-info { padding: 0.9rem 1rem; }
+    .banner-name { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
+    .banner-meta { display: flex; justify-content: space-between; align-items: center; }
+    .rarity-badge {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem; letter-spacing: 2px;
+      padding: 2px 8px; border-radius: 3px;
+    }
+    .rarity-badge.common    { color: var(--common); background: rgba(136,153,170,0.12); border: 1px solid rgba(136,153,170,0.25); }
+    .rarity-badge.rare      { color: var(--rare); background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.25); }
+    .rarity-badge.epic      { color: var(--epic); background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.25); }
+    .rarity-badge.legendary { color: var(--legendary); background: rgba(255,215,0,0.1); border: 1px solid rgba(255,215,0,0.3); }
+
+    .banner-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+    .btn-equip-dash, .btn-equip-lb {
+      flex: 1; padding: 0.5rem 0.6rem; border-radius: 5px; border: none; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    .btn-equip-dash { background: rgba(232,64,10,0.15); color: var(--accent); border: 1px solid rgba(232,64,10,0.3); }
+    .btn-equip-dash:hover, .btn-equip-dash.active { background: var(--accent); color: white; }
+    .btn-equip-lb   { background: rgba(255,128,0,0.15); color: var(--accent2); border: 1px solid rgba(255,128,0,0.3); }
+    .btn-equip-lb:hover, .btn-equip-lb.active { background: var(--accent2); color: white; }
+
+    .equipped-tag {
+      position: absolute; top: 8px; right: 8px;
+      background: var(--green); color: #0a0a0f;
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.7rem; letter-spacing: 2px;
+      padding: 2px 8px; border-radius: 3px;
+    }
+
+    /* ── EMPTY ── */
+    .empty { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+
+    /* ── TOAST ── */
+    .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
+      border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
+      border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.green { border-color: var(--green); }
+
+    /* ── LOGIN NOTICE ── */
+    .login-notice {
+      background: rgba(232,64,10,0.08); border: 1px solid rgba(232,64,10,0.25);
+      border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 2rem;
+      display: flex; align-items: center; gap: 1rem; font-size: 0.95rem; color: var(--muted);
+    }
+    .login-notice a { color: var(--accent2); text-decoration: none; font-weight: 700; }
+    .login-notice a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .banners-grid { grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+      .banner-info { padding: 0.7rem 0.8rem; }
+    }
+    @media (max-width: 400px) { .banners-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">SMASH YUZU</a>
+  <div class="nav-links">
+    {% if user %}
+      <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
+      <a href="/logout" class="btn btn-ghost">Logout</a>
+    {% else %}
+      <a href="/login" class="btn btn-ghost">Login with Discord</a>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="container">
+  <div class="shop-header">
+    <div class="shop-title">🖼 BANNER SHOP</div>
+    <div class="shop-sub">Customise your profile card &amp; leaderboard row with exclusive banners.</div>
+  </div>
+
+  {% if not user %}
+  <div class="login-notice">
+    <span>🔒</span>
+    <span>You must be <a href="/login">logged in</a> to equip banners.</span>
+  </div>
+  {% endif %}
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <button class="filter-btn active" data-rarity="all" onclick="filterRarity('all', this)">All</button>
+    <button class="filter-btn" data-rarity="legendary" onclick="filterRarity('legendary', this)">⭐ Legendary</button>
+    <button class="filter-btn" data-rarity="epic"      onclick="filterRarity('epic', this)">💜 Epic</button>
+    <button class="filter-btn" data-rarity="rare"      onclick="filterRarity('rare', this)">💙 Rare</button>
+    <button class="filter-btn" data-rarity="common"    onclick="filterRarity('common', this)">Common</button>
+  </div>
+
+  <!-- SECTIONS BY RARITY -->
+  {% for rarity in ['legendary', 'epic', 'rare', 'common'] %}
+    {% set rarity_banners = banners | selectattr('rarity', 'equalto', rarity) | list %}
+    {% if rarity_banners %}
+    <div class="rarity-section" data-section="{{ rarity }}">
+      <div class="rarity-title {{ rarity }}">
+        <span class="rarity-dot" style="background: var(--{{ rarity }});"></span>
+        {% if rarity == 'legendary' %}⭐ LEGENDARY
+        {% elif rarity == 'epic' %}💜 EPIC
+        {% elif rarity == 'rare' %}💙 RARE
+        {% else %}COMMON{% endif %}
+        <span class="rarity-count">{{ rarity_banners | length }} banner{% if rarity_banners | length > 1 %}s{% endif %}</span>
+      </div>
+      <div class="banners-grid">
+        {% for banner in rarity_banners %}
+        {% set is_equipped_dash = player and player.banner_dash == banner.id %}
+        {% set is_equipped_lb   = player and player.banner_lb   == banner.id %}
+        {% set is_equipped = is_equipped_dash or is_equipped_lb %}
+        <div class="banner-card {{ banner.rarity }}-card {% if is_equipped %}equipped{% endif %}"
+             data-banner-id="{{ banner.id }}" data-rarity="{{ banner.rarity }}">
+
+          {% if is_equipped %}
+          <div class="equipped-tag">EQUIPPED</div>
+          {% endif %}
+
+          <!-- Dashboard banner preview (tall) -->
+          <div class="banner-preview-dash">
+            {% if banner.img_dash %}
+              <img src="{{ banner.img_dash }}" alt="{{ banner.name }}">
+            {% endif %}
+            <div class="preview-label">DASHBOARD</div>
+          </div>
+
+          <!-- Leaderboard banner preview (short) -->
+          <div class="banner-preview-lb">
+            {% if banner.img_lb %}
+              <img src="{{ banner.img_lb }}" alt="{{ banner.name }}">
+            {% elif banner.img_dash %}
+              <img src="{{ banner.img_dash }}" alt="{{ banner.name }}">
+            {% endif %}
+            <div class="preview-label">LEADERBOARD</div>
+          </div>
+
+          <div class="banner-info">
+            <div class="banner-name">{{ banner.name }}</div>
+            <div class="banner-meta">
+              <span class="rarity-badge {{ banner.rarity }}">{{ banner.rarity | upper }}</span>
+            </div>
+            {% if user %}
+            <div class="banner-actions">
+              <button class="btn-equip-dash {% if is_equipped_dash %}active{% endif %}"
+                onclick="equipBanner('{{ banner.id }}', 'dash', this)"
+                title="Equip on Dashboard card">
+                {% if is_equipped_dash %}✓ {% endif %}Dashboard
+              </button>
+              <button class="btn-equip-lb {% if is_equipped_lb %}active{% endif %}"
+                onclick="equipBanner('{{ banner.id }}', 'lb', this)"
+                title="Equip on Leaderboard row">
+                {% if is_equipped_lb %}✓ {% endif %}Leaderboard
+              </button>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  {% if not banners %}
+  <div class="empty">
+    <div class="empty-icon">🖼</div>
+    <div>No banners available yet.<br>Check back later — admins are cooking something.</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const USER_LOGGED = {% if user %}true{% else %}false{% endif %};
+
+  function filterRarity(rarity, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.rarity-section').forEach(sec => {
+      if (rarity === 'all' || sec.dataset.section === rarity) {
+        sec.style.display = '';
+      } else {
+        sec.style.display = 'none';
+      }
+    });
+  }
+
+  async function equipBanner(bannerId, slot, btn) {
+    if (!USER_LOGGED) { showToast('Login to equip banners!', false); return; }
+    try {
+      const r = await fetch('/shop/equip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ banner_id: bannerId, slot })
+      });
+      const data = await r.json();
+      if (data.success) {
+        // Update UI: remove active from all same-slot buttons
+        document.querySelectorAll(slot === 'dash' ? '.btn-equip-dash' : '.btn-equip-lb')
+          .forEach(b => { b.classList.remove('active'); b.textContent = b.textContent.replace('✓ ', ''); });
+        // Remove equipped tag from all cards
+        document.querySelectorAll('.banner-card').forEach(c => {
+          c.classList.remove('equipped');
+          c.querySelector('.equipped-tag')?.remove();
+        });
+
+        btn.classList.add('active');
+        btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
+
+        // Re-check equipped on this card
+        const card = btn.closest('.banner-card');
+        const dashBtn = card.querySelector('.btn-equip-dash');
+        const lbBtn   = card.querySelector('.btn-equip-lb');
+        if (dashBtn.classList.contains('active') || lbBtn.classList.contains('active')) {
+          card.classList.add('equipped');
+          if (!card.querySelector('.equipped-tag')) {
+            const tag = document.createElement('div');
+            tag.className = 'equipped-tag';
+            tag.textContent = 'EQUIPPED';
+            card.prepend(tag);
+          }
+        }
+
+        showToast(slot === 'dash' ? '✅ Dashboard banner equipped!' : '✅ Leaderboard banner equipped!', true);
+      } else {
+        showToast(data.error || 'Error', false);
+      }
+    } catch (e) { showToast('Network error', false); }
+  }
+
+  // Unequip when clicking active button
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-equip-dash, .btn-equip-lb');
+    if (!btn || !btn.classList.contains('active')) return;
+    // Toggle off
+    const slot = btn.classList.contains('btn-equip-dash') ? 'dash' : 'lb';
+    e.stopImmediatePropagation();
+    try {
+      const r = await fetch('/shop/unequip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot })
+      });
+      const data = await r.json();
+      if (data.success) {
+        btn.classList.remove('active');
+        btn.textContent = btn.textContent.replace('✓ ', '');
+        const card = btn.closest('.banner-card');
+        const dashBtn = card.querySelector('.btn-equip-dash');
+        const lbBtn   = card.querySelector('.btn-equip-lb');
+        if (!dashBtn.classList.contains('active') && !lbBtn.classList.contains('active')) {
+          card.classList.remove('equipped');
+          card.querySelector('.equipped-tag')?.remove();
+        }
+        showToast('Banner removed.', false);
+      }
+    } catch (e) {}
+  }, true);
+
+  function showToast(msg, success = true) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (success ? ' green' : '');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+</script>
+</body>
+</html>

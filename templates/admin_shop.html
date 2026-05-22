@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <title>Admin — Banner Shop</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555;
+      --blue: #4f8ef7; --gold: #ffd700; --purple: #a855f7;
+      --common:   #8899aa;
+      --rare:     #4f8ef7;
+      --epic:     #a855f7;
+      --legendary:#ffd700;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
+
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
+      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .admin-badge { font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem; letter-spacing: 3px;
+      color: var(--gold); border: 1px solid var(--gold); padding: 0.2rem 0.7rem;
+      border-radius: 3px; background: rgba(255,215,0,0.08); }
+    .nav-links { display: flex; gap: 0.8rem; align-items: center; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-danger { background: rgba(255,85,85,0.15); color: var(--red); border: 1px solid rgba(255,85,85,0.3); }
+    .btn-danger:hover { background: var(--red); color: white; }
+    .btn-success { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
+    .btn-success:hover { background: var(--green); color: #0a0a0f; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+
+    /* ── ADMIN NAV ── */
+    .admin-nav { display: flex; gap: 0.5rem; margin-bottom: 2.5rem; flex-wrap: wrap; }
+    .admin-nav-link { padding: 0.5rem 1.3rem; background: transparent; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 4px; text-decoration: none;
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 2px; transition: all 0.2s; }
+    .admin-nav-link:hover { color: var(--text); border-color: var(--text); }
+    .admin-nav-link.active { color: var(--gold); border-color: var(--gold); background: rgba(255,215,0,0.06); }
+
+    /* ── PAGE HEADER ── */
+    .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 5px;
+      background: linear-gradient(135deg, var(--gold), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .page-sub { color: var(--muted); font-size: 0.9rem; letter-spacing: 1px; margin-bottom: 2rem; }
+
+    /* ── CREATE FORM ── */
+    .create-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 2rem; margin-bottom: 3rem; position: relative; overflow: hidden;
+    }
+    .create-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2), var(--gold)); }
+    .create-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 3px;
+      color: var(--accent2); margin-bottom: 1.5rem; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+    .form-input, .form-select {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 0.7rem 1rem; border-radius: 6px; font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem; transition: border-color 0.2s; width: 100%;
+    }
+    .form-input:focus, .form-select:focus { outline: none; border-color: var(--accent2); }
+
+    /* ── FILE UPLOAD ── */
+    .upload-zone {
+      border: 2px dashed var(--border); border-radius: 8px; padding: 1.5rem; text-align: center;
+      cursor: pointer; transition: all 0.2s; position: relative; background: var(--surface2);
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--accent2); background: rgba(255,128,0,0.05); }
+    .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .upload-label { font-size: 0.9rem; color: var(--muted); }
+    .upload-label strong { color: var(--accent2); }
+    .upload-size { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+
+    .preview-box { margin-top: 0.8rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); display: none; }
+    .preview-box img { width: 100%; display: block; max-height: 120px; object-fit: cover; }
+    .preview-box.show { display: block; }
+
+    /* ── RARITY SELECTOR ── */
+    .rarity-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .rarity-option { display: none; }
+    .rarity-option + label {
+      padding: 0.5rem 1.2rem; border-radius: 6px; border: 1px solid var(--border);
+      cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem; letter-spacing: 2px;
+      transition: all 0.2s; color: var(--muted);
+    }
+    .rarity-option[value="common"]    + label { }
+    .rarity-option[value="rare"]      + label { }
+    .rarity-option[value="epic"]      + label { }
+    .rarity-option[value="legendary"] + label { }
+    .rarity-option:checked[value="common"]    + label { background: rgba(136,153,170,0.15); border-color: var(--common); color: var(--common); }
+    .rarity-option:checked[value="rare"]      + label { background: rgba(79,142,247,0.15); border-color: var(--rare); color: var(--rare); }
+    .rarity-option:checked[value="epic"]      + label { background: rgba(168,85,247,0.15); border-color: var(--epic); color: var(--epic); }
+    .rarity-option:checked[value="legendary"] + label { background: rgba(255,215,0,0.12); border-color: var(--legendary); color: var(--legendary); }
+
+    .form-actions { display: flex; gap: 0.8rem; margin-top: 1.5rem; align-items: center; }
+    .form-error { color: var(--red); font-size: 0.9rem; display: none; }
+    .form-error.show { display: block; }
+
+    /* ── BANNERS TABLE ── */
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 3px;
+      color: var(--accent); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 1rem; }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .banners-table { width: 100%; border-collapse: collapse; }
+    .banners-table th { font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem; letter-spacing: 2px;
+      color: var(--muted); padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .banners-table td { padding: 0.8rem 1rem; border-bottom: 1px solid rgba(37,37,64,0.5); vertical-align: middle; }
+    .banners-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .thumb-wrap { display: flex; gap: 6px; }
+    .thumb { width: 64px; height: 32px; border-radius: 4px; overflow: hidden;
+      border: 1px solid var(--border); background: var(--surface2); }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .thumb.empty-thumb { display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; color: var(--muted); }
+
+    .rarity-badge { font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem; letter-spacing: 2px;
+      padding: 2px 8px; border-radius: 3px; display: inline-block; }
+    .rarity-badge.common    { color: var(--common); background: rgba(136,153,170,0.12); border: 1px solid rgba(136,153,170,0.25); }
+    .rarity-badge.rare      { color: var(--rare); background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.25); }
+    .rarity-badge.epic      { color: var(--epic); background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.25); }
+    .rarity-badge.legendary { color: var(--legendary); background: rgba(255,215,0,0.1); border: 1px solid rgba(255,215,0,0.3); }
+
+    .banner-id { font-size: 0.75rem; color: var(--muted); font-family: monospace; }
+
+    .equipped-count { font-size: 0.8rem; color: var(--muted); }
+
+    .empty { text-align: center; padding: 3rem; color: var(--muted); }
+
+    /* ── TOAST ── */
+    .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
+      border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
+      border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
+      transition: all 0.3s; font-weight: 700; max-width: 320px; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-color: var(--green); }
+
+    /* ── CONFIRM MODAL ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 2rem; max-width: 420px; width: 90%; }
+    .modal h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 2px;
+      margin-bottom: 0.8rem; color: var(--red); }
+    .modal p { color: var(--muted); margin-bottom: 1.5rem; }
+    .modal-actions { display: flex; gap: 0.7rem; }
+
+    @media (max-width: 700px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: 1; }
+      .banners-table th:nth-child(5), .banners-table td:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">SMASH YUZU</a>
+  <div class="nav-links">
+    <span class="admin-badge">ADMIN</span>
+    <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
+    <a href="/logout" class="btn btn-ghost">Logout</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ADMIN SECTION NAV -->
+  <div class="admin-nav">
+    <a href="/admin/reports" class="admin-nav-link">📋 Reports</a>
+    <a href="/admin/shop"    class="admin-nav-link active">🖼 Banner Shop</a>
+  </div>
+
+  <div class="page-title">🖼 BANNER SHOP</div>
+  <div class="page-sub">Create and manage player banners. Players equip them from /shop.</div>
+
+  <!-- ── CREATE BANNER ── -->
+  <div class="create-card">
+    <div class="create-title">+ Add New Banner</div>
+    <form id="create-form" onsubmit="createBanner(event)">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label class="form-label">Banner Name *</label>
+          <input class="form-input" id="f-name" type="text" placeholder="e.g. Battlefield Dusk" maxlength="60" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Rarity *</label>
+          <div class="rarity-selector">
+            <input class="rarity-option" type="radio" name="rarity" id="r-common"    value="common"    checked>
+            <label for="r-common">Common</label>
+            <input class="rarity-option" type="radio" name="rarity" id="r-rare"      value="rare">
+            <label for="r-rare">💙 Rare</label>
+            <input class="rarity-option" type="radio" name="rarity" id="r-epic"      value="epic">
+            <label for="r-epic">💜 Epic</label>
+            <input class="rarity-option" type="radio" name="rarity" id="r-legendary" value="legendary">
+            <label for="r-legendary">⭐ Legendary</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Dashboard Banner <span style="color:var(--muted);font-size:0.7rem;">(PNG/JPG • recommended 900×220px)</span></label>
+          <div class="upload-zone" id="zone-dash">
+            <input type="file" accept="image/png,image/jpeg,image/webp" id="file-dash" onchange="previewFile('dash')">
+            <div class="upload-icon">🖼</div>
+            <div class="upload-label"><strong>Click or drag</strong> to upload</div>
+            <div class="upload-size">Max 2 MB — PNG / JPG / WebP</div>
+          </div>
+          <div class="preview-box" id="preview-dash"><img id="preview-dash-img" src="" alt=""></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Leaderboard Banner <span style="color:var(--muted);font-size:0.7rem;">(PNG/JPG • recommended 900×80px)</span></label>
+          <div class="upload-zone" id="zone-lb">
+            <input type="file" accept="image/png,image/jpeg,image/webp" id="file-lb" onchange="previewFile('lb')">
+            <div class="upload-icon">📊</div>
+            <div class="upload-label"><strong>Click or drag</strong> to upload</div>
+            <div class="upload-size">Max 2 MB — PNG / JPG / WebP</div>
+          </div>
+          <div class="preview-box" id="preview-lb"><img id="preview-lb-img" src="" alt=""></div>
+        </div>
+
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submit-btn">➕ Create Banner</button>
+        <span class="form-error" id="form-error"></span>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── BANNERS LIST ── -->
+  <div class="section-title">All Banners</div>
+
+  {% if banners %}
+  <table class="banners-table">
+    <thead>
+      <tr>
+        <th>Previews</th>
+        <th>Name</th>
+        <th>Rarity</th>
+        <th>Equipped by</th>
+        <th>ID</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="banners-tbody">
+      {% for banner in banners %}
+      <tr id="row-{{ banner.id }}">
+        <td>
+          <div class="thumb-wrap">
+            <div class="thumb" title="Dashboard">
+              {% if banner.img_dash %}<img src="{{ banner.img_dash }}" alt="">
+              {% else %}<div class="empty-thumb">DASH</div>{% endif %}
+            </div>
+            <div class="thumb" title="Leaderboard">
+              {% if banner.img_lb %}<img src="{{ banner.img_lb }}" alt="">
+              {% elif banner.img_dash %}<img src="{{ banner.img_dash }}" alt="">
+              {% else %}<div class="empty-thumb">LB</div>{% endif %}
+            </div>
+          </div>
+        </td>
+        <td style="font-weight:700;">{{ banner.name }}</td>
+        <td><span class="rarity-badge {{ banner.rarity }}">{{ banner.rarity | upper }}</span></td>
+        <td class="equipped-count">{{ banner.equipped_count or 0 }} player{% if (banner.equipped_count or 0) != 1 %}s{% endif %}</td>
+        <td><span class="banner-id">{{ banner.id }}</span></td>
+        <td>
+          <button class="btn btn-danger" style="font-size:0.8rem;padding:0.35rem 0.8rem;"
+            onclick="confirmDelete('{{ banner.id }}', '{{ banner.name }}')">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty" id="banners-empty">No banners yet. Create your first one above!</div>
+  {% endif %}
+
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h2>🗑 Delete Banner</h2>
+    <p id="delete-modal-text">Are you sure you want to delete this banner?<br>Players who have it equipped will have it removed.</p>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="delete-confirm-btn">Delete</button>
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── FILE PREVIEW ──
+  const b64Cache = {};
+
+  function previewFile(slot) {
+    const input = document.getElementById(`file-${slot}`);
+    const file  = input.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('File too large (max 2 MB)', false);
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      b64Cache[slot] = e.target.result;
+      document.getElementById(`preview-${slot}-img`).src = e.target.result;
+      document.getElementById(`preview-${slot}`).classList.add('show');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Drag & drop visual feedback
+  ['dash','lb'].forEach(slot => {
+    const zone = document.getElementById(`zone-${slot}`);
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', () => zone.classList.remove('drag'));
+  });
+
+  // ── CREATE BANNER ──
+  async function createBanner(e) {
+    e.preventDefault();
+    const name   = document.getElementById('f-name').value.trim();
+    const rarity = document.querySelector('input[name="rarity"]:checked')?.value || 'common';
+    const errEl  = document.getElementById('form-error');
+    errEl.classList.remove('show');
+
+    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
+    if (!b64Cache.dash && !b64Cache.lb) {
+      errEl.textContent = 'Upload at least one banner image.';
+      errEl.classList.add('show'); return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.textContent = 'Creating…';
+    btn.disabled = true;
+
+    try {
+      const r = await fetch('/admin/shop/banner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, rarity, img_dash: b64Cache.dash || null, img_lb: b64Cache.lb || null })
+      });
+      const data = await r.json();
+      if (data.success) {
+        showToast('✅ Banner created!', true);
+        // Inject row into table
+        addRowToTable(data.banner);
+        // Reset form
+        document.getElementById('create-form').reset();
+        b64Cache.dash = null; b64Cache.lb = null;
+        ['dash','lb'].forEach(s => {
+          document.getElementById(`preview-${s}`).classList.remove('show');
+          document.getElementById(`preview-${s}-img`).src = '';
+        });
+        document.getElementById('banners-empty')?.remove();
+      } else {
+        errEl.textContent = data.error || 'Error creating banner.';
+        errEl.classList.add('show');
+      }
+    } catch (err) {
+      errEl.textContent = 'Network error.';
+      errEl.classList.add('show');
+    } finally {
+      btn.textContent = '➕ Create Banner';
+      btn.disabled = false;
+    }
+  }
+
+  function addRowToTable(b) {
+    let tbody = document.getElementById('banners-tbody');
+    if (!tbody) {
+      // Table doesn't exist yet, reload is cleanest
+      location.reload();
+      return;
+    }
+    const rarityColors = { common: '#8899aa', rare: '#4f8ef7', epic: '#a855f7', legendary: '#ffd700' };
+    const dashThumb = b.img_dash
+      ? `<img src="${b.img_dash}" alt="">`
+      : `<div class="empty-thumb">DASH</div>`;
+    const lbThumb = b.img_lb
+      ? `<img src="${b.img_lb}" alt="">`
+      : (b.img_dash ? `<img src="${b.img_dash}" alt="">` : `<div class="empty-thumb">LB</div>`);
+    const tr = document.createElement('tr');
+    tr.id = `row-${b.id}`;
+    tr.innerHTML = `
+      <td><div class="thumb-wrap">
+        <div class="thumb">${dashThumb}</div>
+        <div class="thumb">${lbThumb}</div>
+      </div></td>
+      <td style="font-weight:700;">${escHtml(b.name)}</td>
+      <td><span class="rarity-badge ${b.rarity}">${b.rarity.toUpperCase()}</span></td>
+      <td class="equipped-count">0 players</td>
+      <td><span class="banner-id">${escHtml(b.id)}</span></td>
+      <td><button class="btn btn-danger" style="font-size:0.8rem;padding:0.35rem 0.8rem;"
+            onclick="confirmDelete('${escHtml(b.id)}', '${escHtml(b.name)}')">Delete</button></td>
+    `;
+    tbody.prepend(tr);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── DELETE ──
+  let pendingDeleteId = null;
+  function confirmDelete(id, name) {
+    pendingDeleteId = id;
+    document.getElementById('delete-modal-text').innerHTML =
+      `Delete <strong>${escHtml(name)}</strong>?<br><span style="color:var(--muted);font-size:0.9rem;">Players who have it equipped will lose it.</span>`;
+    document.getElementById('delete-modal').classList.add('open');
+    document.getElementById('delete-confirm-btn').onclick = doDelete;
+  }
+  function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.remove('open');
+    pendingDeleteId = null;
+  }
+  async function doDelete() {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    closeDeleteModal();
+    try {
+      const r = await fetch(`/admin/shop/banner/${id}`, { method: 'DELETE' });
+      const data = await r.json();
+      if (data.success) {
+        document.getElementById(`row-${id}`)?.remove();
+        showToast('Banner deleted.', false);
+      } else {
+        showToast(data.error || 'Error', false);
+      }
+    } catch { showToast('Network error', false); }
+  }
+
+  function showToast(msg, success = true) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (success ? ' success' : '');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+</script>
+</body>
+</html>
