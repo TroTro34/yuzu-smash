@@ -263,87 +263,74 @@
 <!-- ── MAIN CONTENT ── -->
 <div class="container">
 
-  {# ─────────────────────────────────────────────────────────
-     Tier logic:
-     veteran   ≥ 1400 ELO
-     mid level  1200–1399
-     rising star 1000–1199
-     rookie      800–999
-     beginner    600–799
-     casual      < 600 (or 0 matches)
-  ──────────────────────────────────────────────────────────── #}
-
-  {% set tiers = [
-    { "key": "veteran",  "label": "VETERAN",    "icon": "🏆", "range": "1400+ ELO",      "desc": "Elite — top of the server" },
-    { "key": "midlevel", "label": "MID LEVEL",  "icon": "⚔",  "range": "1200 – 1399 ELO","desc": "Solid competitors" },
-    { "key": "rising",   "label": "RISING STAR","icon": "📈", "range": "1000 – 1199 ELO","desc": "On the climb" },
-    { "key": "rookie",   "label": "ROOKIE",     "icon": "🎯", "range": "800 – 999 ELO",  "desc": "Learning the meta" },
-    { "key": "beginner", "label": "BEGINNER",   "icon": "🌱", "range": "600 – 799 ELO",  "desc": "Just starting out" },
-    { "key": "casual",   "label": "CASUAL",     "icon": "🎮", "range": "< 600 ELO",      "desc": "Here for the fun" }
+  {% set tierDefs = [
+    { "key": "veteran",  "label": "VETERAN",     "icon": "🏆", "range": "1400+ ELO",       "desc": "Elite — top of the server", "min": 1400, "max": 99999 },
+    { "key": "midlevel", "label": "MID LEVEL",   "icon": "⚔",  "range": "1200 – 1399 ELO", "desc": "Solid competitors",          "min": 1200, "max": 1399 },
+    { "key": "rising",   "label": "RISING STAR", "icon": "📈", "range": "1000 – 1199 ELO", "desc": "On the climb",               "min": 1000, "max": 1199 },
+    { "key": "rookie",   "label": "ROOKIE",       "icon": "🎯", "range": "800 – 999 ELO",   "desc": "Learning the meta",          "min": 800,  "max": 999  },
+    { "key": "beginner", "label": "BEGINNER",     "icon": "🌱", "range": "600 – 799 ELO",   "desc": "Just starting out",          "min": 600,  "max": 799  },
+    { "key": "casual",   "label": "CASUAL",       "icon": "🎮", "range": "< 600 ELO",       "desc": "Here for the fun",           "min": 0,    "max": 599  }
   ] %}
 
-  {% macro tier_of(player) %}
-    {% if player.points >= 1400 %}veteran
-    {% elif player.points >= 1200 %}midlevel
-    {% elif player.points >= 1000 %}rising
-    {% elif player.points >= 800  %}rookie
-    {% elif player.points >= 600  %}beginner
-    {% else %}casual{% endif %}
-  {% endmacro %}
+  {% for tier in tierDefs %}
+  <div class="tier-section {{ tier.key }}" id="tier-{{ tier.key }}">
 
-  {% for tier in tiers %}
-    {% set ns = namespace(members=[]) %}
-    {% for player in players %}
-      {% if (tier.key == "veteran"  and player.points >= 1400) or
-            (tier.key == "midlevel" and player.points >= 1200 and player.points < 1400) or
-            (tier.key == "rising"   and player.points >= 1000 and player.points < 1200) or
-            (tier.key == "rookie"   and player.points >= 800  and player.points < 1000) or
-            (tier.key == "beginner" and player.points >= 600  and player.points < 800)  or
-            (tier.key == "casual"   and player.points < 600) %}
-        {% set ns.members = ns.members + [player] %}
+    {% set tierCount = 0 %}
+    {% for p in players %}
+      {% if p.points >= tier.min and p.points <= tier.max %}
+        {% set tierCount = tierCount + 1 %}
       {% endif %}
     {% endfor %}
 
-    <div class="tier-section {{ tier.key }}" id="tier-{{ tier.key }}">
-
-      <div class="tier-header {{ tier.key }}">
-        <div class="tier-icon">{{ tier.icon }}</div>
-        <div class="tier-info">
-          <div class="tier-name">{{ tier.label }}</div>
-          <div class="tier-range">{{ tier.range }} · {{ tier.desc }}</div>
-        </div>
-        <div class="tier-count">{{ ns.members|length }} PLAYER{{ 's' if ns.members|length != 1 }}</div>
+    <div class="tier-header {{ tier.key }}">
+      <div class="tier-icon">{{ tier.icon }}</div>
+      <div class="tier-info">
+        <div class="tier-name">{{ tier.label }}</div>
+        <div class="tier-range">{{ tier.range }} · {{ tier.desc }}</div>
       </div>
-
-      {% if ns.members %}
-        <div class="player-grid">
-          {% for player in ns.members %}
-          {% set wr = (player.wins / player.matches_played * 100)|round(0)|int if player.matches_played > 0 else 0 %}
-          <div class="player-card" onclick="{% if user %}window.location='/player/{{ player.id }}'{% endif %}">
-            <div class="card-rank">#{{ loop.index }}</div>
-            <div class="card-avatar-wrap">
-              {% if player.avatar %}
-                <img class="card-avatar" src="https://cdn.discordapp.com/avatars/{{ player.id }}/{{ player.avatar }}.png" alt="">
-              {% else %}
-                <div class="card-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>
-              {% endif %}
-              {% if player.main_char %}
-                <img class="card-char-icon" data-char="{{ player.main_char }}" src="" alt="" style="display:none;">
-              {% endif %}
-            </div>
-            <div class="card-info">
-              <div class="card-name">{{ player.username }}</div>
-              <div class="card-sub">{{ player.wins }}W {{ player.losses }}L · {{ wr }}% WR{% if player.main_char %} · {{ player.main_char }}{% endif %}</div>
-            </div>
-            <div class="card-pts">{{ player.points }} <span>ELO</span></div>
-          </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="tier-empty">No players in this tier yet.</div>
-      {% endif %}
-
+      <div class="tier-count">{{ tierCount }} PLAYER{% if tierCount != 1 %}S{% endif %}</div>
     </div>
+
+    {% set hasAny = false %}
+    {% for player in players %}
+      {% if player.points >= tier.min and player.points <= tier.max %}
+        {% set hasAny = true %}
+      {% endif %}
+    {% endfor %}
+
+    {% if hasAny %}
+    <div class="player-grid">
+      {% set rankInTier = 0 %}
+      {% for player in players %}
+      {% if player.points >= tier.min and player.points <= tier.max %}
+        {% set rankInTier = rankInTier + 1 %}
+        {% set wr = (player.wins / player.matches_played * 100)|round(0)|int if player.matches_played > 0 else 0 %}
+        <div class="player-card" onclick="{% if user %}window.location='/player/{{ player.id }}'{% endif %}">
+          <div class="card-rank">#{{ rankInTier }}</div>
+          <div class="card-avatar-wrap">
+            {% if player.avatar %}
+              <img class="card-avatar" src="https://cdn.discordapp.com/avatars/{{ player.id }}/{{ player.avatar }}.png" alt="">
+            {% else %}
+              <div class="card-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>
+            {% endif %}
+            {% if player.main_char %}
+              <img class="card-char-icon" data-char="{{ player.main_char }}" src="" alt="" style="display:none;">
+            {% endif %}
+          </div>
+          <div class="card-info">
+            <div class="card-name">{{ player.username }}</div>
+            <div class="card-sub">{{ player.wins }}W {{ player.losses }}L · {{ wr }}% WR{% if player.main_char %} · {{ player.main_char }}{% endif %}</div>
+          </div>
+          <div class="card-pts">{{ player.points }} <span>ELO</span></div>
+        </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="tier-empty">No players in this tier yet.</div>
+    {% endif %}
+
+  </div>
   {% endfor %}
 
 </div>
