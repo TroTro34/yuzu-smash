@@ -579,7 +579,7 @@
       const r = await fetch('/api/leaderboard');
       if (r.ok) {
         const d = await r.json();
-        if (d.players)        renderLeaderboard(d.players);
+        if (d.players)        renderLeaderboard(d.players, d.banners_map || {});
         if (d.recent_matches) renderMatches(d.recent_matches);
         if (d.lfm_posts)      renderLFM(d.lfm_posts);
       }
@@ -598,7 +598,7 @@
     });
 
     indexSocket.on('leaderboard_update', (d) => {
-      if (d.players)        renderLeaderboard(d.players);
+      if (d.players)        renderLeaderboard(d.players, d.banners_map || {});
       if (d.recent_matches) renderMatches(d.recent_matches);
       if (d.lfm_posts)      renderLFM(d.lfm_posts);
     });
@@ -633,7 +633,7 @@
     });
   }
 
-  function renderLeaderboard(players) {
+  function renderLeaderboard(players, bannersMap) {
     const el = document.querySelector('#panel-leaderboard .leaderboard');
     if (!el) return;
     if (!players.length) { el.innerHTML = '<div class="empty">No players yet. Be the first to sign in!</div>'; return; }
@@ -647,7 +647,15 @@
       const charUrl = p.main_char ? CHAR_ICONS[p.main_char] : null;
       const charHtml = charUrl ? `<img class="char-icon" src="${charUrl}" onerror="this.style.display='none'" alt="">` : '';
       const charLine = p.main_char ? `<div class="player-char">Main: ${p.main_char}${p.secondary_char?' · 2nd: '+p.secondary_char:''}</div>` : '';
+      let lbImg = '';
+      if (p.banner_lb && bannersMap[p.banner_lb]) {
+        lbImg = bannersMap[p.banner_lb].img_lb || bannersMap[p.banner_lb].img_dash || '';
+      } else if (p.banner_dash && bannersMap[p.banner_dash]) {
+        lbImg = bannersMap[p.banner_dash].img_dash || '';
+      }
+      const bannerHtml = lbImg ? `<div class="player-row-banner"><img src="${lbImg}" alt=""></div>` : '';
       return `<div class="player-row ${rankClass}" onclick="${currentUserId ? `window.location='/player/${p.id}'` : ''}">
+        ${bannerHtml}
         <div class="rank-num">${rankNum}</div>
         <div class="player-avatar-wrap">${avatarHtml}${charHtml}</div>
         <div class="player-info">
