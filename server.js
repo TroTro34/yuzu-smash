@@ -377,12 +377,14 @@ app.get('/', async (req, res) => {
   try {
     const now = new Date().toISOString();
     await sbDelete('lfm_posts', { expires_at: `lt.${now}` });
-    const [players, matches, lfm] = await Promise.all([
+    const [players, matches, lfm, bannersArr] = await Promise.all([
       sbGet('players', 'order=points.desc'),
       sbGet('matches', 'order=date.desc&limit=10'),
       sbGet('lfm_posts', 'order=created_at.desc'),
+      sbGet('banners', 'select=id,img_dash,img_lb'),
     ]);
-    res.render('index.html', { user: req.session.user || null, players, recent_matches: matches, lfm_posts: lfm });
+    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
+    res.render('index.html', { user: req.session.user || null, players, recent_matches: matches, lfm_posts: lfm, banners_map });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
@@ -450,12 +452,13 @@ app.get('/callback', async (req, res) => {
 app.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
-    const [data, playerRow] = await Promise.all([
+    const [data, playerRow, banners] = await Promise.all([
       dashboardData(userId),
       sbGet('players', `id=eq.${userId}`),
+      sbGet('banners', 'select=id,img_dash,img_lb'),
     ]);
     const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
-    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin });
+    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin, banners });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
