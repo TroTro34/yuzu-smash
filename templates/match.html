@@ -1744,27 +1744,30 @@ function renderStocksGames() {
 
   // Historique des games déjà validés
   const list = document.getElementById('stocks-games-list');
+  let segBase1 = 0, segBase2 = 0;
   stockGameHistory.forEach((g, i) => {
     const row = document.createElement('div');
-    const delta1 = g.p1 - (i > 0 ? stockGameHistory[i-1].p1 : 0);
-    const delta2 = g.p2 - (i > 0 ? stockGameHistory[i-1].p2 : 0);
+    const delta1 = g.p1 - segBase1;
+    const delta2 = g.p2 - segBase2;
     const isReset     = !!g.isReset;
     const wName       = delta1 > delta2 ? P1_NAME : delta2 > delta1 ? P2_NAME : null;
     const wColor      = delta1 > delta2 ? 'var(--blue)' : 'var(--accent)';
     const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'rgba(61,220,132,0.3)';
     const labelColor  = isReset ? '#c39bd3' : 'var(--muted)';
     const label       = isReset ? '🔄 RESET ' + (i+1) : 'GAME ' + (i+1);
+    // Met à jour la base pour le prochain game
+    if (isReset) { segBase1 = 0; segBase2 = 0; }
+    else { segBase1 = g.p1; segBase2 = g.p2; }
     row.style.cssText = `display:flex;align-items:center;justify-content:space-between;
       background:var(--surface2);border:1px solid ${borderColor};
       border-radius:8px;padding:0.75rem 1.2rem;${isReset ? 'opacity:0.8;' : ''}`;
     row.innerHTML = `
       <span style="font-family:'Bebas Neue',sans-serif;font-size:0.85rem;color:${labelColor};letter-spacing:2px;">${label}</span>
       <span style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">${g.p1}</span>
+        <span style="color:var(--blue)">+${delta1}</span>
         <span style="color:var(--muted);margin:0 0.4rem;font-size:1rem;">—</span>
-        <span style="color:var(--accent)">${g.p2}</span>
+        <span style="color:var(--accent)">+${delta2}</span>
       </span>
-      <span style="font-size:0.75rem;color:var(--muted);">+${delta1} / +${delta2}</span>
       <span style="font-size:0.8rem;font-weight:700;color:${isReset ? labelColor : wColor || 'var(--green)'};">${isReset ? '🔄 reset' : wName ? wName + ' wins' : 'tie'}</span>`;
     list.appendChild(row);
   });
@@ -1775,27 +1778,25 @@ function renderStocksGames() {
   block.innerHTML = `
     <div style="display:flex;gap:0.75rem;align-items:stretch;">
 
-      <!-- Medal Reset — left column -->
-      <div style="display:flex;flex-direction:column;justify-content:center;">
-        <button onclick="medalReset()"
-          title="Lock current medals and start a new sub-game from 0"
-          style="writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);
-            padding:1rem 0.55rem;border-radius:8px;
-            border:1px solid rgba(155,89,182,0.5);
-            background:rgba(155,89,182,0.1);color:#c39bd3;
-            font-family:'Bebas Neue',sans-serif;font-size:0.85rem;letter-spacing:2px;
-            cursor:pointer;transition:all 0.2s;white-space:nowrap;height:100%;"
-          onmouseover="this.style.background='rgba(155,89,182,0.25)';this.style.borderColor='rgba(155,89,182,0.9)';this.style.color='#d7bde2'"
-          onmouseout="this.style.background='rgba(155,89,182,0.1)';this.style.borderColor='rgba(155,89,182,0.5)';this.style.color='#c39bd3'">
-          \U0001f504 MEDAL RESET
-        </button>
-      </div>
-
       <!-- Current game input -->
       <div style="flex:1;background:var(--surface2);border:1px solid var(--accent2);border-radius:10px;padding:1.2rem;position:relative;overflow:hidden;">
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--accent));"></div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--accent2);margin-bottom:1rem;">
           GAME ${gameNum} \u2014 CUMULATIVE MEDALS
+        </div>
+        <!-- Medal Reset — horizontal row above inputs -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">
+          <button onclick="medalReset()"
+            title="Lock current medals and start a new sub-game from 0"
+            style="padding:0.45rem 1.1rem;border-radius:6px;
+              border:1px solid rgba(155,89,182,0.5);
+              background:rgba(155,89,182,0.1);color:#c39bd3;
+              font-family:'Bebas Neue',sans-serif;font-size:0.82rem;letter-spacing:2px;
+              cursor:pointer;transition:all 0.2s;white-space:nowrap;"
+            onmouseover="this.style.background='rgba(155,89,182,0.25)';this.style.borderColor='rgba(155,89,182,0.9)';this.style.color='#d7bde2'"
+            onmouseout="this.style.background='rgba(155,89,182,0.1)';this.style.borderColor='rgba(155,89,182,0.5)';this.style.color='#c39bd3'">
+            \U0001f504 MEDAL RESET
+          </button>
         </div>
         <div class="stocks-inputs">
           <div class="stock-input-group">
@@ -1830,6 +1831,11 @@ function renderStocksGames() {
   // Sync valeurs courantes
   medalsP1 = currentGameMinP1;
   medalsP2 = currentGameMinP2;
+  // Mise à jour du score live avec le total calculé
+  const { totalP1: liveP1, totalP2: liveP2 } = computeTotalMedals();
+  p1Score = liveP1;
+  p2Score = liveP2;
+  updateScoreDisplay();
   updateMinusButtons();
 }
 
@@ -1839,13 +1845,16 @@ function changeStockGame(player, delta) {
     if (newVal < currentGameMinP1) return;
     medalsP1 = newVal;
     document.getElementById('sg-p1').value = medalsP1;
-    p1Score = medalsP1;
+    // Score live = total historique + médailles du segment en cours
+    const { totalP1 } = computeTotalMedals();
+    p1Score = totalP1 - currentGameMinP1 + medalsP1;
   } else {
     const newVal = medalsP2 + delta;
     if (newVal < currentGameMinP2) return;
     medalsP2 = newVal;
     document.getElementById('sg-p2').value = medalsP2;
-    p2Score = medalsP2;
+    const { totalP2 } = computeTotalMedals();
+    p2Score = totalP2 - currentGameMinP2 + medalsP2;
   }
   updateScoreDisplay();
   updateMinusButtons();
@@ -1868,21 +1877,66 @@ function confirmStockGame() {
     showToast('Tie not allowed — there must be a winner!', false); return;
   }
   resetMatchTimer(); // reset timer à chaque action
-  // Enregistre le game
+  // Enregistre le game — stocke les valeurs absolues courantes
   stockGameHistory.push({ p1: medalsP1, p2: medalsP2 });
   currentGameMinP1 = medalsP1;
   currentGameMinP2 = medalsP2;
-  // Met à jour les scores live (delta de ce game)
-  updateDots(stockGameHistory.map(g => {
-    const i = stockGameHistory.indexOf(g);
-    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
-    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
-    return (g.p1 - prev1) > (g.p2 - prev2) ? 'p1' : 'p2';
-  }));
+  // Met à jour les scores live
+  updateDots(computeGameWinners());
   renderStocksGames();
 }
 
 function changeMedals(player, delta) { changeStockGame(player, delta); } // alias compat
+
+// ── Calcule le gagnant de chaque game (en tenant compte des resets) ──────────
+// Chaque entrée stocke ses valeurs absolues dans son segment.
+// La base d'un segment est remise à 0 après un medal reset.
+function computeGameWinners() {
+  const winners = [];
+  let segBaseP1 = 0, segBaseP2 = 0;
+  for (let i = 0; i < stockGameHistory.length; i++) {
+    const g = stockGameHistory[i];
+    const d1 = g.p1 - segBaseP1;
+    const d2 = g.p2 - segBaseP2;
+    if (!g.isReset) {
+      if (d1 !== d2) winners.push(d1 > d2 ? 'p1' : 'p2');
+      // Après un game normal, le prochain game repart des valeurs actuelles
+      segBaseP1 = g.p1;
+      segBaseP2 = g.p2;
+    } else {
+      // Medal reset : on note le gagnant du segment qui se termine, puis on repart de 0
+      if (d1 !== d2) winners.push(d1 > d2 ? 'p1' : 'p2');
+      segBaseP1 = 0;
+      segBaseP2 = 0;
+    }
+  }
+  return winners;
+}
+
+// ── Calcule le total de médailles de chaque joueur (somme de tous les segments) ──
+function computeTotalMedals() {
+  let totalP1 = 0, totalP2 = 0;
+  let segBaseP1 = 0, segBaseP2 = 0;
+  for (let i = 0; i < stockGameHistory.length; i++) {
+    const g = stockGameHistory[i];
+    if (g.isReset) {
+      // Ajoute les médailles gagnées dans ce segment
+      totalP1 += g.p1 - segBaseP1;
+      totalP2 += g.p2 - segBaseP2;
+      // Repart de 0
+      segBaseP1 = 0;
+      segBaseP2 = 0;
+    } else {
+      // Game normal : met à jour la base du segment
+      segBaseP1 = g.p1;
+      segBaseP2 = g.p2;
+    }
+  }
+  // Ajoute le segment en cours (currentGameMin = dernières valeurs du segment actif)
+  totalP1 += currentGameMinP1;
+  totalP2 += currentGameMinP2;
+  return { totalP1, totalP2 };
+}
 
 // ── MEDAL RESET ──
 // Valide silencieusement le game en cours (médailles figées),
@@ -1892,16 +1946,12 @@ function medalReset() {
   resetMatchTimer();
   // Fige le game courant tel quel dans l'historique (flag isReset = true)
   stockGameHistory.push({ p1: medalsP1, p2: medalsP2, isReset: true });
-  currentGameMinP1 = medalsP1;
-  currentGameMinP2 = medalsP2;
+  // Repart de 0 pour le prochain sub-game (le total cumulatif sera recalculé à la fin)
+  currentGameMinP1 = 0;
+  currentGameMinP2 = 0;
 
   // Mise à jour des dots
-  updateDots(stockGameHistory.map((g, i) => {
-    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
-    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
-    const d1 = g.p1 - prev1, d2 = g.p2 - prev2;
-    return d1 > d2 ? 'p1' : d2 > d1 ? 'p2' : null;
-  }).filter(Boolean));
+  updateDots(computeGameWinners());
 
   renderStocksGames();
   showToast('🔄 Medal Reset — new sub-game started. Previous medals locked in.', true);
@@ -1982,8 +2032,7 @@ function endMatch() {
   if (!stockGameHistory.length) {
     showToast('Confirm at least one game before finishing!', false); return;
   }
-  const totalP1 = currentGameMinP1;
-  const totalP2 = currentGameMinP2;
+  const { totalP1, totalP2 } = computeTotalMedals();
   if (totalP1 === totalP2) {
     showToast('Tie not allowed — there must be a winner!', false); return;
   }
