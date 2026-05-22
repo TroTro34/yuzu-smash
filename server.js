@@ -1112,6 +1112,107 @@ async function resolveDeadMatches() {
   }
 }
 
+
+// ── BANNER SHOP ───────────────────────────────────────────────────────────────
+
+const VALID_RARITIES = new Set(['common', 'rare', 'epic', 'legendary']);
+const MAX_BANNER_IMG_BYTES = 2 * 1024 * 1024; // 2 MB
+
+function validateBannerImg(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  if (!raw.startsWith('data:image/')) return null;
+  if (raw.length > Math.ceil(MAX_BANNER_IMG_BYTES * 1.4)) return null;
+  return raw;
+}
+
+// Shop — page publique
+app.get('/shop', async (req, res) => {
+  try {
+    const banners = await sbGet('banners', 'order=created_at.desc');
+    let player = null;
+    if (req.session.user) {
+      const rows = await sbGet('players', `id=eq.${req.session.user.id}`);
+      player = rows[0] || null;
+    }
+    res.render('shop.html', { user: req.session.user || null, banners, player });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// Shop — équiper une bannière
+app.post('/shop/equip', requireAuth, async (req, res) => {
+  const { banner_id, slot } = req.body;
+  if (!slot || !['dash', 'lb'].includes(slot))
+    return res.status(400).json({ error: 'Invalid slot' });
+  if (!banner_id || !validateId(String(banner_id)))
+    return res.status(400).json({ error: 'Invalid banner ID' });
+  const banners = await sbGet('banners', `id=eq.${banner_id}`);
+  if (!banners.length) return res.status(404).json({ error: 'Banner not found' });
+  const field = slot === 'dash' ? 'banner_dash' : 'banner_lb';
+  await sbPatch('players', { id: req.session.user.id }, { [field]: banner_id });
+  res.json({ success: true });
+});
+
+// Shop — déséquiper une bannière
+app.post('/shop/unequip', requireAuth, async (req, res) => {
+  const { slot } = req.body;
+  if (!slot || !['dash', 'lb'].includes(slot))
+    return res.status(400).json({ error: 'Invalid slot' });
+  const field = slot === 'dash' ? 'banner_dash' : 'banner_lb';
+  await sbPatch('players', { id: req.session.user.id }, { [field]: null });
+  res.json({ success: true });
+});
+
+// Admin — page gestion des bannières
+app.get('/admin/shop', requireAdmin, async (req, res) => {
+  try {
+    const banners = await sbGet('banners', 'order=created_at.desc');
+    const players = await sbGet('players', 'select=banner_dash,banner_lb');
+    const counts  = {};
+    for (const p of players) {
+      if (p.banner_dash) counts[p.banner_dash] = (counts[p.banner_dash] || 0) + 1;
+      if (p.banner_lb)   counts[p.banner_lb]   = (counts[p.banner_lb]   || 0) + 1;
+    }
+    const enriched = banners.map(b => ({ ...b, equipped_count: counts[b.id] || 0 }));
+    res.render('admin_shop.html', { user: req.session.user, is_admin: true, banners: enriched });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// Admin — créer une bannière
+app.post('/admin/shop/banner', requireAdmin, async (req, res) => {
+  const name   = sanitizeStr(req.body.name || '', 60);
+  const rarity = req.body.rarity || 'common';
+  if (!name)                       return res.status(400).json({ error: 'Name is required' });
+  if (!VALID_RARITIES.has(rarity)) return res.status(400).json({ error: 'Invalid rarity' });
+  const img_dash = validateBannerImg(req.body.img_dash);
+  const img_lb   = validateBannerImg(req.body.img_lb);
+  if (!img_dash && !img_lb)
+    return res.status(400).json({ error: 'At least one image is required' });
+  const bid = `ban_${crypto.randomBytes(8).toString('hex')}`;
+  await sbPost('banners', {
+    id: bid, name, rarity,
+    img_dash: img_dash || null,
+    img_lb:   img_lb   || null,
+    created_by: req.session.user.id,
+    created_at: new Date().toISOString(),
+  });
+  res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb } });
+});
+
+// Admin — supprimer une bannière
+app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
+  const { banner_id } = req.params;
+  if (!validateId(banner_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const banners = await sbGet('banners', `id=eq.${banner_id}`);
+  if (!banners.length) return res.status(404).json({ error: 'Banner not found' });
+  // Déséquiper tous les joueurs qui ont cette bannière
+  await Promise.all([
+    sbPatch('players', { banner_dash: banner_id }, { banner_dash: null }),
+    sbPatch('players', { banner_lb:   banner_id }, { banner_lb:   null }),
+  ]);
+  await sbDelete('banners', { id: banner_id });
+  res.json({ success: true });
+});
+
 // ── START ─────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 10000;
