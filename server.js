@@ -68,7 +68,7 @@ io.engine.use(sessionMiddleware);
 const jsonDefault = express.json();
 const jsonLarge   = express.json({ limit: '6mb' });
 app.use((req, res, next) => {
-  if (req.path.startsWith('/report/')) return jsonLarge(req, res, next);
+  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/shop')) return jsonLarge(req, res, next);
   return jsonDefault(req, res, next);
 });
 app.use(express.urlencoded({ extended: false }));
