@@ -617,10 +617,10 @@
       </div>
       <div style="margin-bottom:1rem;">
         <label class="wu-form-label">IMAGE (optional — PNG/JPG/GIF, max 4MB)</label>
-        <label class="wu-img-drop" id="wu-img-drop">
+        <div class="wu-img-drop" id="wu-img-drop" onclick="document.getElementById('wu-img-input').click()">
           📎 Click or drag & drop an image
-          <input type="file" id="wu-img-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" onchange="handleWuImage(this)">
-        </label>
+        </div>
+        <input type="file" id="wu-img-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" onchange="handleWuImage(this)">
         <img id="wu-img-preview" class="wu-img-preview" src="" alt="">
         <button onclick="clearWuImage()" id="wu-img-clear" style="display:none;margin-top:0.4rem;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.75rem;">✕ Remove image</button>
       </div>
