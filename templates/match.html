@@ -1745,6 +1745,7 @@ function renderStocksGames() {
   // Historique des games déjà validés
   const list = document.getElementById('stocks-games-list');
   let segBase1 = 0, segBase2 = 0;
+  let realGameIdx = 0; // compteur de vrais games (hors resets)
   stockGameHistory.forEach((g, i) => {
     const row = document.createElement('div');
     const delta1 = g.p1 - segBase1;
@@ -1754,7 +1755,8 @@ function renderStocksGames() {
     const wColor      = delta1 > delta2 ? 'var(--blue)' : 'var(--accent)';
     const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'rgba(61,220,132,0.3)';
     const labelColor  = isReset ? '#c39bd3' : 'var(--muted)';
-    const label       = isReset ? '🔄 RESET ' + (i+1) : 'GAME ' + (i+1);
+    if (!isReset) realGameIdx++;
+    const label       = isReset ? '🔄 RESET' : 'GAME ' + realGameIdx;
     // Met à jour la base pour le prochain game
     if (isReset) { segBase1 = 0; segBase2 = 0; }
     else { segBase1 = g.p1; segBase2 = g.p2; }
@@ -1772,8 +1774,9 @@ function renderStocksGames() {
     list.appendChild(row);
   });
 
-  // Game courant
-  const gameNum = stockGameHistory.length + 1;
+  // Game courant — numéro = games normaux confirmés + 1 (exclut les resets)
+  const realGameCount = stockGameHistory.filter(g => !g.isReset).length;
+  const gameNum = realGameCount + 1;
   const block = document.getElementById('current-game-block');
   block.innerHTML = `
     <div style="display:flex;gap:0.75rem;align-items:stretch;">
@@ -1845,17 +1848,19 @@ function changeStockGame(player, delta) {
     if (newVal < currentGameMinP1) return;
     medalsP1 = newVal;
     document.getElementById('sg-p1').value = medalsP1;
-    // Score live = total historique + médailles du segment en cours
-    const { totalP1 } = computeTotalMedals();
-    p1Score = totalP1 - currentGameMinP1 + medalsP1;
   } else {
     const newVal = medalsP2 + delta;
     if (newVal < currentGameMinP2) return;
     medalsP2 = newVal;
     document.getElementById('sg-p2').value = medalsP2;
-    const { totalP2 } = computeTotalMedals();
-    p2Score = totalP2 - currentGameMinP2 + medalsP2;
   }
+  // Score live = total de tous les segments confirmés + médailles en cours dans le segment actif
+  // computeTotalMedals utilise currentGameMinP1/P2 comme base du segment actif ;
+  // on calcule donc avec les valeurs live (medalsP1/P2) à la place.
+  const { totalP1, totalP2 } = computeTotalMedals();
+  // computeTotalMedals a utilisé currentGameMin — on remplace par les valeurs live
+  p1Score = totalP1 - currentGameMinP1 + medalsP1;
+  p2Score = totalP2 - currentGameMinP2 + medalsP2;
   updateScoreDisplay();
   updateMinusButtons();
 }
@@ -1872,9 +1877,6 @@ function confirmStockGame() {
   const delta2 = medalsP2 - currentGameMinP2;
   if (delta1 === 0 && delta2 === 0) {
     showToast('Enter at least one medal for this game!', false); return;
-  }
-  if (delta1 === delta2) {
-    showToast('Tie not allowed — there must be a winner!', false); return;
   }
   resetMatchTimer(); // reset timer à chaque action
   // Enregistre le game — stocke les valeurs absolues courantes
@@ -1914,27 +1916,26 @@ function computeGameWinners() {
 }
 
 // ── Calcule le total de médailles de chaque joueur (somme de tous les segments) ──
+// Après chaque medal reset, un nouveau segment repart de 0. Les games normaux avancent
+// la base du segment. Le segment en cours est représenté par currentGameMin.
 function computeTotalMedals() {
   let totalP1 = 0, totalP2 = 0;
   let segBaseP1 = 0, segBaseP2 = 0;
   for (let i = 0; i < stockGameHistory.length; i++) {
     const g = stockGameHistory[i];
     if (g.isReset) {
-      // Ajoute les médailles gagnées dans ce segment
       totalP1 += g.p1 - segBaseP1;
       totalP2 += g.p2 - segBaseP2;
-      // Repart de 0
       segBaseP1 = 0;
       segBaseP2 = 0;
     } else {
-      // Game normal : met à jour la base du segment
       segBaseP1 = g.p1;
       segBaseP2 = g.p2;
     }
   }
-  // Ajoute le segment en cours (currentGameMin = dernières valeurs du segment actif)
-  totalP1 += currentGameMinP1;
-  totalP2 += currentGameMinP2;
+  // Segment en cours: currentGameMin contient les valeurs absolues depuis le dernier reset
+  totalP1 += currentGameMinP1 - segBaseP1;
+  totalP2 += currentGameMinP2 - segBaseP2;
   return { totalP1, totalP2 };
 }
 
@@ -2029,41 +2030,42 @@ let pendingResult = null; // { winner_id, score, [stocks fields] }
 
 // ── MEDALS MODE: end match button ──
 function endMatch() {
-  if (!stockGameHistory.length) {
+  if (!stockGameHistory.filter(g => !g.isReset).length) {
     showToast('Confirm at least one game before finishing!', false); return;
   }
   const { totalP1, totalP2 } = computeTotalMedals();
-  if (totalP1 === totalP2) {
-    showToast('Tie not allowed — there must be a winner!', false); return;
-  }
 
-  const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
+  const isDraw    = totalP1 === totalP2;
+  const winnerId  = isDraw ? null : (totalP1 > totalP2 ? P1_ID : P2_ID);
   const winnerMeds = Math.max(totalP1, totalP2);
   const loserMeds  = Math.min(totalP1, totalP2);
 
   pendingResult = {
     winner_id: winnerId,
-    score: `${winnerMeds}-${loserMeds}`,
+    score: `${totalP1}-${totalP2}`,
     winner_stocks_taken: winnerMeds,
     loser_stocks_taken: loserMeds,
     is_stocks_mode: true
   };
 
-  // Recap : liste chaque game
+  // Recap : liste chaque game (hors resets)
   const gamesDiv = document.getElementById('recap-games');
-  gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
-    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
-    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
-    const d1 = g.p1 - prev1, d2 = g.p2 - prev2;
-    const wName = d1 > d2 ? P1_NAME : P2_NAME;
-    const wColor = d1 > d2 ? 'var(--blue)' : 'var(--accent)';
+  let segBase1 = 0, segBase2 = 0, realIdx = 0;
+  gamesDiv.innerHTML = stockGameHistory.map((g) => {
+    const d1 = g.p1 - segBase1, d2 = g.p2 - segBase2;
+    if (g.isReset) { segBase1 = 0; segBase2 = 0; return ''; }
+    realIdx++;
+    segBase1 = g.p1; segBase2 = g.p2;
+    const isTie = d1 === d2;
+    const wName = isTie ? 'Tie' : (d1 > d2 ? P1_NAME : P2_NAME);
+    const wColor = isTie ? 'var(--muted)' : (d1 > d2 ? 'var(--blue)' : 'var(--accent)');
     return `<div style="display:flex;align-items:center;justify-content:space-between;
       background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${realIdx}</span>
       <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">${g.p1}</span>
+        <span style="color:var(--blue)">+${d1}</span>
         <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
-        <span style="color:var(--accent)">${g.p2}</span>
+        <span style="color:var(--accent)">+${d2}</span>
       </span>
       <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
     </div>`;
@@ -2110,7 +2112,9 @@ function populateRecapTotals(t1, t2, winnerId) {
   document.getElementById('recap-total-p2').textContent = t2;
   document.getElementById('recap-p1-name').textContent = P1_NAME;
   document.getElementById('recap-p2-name').textContent = P2_NAME;
-  document.getElementById('recap-winner-name').textContent = winnerId === P1_ID ? P1_NAME : P2_NAME;
+  const winnerEl = document.getElementById('recap-winner-name');
+  if (!winnerId) winnerEl.textContent = 'DRAW';
+  else winnerEl.textContent = winnerId === P1_ID ? P1_NAME : P2_NAME;
 }
 
 // ── Soumission unifiée ──
