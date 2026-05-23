@@ -15,11 +15,14 @@
       --rare:     #4f8ef7;
       --epic:     #a855f7;
       --legendary:#ffd700;
+      --rcoin:    #c084fc;
+      --rcoin-dark: #7e22ce;
+      --rcoin-glow: rgba(168,85,247,0.35);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
       background-image: radial-gradient(ellipse at 10% 0%, rgba(232,64,10,0.08) 0%, transparent 50%),
-        radial-gradient(ellipse at 90% 100%, rgba(155,89,182,0.06) 0%, transparent 50%); }
+        radial-gradient(ellipse at 90% 100%, rgba(168,85,247,0.07) 0%, transparent 50%); }
 
     nav { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;
       border-bottom: 1px solid var(--border); background: rgba(7,7,15,0.97);
@@ -34,10 +37,47 @@
     .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
     .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
+    /* ── RCOIN BALANCE WIDGET ── */
+    .rcoin-bar {
+      background: linear-gradient(135deg, rgba(126,34,206,0.18) 0%, rgba(88,28,135,0.12) 100%);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 10px;
+      padding: 0.7rem 1.3rem;
+      display: flex; align-items: center; gap: 0.7rem;
+      margin-bottom: 2.5rem;
+      width: fit-content;
+      box-shadow: 0 0 24px rgba(168,85,247,0.12), inset 0 1px 0 rgba(192,132,252,0.12);
+    }
+    .rcoin-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      filter: drop-shadow(0 0 6px rgba(168,85,247,0.7));
+    }
+    .rcoin-info { display: flex; flex-direction: column; line-height: 1.1; }
+    .rcoin-label {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.65rem; letter-spacing: 3px;
+      color: var(--rcoin); opacity: 0.75;
+    }
+    .rcoin-amount {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.7rem; letter-spacing: 2px;
+      color: #fff;
+      text-shadow: 0 0 16px rgba(192,132,252,0.5);
+    }
+    .rcoin-amount span { color: var(--rcoin); font-size: 1.1rem; margin-right: 2px; }
+
+    /* price tag on cards */
+    .price-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.95rem; letter-spacing: 1px;
+      color: #fff;
+    }
+    .price-tag .price-icon { width: 16px; height: 16px; vertical-align: middle;
+      filter: drop-shadow(0 0 3px rgba(168,85,247,0.6)); }
+    .price-tag.cant-afford { color: var(--red); opacity: 0.7; }
+
     .container { max-width: 1200px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
 
     /* ── HEADER ── */
-    .shop-header { margin-bottom: 2.5rem; }
+    .shop-header { margin-bottom: 1.8rem; }
     .shop-title { font-family: 'Bebas Neue', sans-serif; font-size: 3.5rem; letter-spacing: 6px; line-height: 1;
       background: linear-gradient(135deg, #fff 0%, var(--accent2) 40%, var(--accent) 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -79,7 +119,7 @@
       overflow: hidden; transition: all 0.25s; position: relative;
     }
     .banner-card:hover { transform: translateY(-3px); }
-    .banner-card.equipped { border-color: var(--green); box-shadow: 0 0 0 1px var(--green), 0 0 20px rgba(61,220,132,0.15); }
+    .banner-card.owned  { border-color: var(--green); box-shadow: 0 0 0 1px var(--green), 0 0 20px rgba(61,220,132,0.12); }
     .banner-card.legendary-card { box-shadow: 0 0 0 1px rgba(255,215,0,0.3), 0 0 25px rgba(255,215,0,0.08); }
     .banner-card.legendary-card:hover { box-shadow: 0 0 0 1px rgba(255,215,0,0.6), 0 0 35px rgba(255,215,0,0.15); }
     .banner-card.epic-card  { box-shadow: 0 0 0 1px rgba(168,85,247,0.25); }
@@ -92,9 +132,7 @@
       width: 100%; height: 100px; position: relative; overflow: hidden;
       background: var(--surface2);
     }
-    .banner-preview-dash img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
-    }
+    .banner-preview-dash img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .banner-preview-dash .preview-label {
       position: absolute; top: 6px; left: 8px; font-size: 0.6rem; font-family: 'Bebas Neue', sans-serif;
       letter-spacing: 2px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px; color: var(--muted);
@@ -119,8 +157,8 @@
     @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
 
     .banner-info { padding: 0.9rem 1rem; }
-    .banner-name { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
-    .banner-meta { display: flex; justify-content: space-between; align-items: center; }
+    .banner-name { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.5rem; }
+    .banner-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
     .rarity-badge {
       font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem; letter-spacing: 2px;
       padding: 2px 8px; border-radius: 3px;
@@ -130,7 +168,27 @@
     .rarity-badge.epic      { color: var(--epic); background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.25); }
     .rarity-badge.legendary { color: var(--legendary); background: rgba(255,215,0,0.1); border: 1px solid rgba(255,215,0,0.3); }
 
-    .banner-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+    /* ── BUY / EQUIP ACTIONS ── */
+    .banner-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .btn-buy {
+      width: 100%; padding: 0.55rem 0.8rem; border-radius: 6px; border: none; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; font-weight: 700; letter-spacing: 1px;
+      transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+      background: linear-gradient(135deg, rgba(126,34,206,0.25) 0%, rgba(88,28,135,0.2) 100%);
+      color: var(--rcoin); border: 1px solid rgba(168,85,247,0.4);
+    }
+    .btn-buy:hover:not(:disabled) {
+      background: linear-gradient(135deg, #7e22ce 0%, #6d28d9 100%);
+      color: white; border-color: var(--rcoin);
+      box-shadow: 0 0 14px rgba(168,85,247,0.35);
+    }
+    .btn-buy:disabled {
+      opacity: 0.4; cursor: not-allowed;
+    }
+    .btn-buy .buy-icon { width: 16px; height: 16px; }
+
+    .equip-row { display: flex; gap: 0.5rem; }
     .btn-equip-dash, .btn-equip-lb {
       flex: 1; padding: 0.5rem 0.6rem; border-radius: 5px; border: none; cursor: pointer;
       font-family: 'Rajdhani', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px;
@@ -141,7 +199,7 @@
     .btn-equip-lb   { background: rgba(255,128,0,0.15); color: var(--accent2); border: 1px solid rgba(255,128,0,0.3); }
     .btn-equip-lb:hover, .btn-equip-lb.active { background: var(--accent2); color: white; }
 
-    .equipped-tag {
+    .owned-badge {
       position: absolute; top: 8px; right: 8px;
       background: var(--green); color: #0a0a0f;
       font-family: 'Bebas Neue', sans-serif; font-size: 0.7rem; letter-spacing: 2px;
@@ -159,6 +217,7 @@
       transition: all 0.3s; font-weight: 700; max-width: 320px; }
     .toast.show { opacity: 1; transform: translateY(0); }
     .toast.green { border-color: var(--green); }
+    .toast.purple { border-color: var(--rcoin); }
 
     /* ── LOGIN NOTICE ── */
     .login-notice {
@@ -196,10 +255,21 @@
     <div class="shop-sub">Customise your profile card &amp; leaderboard row with exclusive banners.</div>
   </div>
 
+  <!-- RCOIN BALANCE -->
+  {% if user and player %}
+  <div class="rcoin-bar">
+    <img class="rcoin-icon" src="/static/rcoin.svg" alt="RCoin">
+    <div class="rcoin-info">
+      <span class="rcoin-label">RCOINS</span>
+      <span class="rcoin-amount" id="rcoin-balance"><span>R</span>{{ player.rcoins or 0 }}</span>
+    </div>
+  </div>
+  {% endif %}
+
   {% if not user %}
   <div class="login-notice">
     <span>🔒</span>
-    <span>You must be <a href="/login">logged in</a> to equip banners.</span>
+    <span>You must be <a href="/login">logged in</a> to buy and equip banners.</span>
   </div>
   {% endif %}
 
@@ -229,15 +299,20 @@
         {% for banner in rarity_banners %}
         {% set is_equipped_dash = player and player.banner_dash == banner.id %}
         {% set is_equipped_lb   = player and player.banner_lb   == banner.id %}
-        {% set is_equipped = is_equipped_dash or is_equipped_lb %}
-        <div class="banner-card {{ banner.rarity }}-card {% if is_equipped %}equipped{% endif %}"
-             data-banner-id="{{ banner.id }}" data-rarity="{{ banner.rarity }}">
+        {% set is_owned = player and (player.owned_banners and banner.id in player.owned_banners) %}
+        {% set rarity_price = {'common': 100, 'rare': 500, 'epic': 1500, 'legendary': 3000} %}
+        {% set price = rarity_price[banner.rarity] %}
+        {% set can_afford = player and (player.rcoins or 0) >= price %}
 
-          {% if is_equipped %}
-          <div class="equipped-tag">EQUIPPED</div>
+        <div class="banner-card {{ banner.rarity }}-card {% if is_owned %}owned{% endif %}"
+             data-banner-id="{{ banner.id }}" data-rarity="{{ banner.rarity }}"
+             data-owned="{{ 'true' if is_owned else 'false' }}">
+
+          {% if is_owned %}
+          <div class="owned-badge">OWNED</div>
           {% endif %}
 
-          <!-- Dashboard banner preview (tall) -->
+          <!-- Dashboard banner preview -->
           <div class="banner-preview-dash">
             {% if banner.img_dash %}
               <img src="{{ banner.img_dash }}" alt="{{ banner.name }}">
@@ -245,7 +320,7 @@
             <div class="preview-label">DASHBOARD</div>
           </div>
 
-          <!-- Leaderboard banner preview (short) -->
+          <!-- Leaderboard banner preview -->
           <div class="banner-preview-lb">
             {% if banner.img_lb %}
               <img src="{{ banner.img_lb }}" alt="{{ banner.name }}">
@@ -259,19 +334,38 @@
             <div class="banner-name">{{ banner.name }}</div>
             <div class="banner-meta">
               <span class="rarity-badge {{ banner.rarity }}">{{ banner.rarity | upper }}</span>
+              {% if not is_owned %}
+              <span class="price-tag {% if not can_afford and user %}cant-afford{% endif %}">
+                <img class="price-icon" src="/static/rcoin.svg" alt="R">
+                {{ price }}
+              </span>
+              {% endif %}
             </div>
+
             {% if user %}
             <div class="banner-actions">
-              <button class="btn-equip-dash {% if is_equipped_dash %}active{% endif %}"
-                onclick="equipBanner('{{ banner.id }}', 'dash', this)"
-                title="Equip on Dashboard card">
-                {% if is_equipped_dash %}✓ {% endif %}Dashboard
-              </button>
-              <button class="btn-equip-lb {% if is_equipped_lb %}active{% endif %}"
-                onclick="equipBanner('{{ banner.id }}', 'lb', this)"
-                title="Equip on Leaderboard row">
-                {% if is_equipped_lb %}✓ {% endif %}Leaderboard
-              </button>
+              {% if is_owned %}
+                <!-- Owned: show equip buttons -->
+                <div class="equip-row">
+                  <button class="btn-equip-dash {% if is_equipped_dash %}active{% endif %}"
+                    onclick="equipBanner('{{ banner.id }}', 'dash', this)"
+                    title="Equip on Dashboard card">
+                    {% if is_equipped_dash %}✓ {% endif %}Dashboard
+                  </button>
+                  <button class="btn-equip-lb {% if is_equipped_lb %}active{% endif %}"
+                    onclick="equipBanner('{{ banner.id }}', 'lb', this)"
+                    title="Equip on Leaderboard row">
+                    {% if is_equipped_lb %}✓ {% endif %}Leaderboard
+                  </button>
+                </div>
+              {% else %}
+                <!-- Not owned: show buy button -->
+                <button class="btn-buy" onclick="buyBanner('{{ banner.id }}', {{ price }}, this)"
+                  {% if not can_afford %}disabled title="Not enough RCoins"{% endif %}>
+                  <img class="buy-icon" src="/static/rcoin.svg" alt="">
+                  BUY FOR {{ price }} RCOINS
+                </button>
+              {% endif %}
             </div>
             {% endif %}
           </div>
@@ -294,97 +388,131 @@
 
 <script>
   const USER_LOGGED = {% if user %}true{% else %}false{% endif %};
+  let currentRCoins = {% if player %}{{ player.rcoins or 0 }}{% else %}0{% endif %};
 
   function filterRarity(rarity, btn) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.rarity-section').forEach(sec => {
-      if (rarity === 'all' || sec.dataset.section === rarity) {
-        sec.style.display = '';
+      sec.style.display = (rarity === 'all' || sec.dataset.section === rarity) ? '' : 'none';
+    });
+  }
+
+  function updateBalanceDisplay(newAmount) {
+    currentRCoins = newAmount;
+    const el = document.getElementById('rcoin-balance');
+    if (el) el.innerHTML = '<span>R</span>' + newAmount.toLocaleString();
+    // Re-check affordability on all buy buttons
+    document.querySelectorAll('.btn-buy[data-price]').forEach(btn => {
+      const price = parseInt(btn.dataset.price);
+      if (newAmount >= price) {
+        btn.disabled = false;
+        btn.title = '';
+        btn.closest('.banner-card')?.querySelector('.price-tag')?.classList.remove('cant-afford');
       } else {
-        sec.style.display = 'none';
+        btn.disabled = true;
+        btn.title = 'Not enough RCoins';
       }
     });
   }
 
-  async function equipBanner(bannerId, slot, btn) {
-    if (!USER_LOGGED) { showToast('Login to equip banners!', false); return; }
+  async function buyBanner(bannerId, price, btn) {
+    if (!USER_LOGGED) { showToast('Login to buy banners!', 'red'); return; }
+    if (currentRCoins < price) { showToast('Not enough RCoins!', 'red'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Buying…';
     try {
-      const r = await fetch('/shop/equip', {
+      const r = await fetch('/shop/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ banner_id: bannerId })
+      });
+      const data = await r.json();
+      if (data.success) {
+        updateBalanceDisplay(data.new_balance);
+        // Transform card to owned state
+        const card = btn.closest('.banner-card');
+        card.dataset.owned = 'true';
+        card.classList.add('owned');
+
+        // Add owned badge
+        if (!card.querySelector('.owned-badge')) {
+          const badge = document.createElement('div');
+          badge.className = 'owned-badge';
+          badge.textContent = 'OWNED';
+          card.prepend(badge);
+        }
+
+        // Replace buy button with equip buttons
+        const actions = btn.closest('.banner-actions');
+        actions.innerHTML = `
+          <div class="equip-row">
+            <button class="btn-equip-dash" onclick="equipBanner('${bannerId}', 'dash', this)" title="Equip on Dashboard card">Dashboard</button>
+            <button class="btn-equip-lb" onclick="equipBanner('${bannerId}', 'lb', this)" title="Equip on Leaderboard row">Leaderboard</button>
+          </div>`;
+
+        // Remove price tag
+        card.querySelector('.price-tag')?.remove();
+
+        showToast('🎉 Banner purchased!', 'purple');
+      } else {
+        showToast(data.error || 'Purchase failed', 'red');
+        btn.disabled = currentRCoins < price;
+        btn.innerHTML = `<img class="buy-icon" src="/static/rcoin.svg" alt=""> BUY FOR ${price} RCOINS`;
+      }
+    } catch (e) {
+      showToast('Network error', 'red');
+      btn.disabled = false;
+      btn.innerHTML = `<img class="buy-icon" src="/static/rcoin.svg" alt=""> BUY FOR ${price} RCOINS`;
+    }
+  }
+
+  async function equipBanner(bannerId, slot, btn) {
+    if (!USER_LOGGED) { showToast('Login to equip banners!', 'red'); return; }
+    const isActive = btn.classList.contains('active');
+    if (isActive) {
+      // Unequip
+      try {
+        const r = await fetch('/shop/unequip', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slot })
+        });
+        const data = await r.json();
+        if (data.success) {
+          btn.classList.remove('active');
+          btn.textContent = btn.textContent.replace('✓ ', '');
+          showToast('Banner removed.', 'neutral');
+        }
+      } catch (e) {}
+      return;
+    }
+    try {
+      const r = await fetch('/shop/equip', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ banner_id: bannerId, slot })
       });
       const data = await r.json();
       if (data.success) {
-        // Update UI: remove active from all same-slot buttons
-        document.querySelectorAll(slot === 'dash' ? '.btn-equip-dash' : '.btn-equip-lb')
-          .forEach(b => { b.classList.remove('active'); b.textContent = b.textContent.replace('✓ ', ''); });
-        // Remove equipped tag from all cards
-        document.querySelectorAll('.banner-card').forEach(c => {
-          c.classList.remove('equipped');
-          c.querySelector('.equipped-tag')?.remove();
+        // Deactivate same-slot buttons everywhere
+        document.querySelectorAll(slot === 'dash' ? '.btn-equip-dash' : '.btn-equip-lb').forEach(b => {
+          b.classList.remove('active');
+          b.textContent = b.textContent.replace('✓ ', '');
         });
-
         btn.classList.add('active');
         btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
-
-        // Re-check equipped on this card
-        const card = btn.closest('.banner-card');
-        const dashBtn = card.querySelector('.btn-equip-dash');
-        const lbBtn   = card.querySelector('.btn-equip-lb');
-        if (dashBtn.classList.contains('active') || lbBtn.classList.contains('active')) {
-          card.classList.add('equipped');
-          if (!card.querySelector('.equipped-tag')) {
-            const tag = document.createElement('div');
-            tag.className = 'equipped-tag';
-            tag.textContent = 'EQUIPPED';
-            card.prepend(tag);
-          }
-        }
-
-        showToast(slot === 'dash' ? '✅ Dashboard banner equipped!' : '✅ Leaderboard banner equipped!', true);
+        showToast(slot === 'dash' ? '✅ Dashboard banner equipped!' : '✅ Leaderboard banner equipped!', 'green');
       } else {
-        showToast(data.error || 'Error', false);
+        showToast(data.error || 'Error', 'red');
       }
-    } catch (e) { showToast('Network error', false); }
+    } catch (e) { showToast('Network error', 'red'); }
   }
 
-  // Unequip when clicking active button
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.btn-equip-dash, .btn-equip-lb');
-    if (!btn || !btn.classList.contains('active')) return;
-    // Toggle off
-    const slot = btn.classList.contains('btn-equip-dash') ? 'dash' : 'lb';
-    e.stopImmediatePropagation();
-    try {
-      const r = await fetch('/shop/unequip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slot })
-      });
-      const data = await r.json();
-      if (data.success) {
-        btn.classList.remove('active');
-        btn.textContent = btn.textContent.replace('✓ ', '');
-        const card = btn.closest('.banner-card');
-        const dashBtn = card.querySelector('.btn-equip-dash');
-        const lbBtn   = card.querySelector('.btn-equip-lb');
-        if (!dashBtn.classList.contains('active') && !lbBtn.classList.contains('active')) {
-          card.classList.remove('equipped');
-          card.querySelector('.equipped-tag')?.remove();
-        }
-        showToast('Banner removed.', false);
-      }
-    } catch (e) {}
-  }, true);
-
-  function showToast(msg, success = true) {
+  function showToast(msg, type = 'green') {
     const t = document.getElementById('toast');
     t.textContent = msg;
-    t.className = 'toast show' + (success ? ' green' : '');
+    t.className = 'toast show' + (type === 'green' ? ' green' : type === 'purple' ? ' purple' : '');
     clearTimeout(t._t);
-    t._t = setTimeout(() => t.classList.remove('show'), 2500);
+    t._t = setTimeout(() => t.classList.remove('show'), 2800);
   }
 </script>
 </body>
