@@ -1888,6 +1888,7 @@ function confirmStockGame() {
   // Met à jour les scores live
   updateDots(computeGameWinners());
   renderStocksGames();
+  saveProgress();
 }
 
 function changeMedals(player, delta) { changeStockGame(player, delta); } // alias compat
@@ -1957,12 +1958,27 @@ function medalReset() {
   updateDots(computeGameWinners());
 
   renderStocksGames();
+  saveProgress();
   showToast('🔄 Medal Reset — new sub-game started. Previous medals locked in.', true);
 }
 
 // ─────────────────────────────────────────────
 // UI HELPERS
 // ─────────────────────────────────────────────
+// ── Sauvegarde silencieuse de la progression (STOCKS) ──
+async function saveProgress() {
+  if (FORMAT !== 'STOCKS') return;
+  try {
+    await fetch(`/api/save_progress/${CHALLENGE_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        games_history: stockGameHistory.map(g => ({ p1: g.p1, p2: g.p2, isReset: !!g.isReset }))
+      })
+    });
+  } catch(e) {} // silencieux
+}
+
 function updateScoreDisplay() {
   document.getElementById('score-p1').textContent = p1Score;
   document.getElementById('score-p2').textContent = p2Score;
@@ -2222,7 +2238,7 @@ function startHttpFallback() {
 //   • Aucune action de personne → annulation
 //   • J1 a soumis (gameResultPending / pendingResult) mais J2 n'a pas répondu → J1 gagne
 // ─────────────────────────────────────────────
-const MATCH_TIMER_SECONDS = 30 * 60;
+const MATCH_TIMER_SECONDS = 60 * 60;
 let matchTimerEnd = null;
 let matchTimerRAF = null;
 let gameTimerEnd  = null; // timer spécifique pour attente de confirmation J2
@@ -2467,16 +2483,12 @@ function checkInitialState() {
     if (d.status === 'completed') {
       if (matchFinished) return;
       matchFinished = true;
-      // Match déjà terminé (ex: rechargement après confirmation)
       showWinner(d.winner_id, d.score || '', d.elo_change);
       setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     } else if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
-      // L'adversaire a soumis — afficher le recap pour confirmer/contester
       showOpponentRecap(d);
     } else if (d.status === 'reported' && d.reported_by === MY_ID) {
-      // J'ai soumis, en attente de l'adversaire — restaurer le recap waiting
       const report = (typeof d.report === 'object' && d.report) ? d.report : {};
-      // Accepter aussi winner_id null (draw)
       if (report.winner_id !== undefined || report.is_stocks_mode) {
         pendingResult = {
           winner_id: report.winner_id || null,
@@ -2486,6 +2498,27 @@ function checkInitialState() {
           is_stocks_mode: report.is_stocks_mode
         };
         showBORecap(pendingResult, 'waiting');
+      }
+    } else if (d.status === 'accepted' && FORMAT === 'STOCKS') {
+      // Restaurer l'historique des games depuis le serveur (retour sur la page)
+      const report = (typeof d.report === 'object' && d.report) ? d.report : {};
+      if (report.games_history && Array.isArray(report.games_history) && report.games_history.length > 0) {
+        stockGameHistory = report.games_history.map(g => ({ p1: g.p1, p2: g.p2, isReset: !!g.isReset }));
+        // Recalculer currentGameMin depuis le dernier état du segment actif
+        let baseP1 = 0, baseP2 = 0;
+        for (const g of stockGameHistory) {
+          if (g.isReset) { baseP1 = 0; baseP2 = 0; }
+          else { baseP1 = g.p1; baseP2 = g.p2; }
+        }
+        currentGameMinP1 = baseP1;
+        currentGameMinP2 = baseP2;
+        // Recalculer les scores live
+        const { totalP1, totalP2 } = computeTotalMedals();
+        p1Score = totalP1;
+        p2Score = totalP2;
+        updateScoreDisplay();
+        updateDots(computeGameWinners());
+        renderStocksGames();
       }
     }
   }).catch(() => {});
