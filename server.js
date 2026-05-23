@@ -11,8 +11,17 @@ const path       = require('path');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
+const stripe              = require('stripe')(process.env.STRIPE_SECRET_KEY || '');
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+
 const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
+
+// ── RCOIN PACKS (paiement réel) ───────────────────────────────────────────────
+const RCOIN_PACKS = [
+  { id: 'pack_500',  coins: 500,  price_cents: 200, label: '500 RCoins',  emoji: '💜' },
+  { id: 'pack_2000', coins: 2000, price_cents: 500, label: '2000 RCoins', emoji: '⭐' },
+];
 
 const CLIENT_ID           = '1504467669712240861';
 const CLIENT_SECRET       = process.env.DISCORD_CLIENT_SECRET || '';
@@ -62,6 +71,37 @@ app.use(sessionMiddleware);
 
 // Share session with Socket.IO
 io.engine.use(sessionMiddleware);
+
+// ── STRIPE WEBHOOK (doit être avant express.json() — raw body requis) ────────
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('[Stripe Webhook] Signature invalide:', err.message);
+    return res.status(400).send(`Webhook error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    if (session.payment_status === 'paid') {
+      const { user_id, coins } = session.metadata || {};
+      if (user_id && coins) {
+        const playerRows = await sbGet('players', `id=eq.${user_id}`);
+        if (playerRows.length) {
+          const current = playerRows[0].rcoins || 0;
+          const added   = parseInt(coins, 10);
+          await sbPatch('players', { id: user_id }, { rcoins: current + added });
+          // Notifier le joueur en temps réel si connecté
+          io.to(`user_${user_id}`).emit('rcoins_update', { new_balance: current + added, added });
+          console.log(`✅ [Stripe] Crédité ${coins} RCoins à ${user_id} (total: ${current + added})`);
+        }
+      }
+    }
+  }
+  res.json({ received: true });
+});
 
 // Body parsing
 // Limite par défaut 100 kb — augmentée à 6 Mo sur /report pour les screenshots base64
@@ -1302,7 +1342,44 @@ app.post('/shop/buy', requireAuth, async (req, res) => {
   res.json({ success: true, new_balance: newBalance });
 });
 
-// Admin — page gestion des bannières
+// Shop — acheter des RCoins avec Stripe
+app.post('/shop/buy-coins', requireAuth, async (req, res) => {
+  const { pack_id } = req.body;
+  const pack = RCOIN_PACKS.find(p => p.id === pack_id);
+  if (!pack) return res.status(400).json({ error: 'Pack invalide' });
+  if (!process.env.STRIPE_SECRET_KEY)
+    return res.status(500).json({ error: 'Paiement non configuré' });
+
+  try {
+    const siteUrl = process.env.SITE_URL || 'https://yuzu-smash.onrender.com';
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: `${pack.emoji} ${pack.label} — Smash YUZU`,
+            description: `Crédite ${pack.coins} RCoins sur votre compte Smash YUZU`,
+          },
+          unit_amount: pack.price_cents,
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${siteUrl}/shop?payment=success&coins=${pack.coins}`,
+      cancel_url:  `${siteUrl}/shop?payment=cancel`,
+      metadata: {
+        user_id: req.session.user.id,
+        pack_id: pack.id,
+        coins:   String(pack.coins),
+      },
+    });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('[Stripe buy-coins]', e);
+    res.status(500).json({ error: 'Erreur Stripe — réessayez.' });
+  }
+});
 
 // ── WHAT'S UP — public read ───────────────────────────────────────────────────
 app.get('/api/whatsup', async (req, res) => {
