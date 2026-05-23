@@ -1745,30 +1745,36 @@ function renderStocksGames() {
   // Historique des games déjà validés
   const list = document.getElementById('stocks-games-list');
   let segBase1 = 0, segBase2 = 0;
+  let gameCount = 0;
   stockGameHistory.forEach((g, i) => {
     const row = document.createElement('div');
-    const delta1 = g.p1 - segBase1;
-    const delta2 = g.p2 - segBase2;
-    const isReset     = !!g.isReset;
-    const wName       = delta1 > delta2 ? P1_NAME : delta2 > delta1 ? P2_NAME : null;
-    const wColor      = delta1 > delta2 ? 'var(--blue)' : 'var(--accent)';
-    const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'rgba(61,220,132,0.3)';
-    const labelColor  = isReset ? '#c39bd3' : 'var(--muted)';
-    const label       = isReset ? '🔄 RESET ' + (i+1) : 'GAME ' + (i+1);
-    // Met à jour la base pour le prochain game
-    if (isReset) { segBase1 = 0; segBase2 = 0; }
-    else { segBase1 = g.p1; segBase2 = g.p2; }
-    row.style.cssText = `display:flex;align-items:center;justify-content:space-between;
-      background:var(--surface2);border:1px solid ${borderColor};
-      border-radius:8px;padding:0.75rem 1.2rem;${isReset ? 'opacity:0.8;' : ''}`;
-    row.innerHTML = `
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.85rem;color:${labelColor};letter-spacing:2px;">${label}</span>
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">+${delta1}</span>
-        <span style="color:var(--muted);margin:0 0.4rem;font-size:1rem;">—</span>
-        <span style="color:var(--accent)">+${delta2}</span>
-      </span>
-      <span style="font-size:0.8rem;font-weight:700;color:${isReset ? labelColor : wColor || 'var(--green)'};">${isReset ? '🔄 reset' : wName ? wName + ' wins' : 'tie'}</span>`;
+    const isReset = !!g.isReset;
+    if (isReset) {
+      // Reset = séparateur visuel, pas de delta
+      segBase1 = 0; segBase2 = 0;
+      row.style.cssText = `display:flex;align-items:center;justify-content:center;
+        border:1px dashed rgba(155,89,182,0.4);border-radius:8px;
+        padding:0.45rem 1.2rem;opacity:0.7;gap:0.6rem;`;
+      row.innerHTML = `<span style="font-size:0.8rem;color:#c39bd3;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;">🔄 MEDAL RESET</span>`;
+    } else {
+      gameCount++;
+      const delta1 = g.p1 - segBase1;
+      const delta2 = g.p2 - segBase2;
+      segBase1 = g.p1; segBase2 = g.p2;
+      const wName  = delta1 > delta2 ? P1_NAME : delta2 > delta1 ? P2_NAME : 'TIE';
+      const wColor = delta1 > delta2 ? 'var(--blue)' : delta2 > delta1 ? 'var(--accent)' : 'var(--muted)';
+      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;
+        background:var(--surface2);border:1px solid rgba(61,220,132,0.3);
+        border-radius:8px;padding:0.75rem 1.2rem;`;
+      row.innerHTML = `
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:0.85rem;color:var(--muted);letter-spacing:2px;">GAME ${gameCount}</span>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:2px;">
+          <span style="color:var(--blue)">+${delta1}</span>
+          <span style="color:var(--muted);margin:0 0.4rem;font-size:1rem;">—</span>
+          <span style="color:var(--accent)">+${delta2}</span>
+        </span>
+        <span style="font-size:0.8rem;font-weight:700;color:${wColor};">${wName}</span>`;
+    }
     list.appendChild(row);
   });
 
@@ -1873,9 +1879,7 @@ function confirmStockGame() {
   if (delta1 === 0 && delta2 === 0) {
     showToast('Enter at least one medal for this game!', false); return;
   }
-  if (delta1 === delta2) {
-    showToast('Tie not allowed — there must be a winner!', false); return;
-  }
+
   resetMatchTimer(); // reset timer à chaque action
   // Enregistre le game — stocke les valeurs absolues courantes
   stockGameHistory.push({ p1: medalsP1, p2: medalsP2 });
@@ -1896,18 +1900,18 @@ function computeGameWinners() {
   let segBaseP1 = 0, segBaseP2 = 0;
   for (let i = 0; i < stockGameHistory.length; i++) {
     const g = stockGameHistory[i];
-    const d1 = g.p1 - segBaseP1;
-    const d2 = g.p2 - segBaseP2;
-    if (!g.isReset) {
-      if (d1 !== d2) winners.push(d1 > d2 ? 'p1' : 'p2');
-      // Après un game normal, le prochain game repart des valeurs actuelles
-      segBaseP1 = g.p1;
-      segBaseP2 = g.p2;
-    } else {
-      // Medal reset : on note le gagnant du segment qui se termine, puis on repart de 0
-      if (d1 !== d2) winners.push(d1 > d2 ? 'p1' : 'p2');
+    if (g.isReset) {
+      // Reset = frontière, ne compte pas comme un game
       segBaseP1 = 0;
       segBaseP2 = 0;
+    } else {
+      const d1 = g.p1 - segBaseP1;
+      const d2 = g.p2 - segBaseP2;
+      // Tie autorisé — pas de vainqueur à ajouter si égalité
+      if (d1 > d2) winners.push('p1');
+      else if (d2 > d1) winners.push('p2');
+      segBaseP1 = g.p1;
+      segBaseP2 = g.p2;
     }
   }
   return winners;
@@ -1920,21 +1924,20 @@ function computeTotalMedals() {
   for (let i = 0; i < stockGameHistory.length; i++) {
     const g = stockGameHistory[i];
     if (g.isReset) {
-      // Ajoute les médailles gagnées dans ce segment
-      totalP1 += g.p1 - segBaseP1;
-      totalP2 += g.p2 - segBaseP2;
-      // Repart de 0
+      // Reset = frontière de segment : repart de 0, NE compte PAS de médailles
       segBaseP1 = 0;
       segBaseP2 = 0;
     } else {
-      // Game normal : met à jour la base du segment
+      // Game normal : ajoute le delta depuis la base du segment
+      totalP1 += g.p1 - segBaseP1;
+      totalP2 += g.p2 - segBaseP2;
       segBaseP1 = g.p1;
       segBaseP2 = g.p2;
     }
   }
-  // Ajoute le segment en cours (currentGameMin = dernières valeurs du segment actif)
-  totalP1 += currentGameMinP1;
-  totalP2 += currentGameMinP2;
+  // Ajoute le segment en cours
+  totalP1 += currentGameMinP1 - segBaseP1;
+  totalP2 += currentGameMinP2 - segBaseP2;
   return { totalP1, totalP2 };
 }
 
@@ -2052,22 +2055,25 @@ function endMatch() {
 
   // Recap : liste chaque game avec les vrais deltas (en tenant compte des resets)
   const gamesDiv = document.getElementById('recap-games');
-  let recapSegBase1 = 0, recapSegBase2 = 0;
+  let recapSegBase1 = 0, recapSegBase2 = 0, recapGameCount = 0;
   gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
+    const isReset = !!g.isReset;
+    if (isReset) {
+      recapSegBase1 = 0; recapSegBase2 = 0;
+      return `<div style="display:flex;align-items:center;justify-content:center;
+        border:1px dashed rgba(155,89,182,0.4);border-radius:8px;padding:0.35rem 1rem;opacity:0.7;gap:0.5rem;">
+        <span style="font-size:0.78rem;color:#c39bd3;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;">🔄 MEDAL RESET</span>
+      </div>`;
+    }
+    recapGameCount++;
     const d1 = g.p1 - recapSegBase1;
     const d2 = g.p2 - recapSegBase2;
-    const isReset = !!g.isReset;
-    const label = isReset ? `RESET ${i+1}` : `GAME ${i+1}`;
-    const labelColor = isReset ? '#c39bd3' : 'var(--muted)';
-    const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'var(--border)';
+    recapSegBase1 = g.p1; recapSegBase2 = g.p2;
     const wName = d1 > d2 ? P1_NAME : d2 > d1 ? P2_NAME : 'TIE';
     const wColor = d1 > d2 ? 'var(--blue)' : d2 > d1 ? 'var(--accent)' : 'var(--muted)';
-    // Avance la base selon le type d'entrée
-    if (isReset) { recapSegBase1 = 0; recapSegBase2 = 0; }
-    else { recapSegBase1 = g.p1; recapSegBase2 = g.p2; }
     return `<div style="display:flex;align-items:center;justify-content:space-between;
-      background:var(--surface2);border:1px solid ${borderColor};border-radius:8px;padding:0.6rem 1rem;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:${labelColor};letter-spacing:2px;">${label}</span>
+      background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${recapGameCount}</span>
       <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
         <span style="color:var(--blue)">${d1}</span>
         <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
@@ -2507,21 +2513,25 @@ function showOpponentRecap(d) {
     const gamesDiv = document.getElementById('recap-games');
     // Afficher le détail des games si disponible, sinon fallback sur le total
     if (report.games_history && Array.isArray(report.games_history) && report.games_history.length > 0) {
-      let segBase1 = 0, segBase2 = 0;
+      let segBase1 = 0, segBase2 = 0, j2GameCount = 0;
       gamesDiv.innerHTML = report.games_history.map((g, i) => {
+        const isReset = !!g.isReset;
+        if (isReset) {
+          segBase1 = 0; segBase2 = 0;
+          return `<div style="display:flex;align-items:center;justify-content:center;
+            border:1px dashed rgba(155,89,182,0.4);border-radius:8px;padding:0.35rem 1rem;opacity:0.7;">
+            <span style="font-size:0.78rem;color:#c39bd3;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;">🔄 MEDAL RESET</span>
+          </div>`;
+        }
+        j2GameCount++;
         const d1 = g.p1 - segBase1;
         const d2 = g.p2 - segBase2;
-        const isReset = !!g.isReset;
-        const label = isReset ? `RESET ${i+1}` : `GAME ${i+1}`;
-        const labelColor = isReset ? '#c39bd3' : 'var(--muted)';
-        const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'var(--border)';
+        segBase1 = g.p1; segBase2 = g.p2;
         const wName = d1 > d2 ? P1_NAME : d2 > d1 ? P2_NAME : 'TIE';
         const wColor = d1 > d2 ? 'var(--blue)' : d2 > d1 ? 'var(--accent)' : 'var(--muted)';
-        if (isReset) { segBase1 = 0; segBase2 = 0; }
-        else { segBase1 = g.p1; segBase2 = g.p2; }
         return `<div style="display:flex;align-items:center;justify-content:space-between;
-          background:var(--surface2);border:1px solid ${borderColor};border-radius:8px;padding:0.6rem 1rem;">
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:${labelColor};letter-spacing:2px;">${label}</span>
+          background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${j2GameCount}</span>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
             <span style="color:var(--blue)">${d1}</span>
             <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
