@@ -139,6 +139,23 @@ async function sbPatch(table, match, data) {
   } catch (e) { console.error('[sbPatch]', e); return false; }
 }
 
+// Patch conditionnel — n'affecte la ligne QUE si toutes les conditions sont remplies.
+// Retourne true si au moins 1 ligne a été modifiée (= on a "gagné la course").
+async function sbPatchIf(table, match, data) {
+  try {
+    const params = Object.entries(match).map(([k, v]) => `${k}=eq.${v}`).join('&');
+    const headers = { ...sbHeaders(), 'Prefer': 'return=minimal,count=exact' };
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      method: 'PATCH', headers, body: JSON.stringify(data)
+    });
+    if (!r.ok) { console.error(`[sbPatchIf ERROR] ${table}: ${r.status} ${await r.text()}`); return false; }
+    // Supabase renvoie Content-Range: */N — N=0 si aucune ligne modifiée
+    const cr = r.headers.get('content-range') || '';
+    const count = parseInt(cr.split('/')[1] ?? '1', 10);
+    return count > 0;
+  } catch (e) { console.error('[sbPatchIf]', e); return false; }
+}
+
 async function sbDelete(table, match) {
   try {
     const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
@@ -1022,7 +1039,9 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   const loser_id = isDraw ? null : (winner_id === c.challenger_id ? c.challenged_id : c.challenger_id);
 
   if (c.status === 'accepted') {
-    await sbPatch('challenges', { id: challenge_id }, {
+    // Patch conditionnel : n'applique le changement QUE si le status est encore 'accepted'.
+    // Si les deux joueurs soumettent en même temps, un seul "gagne la course".
+    const won = await sbPatchIf('challenges', { id: challenge_id, status: 'accepted' }, {
       status: 'reported', reported_by: userId, reported_at: new Date().toISOString(),
       report: {
         winner_id: isDraw ? null : winner_id, score: scoreStr,
@@ -1032,8 +1051,25 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
         games_history: req.body.games_history || null
       }
     });
-    await emitMatchUpdate(challenge_id);
-    return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
+
+    if (won) {
+      // On est le premier à soumettre — l'adversaire devra confirmer
+      await emitMatchUpdate(challenge_id);
+      return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
+    }
+
+    // On a perdu la course — l'adversaire a soumis en même temps.
+    // Re-fetch pour récupérer son rapport et traiter ça comme une confirmation.
+    const fresh = await sbGet('challenges', `id=eq.${challenge_id}`);
+    if (!fresh.length) return res.status(404).json({ error: 'Not found' });
+    const cf = fresh[0];
+    if (cf.status !== 'reported' || cf.reported_by === userId) {
+      // Cas inattendu — on répond comme si on était le premier
+      return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
+    }
+    // Traiter comme une confirmation — fall through vers le bloc 'reported' ci-dessous
+    // en remplaçant c par cf
+    Object.assign(c, cf);
   }
 
   if (c.status === 'reported' && c.reported_by !== userId) {
