@@ -881,6 +881,12 @@ function saveChar(slot, charId, charName) {
 
 // Track which active matches we've already seen (to avoid redirecting on first load)
 const seenActiveMatches = new Set({{ active_match_ids|tojson }});
+// Pour J1 (challenger), le match était "pending" au chargement donc dans seenActiveMatches.
+// Quand J2 accepte, le match passe à "accepted" → J1 doit voir l'écran VS.
+// On stocke séparément les IDs des matchs "pending_only" au chargement pour les retirer de seen
+// quand ils deviennent actifs.
+const pendingOnlyIds = new Set({{ pending_challenge_ids|tojson }});
+pendingOnlyIds.forEach(id => seenActiveMatches.delete(id));
 
 // ── SOCKET.IO ────────────────────────────────────────────────
 const socket = io({ transports: ['websocket'], upgrade: false });
