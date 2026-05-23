@@ -53,6 +53,17 @@
       position: relative; overflow: hidden;
     }
     .btn-shop:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 22px rgba(160,60,255,0.45); }
+    /* RCoin balance badge in nav */
+    .nav-rcoin-badge {
+      display: flex; align-items: center; gap: 0.35rem;
+      background: linear-gradient(135deg, rgba(126,34,206,0.22) 0%, rgba(88,28,135,0.18) 100%);
+      border: 1px solid rgba(168,85,247,0.45);
+      border-radius: 20px; padding: 0.3rem 0.9rem;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+      color: #c084fc; text-decoration: none;
+      transition: all 0.2s; box-shadow: 0 0 10px rgba(168,85,247,0.12);
+    }
+    .nav-rcoin-badge:hover { border-color: #a855f7; box-shadow: 0 0 18px rgba(168,85,247,0.28); color: #e9d5ff; }
     .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
     .live-label { font-size: 0.75rem; color: var(--green); letter-spacing: 2px; text-transform: uppercase; }
@@ -369,6 +380,10 @@
     {% if is_admin %}
     <a href="/admin/reports" class="btn btn-ghost" style="color:var(--gold);border-color:var(--gold);">⚡ Admin</a>
     {% endif %}
+    <div class="nav-divider"></div>
+    <a href="/wallet" class="nav-rcoin-badge" id="nav-rcoin-badge" title="Acheter des RCoins">
+      <span style="color:#a855f7;font-size:0.8rem;">R</span><span id="nav-rcoin-val">{{ player.rcoins or 0 }}</span>
+    </a>
     <div class="nav-divider"></div>
     <a href="/logout" class="btn btn-ghost" style="font-size:0.85rem;padding:0.4rem 0.9rem;">↩ Out</a>
   </div>
@@ -910,8 +925,18 @@ socket.on('disconnect', () => {
   label.textContent    = 'Reconnecting…';
 });
 
+socket.on('rcoins_update', ({ new_balance }) => {
+  const el = document.getElementById('nav-rcoin-val');
+  if (el) el.textContent = new_balance.toLocaleString();
+});
+
 socket.on('dashboard_update', (d) => {
   if (modalOpen) return;
+  // Update nav RCoin badge if player data arrives
+  if (d.player?.rcoins !== undefined) {
+    const el = document.getElementById('nav-rcoin-val');
+    if (el) el.textContent = d.player.rcoins.toLocaleString();
+  }
   // Redirect si nouveau match actif
   if (d.active_matches) {
     for (const [cid, c] of Object.entries(d.active_matches)) {
