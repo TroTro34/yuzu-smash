@@ -66,9 +66,10 @@ io.engine.use(sessionMiddleware);
 // Body parsing
 // Limite par défaut 100 kb — augmentée à 6 Mo sur /report pour les screenshots base64
 const jsonDefault = express.json();
-const jsonLarge   = express.json({ limit: '6mb' });
+const jsonLarge   = express.json({ limit: '10mb' });
 app.use((req, res, next) => {
-  if (req.path.startsWith('/report/')) return jsonLarge(req, res, next);
+  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/whatsup'))
+    return jsonLarge(req, res, next);
   return jsonDefault(req, res, next);
 });
 app.use(express.urlencoded({ extended: false }));
