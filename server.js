@@ -551,7 +551,9 @@ app.get('/player/:player_id', async (req, res) => {
     if (!player) return res.redirect('/');
     const rank = players.findIndex(p => p.id === player_id) + 1;
     const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
-    res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches, banners_map });
+    // Get current logged-in user's rcoins for nav badge
+    const currentUserPlayer = req.session.user ? players.find(p => p.id === req.session.user.id) : null;
+    res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches, banners_map, current_user_rcoins: currentUserPlayer?.rcoins || 0 });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
@@ -1267,6 +1269,18 @@ function validateBannerImg(raw) {
   return raw;
 }
 
+// Wallet — buy RCoins
+app.get('/wallet', async (req, res) => {
+  try {
+    let player = null;
+    if (req.session.user) {
+      const rows = await sbGet('players', `id=eq.${req.session.user.id}`);
+      player = rows[0] || null;
+    }
+    res.render('wallet.html', { user: req.session.user || null, player });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
 // Shop — page publique
 app.get('/shop', async (req, res) => {
   try {
@@ -1366,8 +1380,8 @@ app.post('/shop/buy-coins', requireAuth, async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${siteUrl}/shop?payment=success&coins=${pack.coins}`,
-      cancel_url:  `${siteUrl}/shop?payment=cancel`,
+      success_url: `${siteUrl}/wallet?payment=success&coins=${pack.coins}`,
+      cancel_url:  `${siteUrl}/wallet?payment=cancel`,
       metadata: {
         user_id: req.session.user.id,
         pack_id: pack.id,
