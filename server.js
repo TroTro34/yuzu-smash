@@ -958,6 +958,29 @@ app.post("/admin/unban", requireAdmin, async (req, res) => {
 
 // ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
 
+
+// ── Sauvegarde de la progression en cours (STOCKS) ──────────────────────────
+// Appelé après chaque game confirmé pour persistre games_history
+// Permet de restaurer l'état si le joueur quitte et revient
+app.post('/api/save_progress/:challenge_id', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (![c.challenger_id, c.challenged_id].includes(userId))
+    return res.status(403).json({ error: 'Not part of this match' });
+  if (c.status !== 'accepted') return res.json({ success: true }); // ignoré si déjà soumis
+  const { games_history } = req.body;
+  if (!Array.isArray(games_history)) return res.status(400).json({ error: 'Invalid data' });
+  const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
+  await sbPatch('challenges', { id: challenge_id }, {
+    report: { ...prev, games_history }
+  });
+  return res.json({ success: true });
+});
+
 app.post('/result/:challenge_id', requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
