@@ -558,7 +558,7 @@
   function cancelLFM(postId) {
     fetch('/lfm/' + postId + '/cancel', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.success) location.reload();
+        if (d.success) showToast('Post removed.');
         else alert(d.error);
       });
   }
@@ -570,6 +570,77 @@
     });
   }
   resolveCharIcons();
+
+  // ── SOCKET.IO — mise à jour temps réel de la grille LFM ─────────────────
+  const currentUserId = {{ (user.id if user else '') | tojson }};
+
+  function renderLFM(posts, bannersMap) {
+    const grid  = document.getElementById('lfm-grid');
+    const count = document.getElementById('lfm-count');
+    if (!grid) return;
+    if (!posts || !posts.length) {
+      const signIn = !currentUserId
+        ? `<a href="/login" style="color:var(--accent2);">Sign in</a> to post a challenge.`
+        : 'Be the first to post one!';
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No open challenges right now.<br>${signIn}</div>`;
+      if (count) count.textContent = '';
+      return;
+    }
+    if (count) count.textContent = `(${posts.length})`;
+    const bm = bannersMap || {};
+    grid.innerHTML = posts.map(post => {
+      const isMe = post.player_id === currentUserId;
+      const avatarEl = post.player_avatar
+        ? `<img class="lfm-avatar" src="https://cdn.discordapp.com/avatars/${escHtml(post.player_id)}/${escHtml(post.player_avatar)}.png" alt="">`
+        : `<div class="lfm-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
+      const charIconEl = post.main_char
+        ? `<img class="char-inline" data-char="${escHtml(post.main_char)}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;">`
+        : '';
+      const msgEl = post.message ? `<div class="lfm-msg">"${escHtml(post.message)}"</div>` : '';
+      let bannerHtml = '';
+      const bannerKey = post.banner_lb || post.banner_dash;
+      if (bannerKey && bm[bannerKey]) {
+        const img = bm[bannerKey].img_lb || bm[bannerKey].img_dash;
+        if (img) bannerHtml = `<div class="lfm-card-banner"><img src="${escHtml(img)}" alt=""></div><div class="lfm-skin-badge">✦ SKIN</div>`;
+      }
+      let actionEl;
+      if (isMe) {
+        actionEl = `<button class="btn btn-danger" style="flex:1;" onclick="cancelLFM('${escHtml(post.id)}')">✖ Remove my post</button>`;
+      } else if (currentUserId) {
+        actionEl = `<button class="btn btn-primary" style="flex:1;" onclick="acceptLFM('${escHtml(post.id)}', '${escHtml(post.player_name).replace(/'/g,"\\'")}')">⚔ Accept Challenge</button>`;
+      } else {
+        actionEl = `<a href="/login" class="btn btn-ghost" style="flex:1;text-align:center;">Sign in to accept</a>`;
+      }
+      return `<div class="lfm-card">
+        ${bannerHtml}
+        <div class="lfm-player">${avatarEl}<div>
+          <div class="lfm-name">${charIconEl}${escHtml(post.player_name)}</div>
+          <div class="lfm-pts">${escHtml(String(post.player_points))} ELO${post.main_char ? ' · ' + escHtml(post.main_char) : ''}</div>
+        </div></div>
+        <div class="lfm-details">
+          <span class="lfm-tag format">${escHtml(post.format)}</span>
+          <span class="lfm-tag mode-${escHtml(post.mode || 'sets')}">${post.mode === 'stocks' ? 'STOCKS' : 'SETS'}</span>
+        </div>
+        ${msgEl}
+        <div class="lfm-timer">⏱ Expires in ~30 min</div>
+        <div class="lfm-actions">${actionEl}</div>
+      </div>`;
+    }).join('');
+    resolveCharIcons();
+  }
+
+  // Connecte le socket et écoute leaderboard_update pour rafraîchir la grille LFM.
+  // notifications.js (chargé après) peut partager ce socket via window.socket.
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof io === 'undefined') return; // socket.io pas chargé
+    const sock = io({ transports: ['websocket'], upgrade: false });
+    window.socket = sock; // partagé avec notifications.js
+    sock.on('leaderboard_update', (d) => {
+      if (d && d.lfm_posts !== undefined) {
+        renderLFM(d.lfm_posts, d.banners_map || {});
+      }
+    });
+  });
 </script>
 
 <!-- ── MATCH FOUND OVERLAY ── -->
