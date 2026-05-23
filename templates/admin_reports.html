@@ -259,6 +259,55 @@
     .toast.show { opacity: 1; transform: translateY(0); }
     .toast.success { border-color: var(--green); }
     .toast.error { border-color: var(--red); }
+    /* ── WHAT'S UP ADMIN ── */
+    .wu-admin-grid { display: flex; flex-direction: column; gap: 1rem; }
+    .wu-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.2rem 1.4rem;
+      display: flex; align-items: flex-start; gap: 1rem;
+    }
+    .wu-card-drag {
+      cursor: grab; color: var(--muted); font-size: 1.3rem; padding-top: 2px;
+      flex-shrink: 0;
+    }
+    .wu-card-preview {
+      flex-shrink: 0; width: 80px; height: 56px; border-radius: 6px;
+      overflow: hidden; border: 1px solid var(--border);
+      background: var(--surface3); display: flex; align-items: center; justify-content: center;
+    }
+    .wu-card-preview img { width:100%; height:100%; object-fit:cover; }
+    .wu-card-body { flex:1; min-width:0; }
+    .wu-card-text {
+      font-size: 0.9rem; color: var(--text); line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; margin-bottom: 0.4rem;
+    }
+    .wu-card-meta { font-size: 0.72rem; color: var(--muted); letter-spacing: 1px; }
+    .wu-card-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+    .wu-add-form {
+      background: var(--surface2); border: 1px solid rgba(255,128,0,0.3);
+      border-radius: 10px; padding: 1.4rem;
+    }
+    .wu-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    @media(max-width:600px){ .wu-form-grid { grid-template-columns: 1fr; } }
+    .wu-form-label { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 0.35rem; display: block; }
+    .wu-form-input {
+      width: 100%; background: var(--surface3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 0.55rem 0.8rem; color: var(--text);
+      font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; outline: none;
+      transition: border-color 0.15s;
+    }
+    .wu-form-input:focus { border-color: var(--accent2); }
+    .wu-img-drop {
+      border: 2px dashed var(--border); border-radius: 8px;
+      padding: 1.2rem; text-align: center; cursor: pointer;
+      transition: all 0.2s; color: var(--muted); font-size: 0.85rem;
+    }
+    .wu-img-drop:hover, .wu-img-drop.drag-over { border-color: var(--accent2); color: var(--accent2); }
+    .wu-img-preview { max-height: 120px; border-radius: 6px; margin-top: 0.6rem; display: none; }
+    .wu-color-row { display: flex; gap: 0.5rem; align-items: center; }
+    .wu-color-input { width: 44px; height: 36px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; background: none; padding: 2px; }
+
   </style>
 </head>
 <body>
@@ -278,6 +327,7 @@
     <button class="section-tab active" onclick="switchSection('reports', this)">🚩 REPORTS</button>
     <button class="section-tab" onclick="switchSection('bans', this)">🔨 BAN PLAYERS</button>
     <a href="/admin/shop" class="section-tab" style="text-decoration:none;">🖼 BANNER SHOP</a>
+    <button class="section-tab" onclick="switchSection('whatsup', this)">📣 WHAT'S UP</button>
   </div>
 
   <!-- ── REPORTS SECTION ──────────────────────────────────────────────── -->
@@ -554,6 +604,59 @@
   </div>
 </div>
 
+  <!-- ── WHAT'S UP SECTION ──────────────────────────────────────────────── -->
+  <div class="section-panel" id="panel-whatsup">
+    <div class="page-title">📣 WHAT'S UP</div>
+    <div class="page-sub">Manage the announcement slideshow on the home page</div>
+
+    <div class="wu-add-form" style="margin-bottom:1.5rem;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--accent2);margin-bottom:1rem;">➕ NEW SLIDE</div>
+      <div style="margin-bottom:1rem;">
+        <label class="wu-form-label">TEXT (optional)</label>
+        <textarea id="wu-text" class="wu-form-input" rows="3" placeholder="Write an announcement…" style="resize:vertical;"></textarea>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label class="wu-form-label">IMAGE (optional — PNG/JPG/GIF, max 4MB)</label>
+        <label class="wu-img-drop" id="wu-img-drop">
+          📎 Click or drag & drop an image
+          <input type="file" id="wu-img-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" onchange="handleWuImage(this)">
+        </label>
+        <img id="wu-img-preview" class="wu-img-preview" src="" alt="">
+        <button onclick="clearWuImage()" id="wu-img-clear" style="display:none;margin-top:0.4rem;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.75rem;">✕ Remove image</button>
+      </div>
+      <div class="wu-form-grid">
+        <div>
+          <label class="wu-form-label">BACKGROUND COLOR</label>
+          <div class="wu-color-row">
+            <input type="color" id="wu-bg-color" class="wu-color-input" value="#16162a" oninput="document.getElementById('wu-bg-color-text').value=this.value">
+            <input type="text" id="wu-bg-color-text" class="wu-form-input" placeholder="leave empty = default" style="flex:1;">
+            <button onclick="document.getElementById('wu-bg-color-text').value=''" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:0.3rem 0.5rem;cursor:pointer;font-size:0.72rem;">✕</button>
+          </div>
+        </div>
+        <div>
+          <label class="wu-form-label">TEXT COLOR</label>
+          <div class="wu-color-row">
+            <input type="color" id="wu-text-color" class="wu-color-input" value="#eeeef5" oninput="document.getElementById('wu-text-color-text').value=this.value">
+            <input type="text" id="wu-text-color-text" class="wu-form-input" placeholder="leave empty = default" style="flex:1;">
+            <button onclick="document.getElementById('wu-text-color-text').value=''" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:0.3rem 0.5rem;cursor:pointer;font-size:0.72rem;">✕</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem;margin-top:1rem;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <label class="wu-form-label" style="margin:0;white-space:nowrap;">⏱ Duration (sec)</label>
+          <input type="number" id="wu-duration" class="wu-form-input" value="5" min="2" max="30" style="width:70px;">
+        </div>
+        <button onclick="submitWuPost()" class="btn btn-primary" style="margin-left:auto;">➕ ADD SLIDE</button>
+      </div>
+    </div>
+
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:0.85rem;letter-spacing:2px;color:var(--muted);margin-bottom:0.75rem;">CURRENT SLIDES — drag to reorder</div>
+    <div class="wu-admin-grid" id="wu-admin-list">
+      <div style="color:var(--muted);font-size:0.85rem;padding:1rem 0;">Loading…</div>
+    </div>
+  </div>
+
 <script>
 let pendingDrawReportId = null;
 let pendingBanPlayerId  = null;
@@ -561,6 +664,7 @@ let pendingBanReason    = '';
 
 // ── Section switch ──────────────────────────────────────────────────────────
 function switchSection(name, btn) {
+  if (name === 'whatsup') loadWuAdmin();
   document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
@@ -716,6 +820,167 @@ function openScreenshot(reportId) {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('screenshot-lightbox').style.display = 'none';
 });
+
+
+// ── WHAT'S UP ADMIN ───────────────────────────────────────────────────────────
+let wuImageB64 = null;
+let wuDragSrcId = null;
+
+async function loadWuAdmin() {
+  try {
+    const r = await fetch('/api/whatsup');
+    const d = await r.json();
+    renderWuAdminList(d.posts || []);
+  } catch(e) { document.getElementById('wu-admin-list').innerHTML = '<div style="color:var(--red)">Error loading posts.</div>'; }
+}
+
+function renderWuAdminList(posts) {
+  const list = document.getElementById('wu-admin-list');
+  if (!posts.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:1rem 0;text-align:center;">No slides yet — add one above.</div>';
+    return;
+  }
+  list.innerHTML = posts.map(p => `
+    <div class="wu-card" draggable="true" data-id="${p.id}"
+      ondragstart="wuDragStart(event,'${p.id}')"
+      ondragover="wuDragOver(event)"
+      ondrop="wuDrop(event,'${p.id}')"
+      ondragend="wuDragEnd(event)">
+      <div class="wu-card-drag">⠿</div>
+      <div class="wu-card-preview" style="${p.bg_color?'background:'+p.bg_color:''}">
+        ${p.image ? `<img src="${p.image}" alt="">` : `<span style="font-size:1.5rem;color:var(--muted)">📝</span>`}
+      </div>
+      <div class="wu-card-body">
+        <div class="wu-card-text">${p.text ? escAdmin(p.text) : '<em style="color:var(--muted)">Image only</em>'}</div>
+        <div class="wu-card-meta">⏱ ${p.duration || 5}s${p.bg_color ? ' · 🎨 custom bg' : ''}</div>
+      </div>
+      <div class="wu-card-actions">
+        <button onclick="deleteWuPost('${p.id}')" class="btn btn-danger" style="padding:0.3rem 0.7rem;font-size:0.8rem;">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function escAdmin(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function submitWuPost() {
+  const text     = document.getElementById('wu-text').value.trim();
+  const bgColor  = document.getElementById('wu-bg-color-text').value.trim();
+  const txColor  = document.getElementById('wu-text-color-text').value.trim();
+  const duration = parseInt(document.getElementById('wu-duration').value) || 5;
+
+  if (!text && !wuImageB64) { showToast('Add text or an image.', false); return; }
+
+  const res = await fetch('/admin/whatsup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: text || null,
+      image: wuImageB64 || null,
+      bg_color: bgColor || null,
+      text_color: txColor || null,
+      duration
+    })
+  });
+  const d = await res.json();
+  if (d.success) {
+    showToast('✅ Slide added!', true);
+    document.getElementById('wu-text').value = '';
+    document.getElementById('wu-bg-color-text').value = '';
+    document.getElementById('wu-text-color-text').value = '';
+    document.getElementById('wu-duration').value = '5';
+    clearWuImage();
+    loadWuAdmin();
+  } else {
+    showToast(d.error || 'Error', false);
+  }
+}
+
+async function deleteWuPost(id) {
+  if (!confirm('Delete this slide?')) return;
+  const r = await fetch(`/admin/whatsup/${id}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.success) { showToast('🗑 Slide deleted.', true); loadWuAdmin(); }
+  else showToast(d.error || 'Error', false);
+}
+
+// Image handling
+function handleWuImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) { showToast('Image too large (max 4MB)', false); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    wuImageB64 = e.target.result;
+    const prev = document.getElementById('wu-img-preview');
+    const clear = document.getElementById('wu-img-clear');
+    const drop  = document.getElementById('wu-img-drop');
+    prev.src = wuImageB64; prev.style.display = 'block';
+    clear.style.display = 'inline-block';
+    drop.style.borderColor = 'var(--green)';
+  };
+  reader.readAsDataURL(file);
+}
+function clearWuImage() {
+  wuImageB64 = null;
+  document.getElementById('wu-img-input').value = '';
+  document.getElementById('wu-img-preview').style.display = 'none';
+  document.getElementById('wu-img-clear').style.display = 'none';
+  document.getElementById('wu-img-drop').style.borderColor = '';
+}
+
+// Drag-to-reorder
+function wuDragStart(e, id) {
+  wuDragSrcId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.style.opacity = '0.4';
+}
+function wuDragOver(e) {
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.style.borderColor = 'var(--accent2)';
+}
+function wuDragEnd(e) {
+  e.currentTarget.style.opacity = '';
+  document.querySelectorAll('.wu-card').forEach(c => c.style.borderColor = '');
+}
+async function wuDrop(e, targetId) {
+  e.preventDefault();
+  if (wuDragSrcId === targetId) return;
+  const cards = [...document.querySelectorAll('.wu-card')];
+  const ids = cards.map(c => c.dataset.id);
+  const srcIdx = ids.indexOf(wuDragSrcId);
+  const tgtIdx = ids.indexOf(targetId);
+  // Reorder array
+  const [moved] = ids.splice(srcIdx, 1);
+  ids.splice(tgtIdx, 0, moved);
+  const order = ids.map((id, i) => ({ id, position: i }));
+  const r = await fetch('/admin/whatsup/reorder', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order })
+  });
+  const d = await r.json();
+  if (d.success) loadWuAdmin();
+  else showToast(d.error || 'Reorder error', false);
+}
+
+// Drag & drop on the image drop zone
+document.addEventListener('DOMContentLoaded', () => {
+  const drop = document.getElementById('wu-img-drop');
+  if (!drop) return;
+  drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) { const inp = document.getElementById('wu-img-input'); inp.files = e.dataTransfer.files; handleWuImage(inp); }
+  });
+  drop.addEventListener('click', () => document.getElementById('wu-img-input').click());
+});
+
+// Load when switching to the whatsup section
+const _origSwitchSection = typeof switchSection === 'function' ? switchSection : null;
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
