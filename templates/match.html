@@ -2043,7 +2043,7 @@ function endMatch() {
 
   pendingResult = {
     winner_id: winnerId,
-    score: `${winnerMeds}-${loserMeds}`,
+    score: `${totalP1}-${totalP2}`,
     winner_stocks_taken: winnerMeds,
     loser_stocks_taken: loserMeds,
     is_stocks_mode: true,
@@ -2500,22 +2500,10 @@ function showOpponentRecap(d) {
       loser_stocks_taken: report.loser_stocks_taken,
       is_stocks_mode: true
     };
-    let t1, t2;
-    if (report.winner_stocks_total !== undefined || report.loser_stocks_total !== undefined) {
-      const wTotal = report.winner_stocks_total || 0;
-      const lTotal = report.loser_stocks_total  || 0;
-      t1 = report.winner_id === P1_ID ? wTotal : (report.winner_id === P2_ID ? lTotal : wTotal);
-      t2 = report.winner_id === P2_ID ? wTotal : (report.winner_id === P1_ID ? lTotal : lTotal);
-      if (!report.winner_id) {
-        const parts = (report.score || '0-0').split('-');
-        t1 = parseInt(parts[0]) || 0;
-        t2 = parseInt(parts[1]) || 0;
-      }
-    } else {
-      const parts = (report.score || '0-0').split('-');
-      t1 = parseInt(parts[0]) || 0;
-      t2 = parseInt(parts[1]) || 0;
-    }
+    // score est toujours stocké au format totalP1-totalP2
+    const _scoreParts = (report.score || '0-0').split('-');
+    const t1 = parseInt(_scoreParts[0]) || 0;
+    const t2 = parseInt(_scoreParts[1]) || 0;
     const gamesDiv = document.getElementById('recap-games');
     // Afficher le détail des games si disponible, sinon fallback sur le total
     if (report.games_history && Array.isArray(report.games_history) && report.games_history.length > 0) {
