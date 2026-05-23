@@ -466,7 +466,7 @@ app.get('/callback', async (req, res) => {
     if (!existing.length) {
       await sbPost('players', { id: uid, username: displayName, avatar,
         points: 1000, wins: 0, losses: 0, matches_played: 0,
-        main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0 });
+        main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0, rcoins: 0, owned_banners: [] });
     } else {
       // Check ban before updating profile
       if (existing[0].is_banned) {
@@ -1217,6 +1217,7 @@ async function resolveDeadMatches() {
 // ── BANNER SHOP ───────────────────────────────────────────────────────────────
 
 const VALID_RARITIES = new Set(['common', 'rare', 'epic', 'legendary']);
+const RARITY_PRICES = { common: 100, rare: 500, epic: 1500, legendary: 3000 };
 const MAX_BANNER_IMG_BYTES = 2 * 1024 * 1024; // 2 MB
 
 function validateBannerImg(raw) {
@@ -1261,6 +1262,44 @@ app.post('/shop/unequip', requireAuth, async (req, res) => {
   const field = slot === 'dash' ? 'banner_dash' : 'banner_lb';
   await sbPatch('players', { id: req.session.user.id }, { [field]: null });
   res.json({ success: true });
+});
+
+// Shop — acheter une bannière avec des RCoins
+app.post('/shop/buy', requireAuth, async (req, res) => {
+  const { banner_id } = req.body;
+  if (!banner_id || !validateId(String(banner_id)))
+    return res.status(400).json({ error: 'Invalid banner ID' });
+
+  const [banners, playerRows] = await Promise.all([
+    sbGet('banners', `id=eq.${banner_id}`),
+    sbGet('players', `id=eq.${req.session.user.id}`),
+  ]);
+  if (!banners.length)   return res.status(404).json({ error: 'Banner not found' });
+  if (!playerRows.length) return res.status(404).json({ error: 'Player not found' });
+
+  const banner = banners[0];
+  const player = playerRows[0];
+  const price  = RARITY_PRICES[banner.rarity];
+  if (!price) return res.status(400).json({ error: 'Unknown rarity' });
+
+  // Vérifier si déjà possédé
+  const owned = Array.isArray(player.owned_banners) ? player.owned_banners : [];
+  if (owned.includes(banner_id))
+    return res.status(400).json({ error: 'You already own this banner' });
+
+  // Vérifier solde
+  const rcoins = player.rcoins || 0;
+  if (rcoins < price)
+    return res.status(400).json({ error: `Not enough RCoins (need ${price}, have ${rcoins})` });
+
+  const newBalance = rcoins - price;
+  const newOwned   = [...owned, banner_id];
+
+  await sbPatch('players', { id: req.session.user.id }, {
+    rcoins: newBalance,
+    owned_banners: newOwned,
+  });
+  res.json({ success: true, new_balance: newBalance });
 });
 
 // Admin — page gestion des bannières
