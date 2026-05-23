@@ -37,6 +37,16 @@
       letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
     .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
     .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .nav-rcoin-badge {
+      display: flex; align-items: center; gap: 0.35rem;
+      background: linear-gradient(135deg, rgba(126,34,206,0.22) 0%, rgba(88,28,135,0.18) 100%);
+      border: 1px solid rgba(168,85,247,0.45);
+      border-radius: 20px; padding: 0.3rem 0.9rem;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+      color: #c084fc; text-decoration: none;
+      transition: all 0.2s; box-shadow: 0 0 10px rgba(168,85,247,0.12);
+    }
+    .nav-rcoin-badge:hover { border-color: #a855f7; box-shadow: 0 0 18px rgba(168,85,247,0.28); color: #e9d5ff; }
 
     /* ── RCOIN BALANCE WIDGET ── */
     .rcoin-bar {
@@ -340,6 +350,11 @@
   <div class="nav-links">
     {% if user %}
       <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
+      {% if player %}
+      <a href="/wallet" class="nav-rcoin-badge" title="Wallet — Acheter des RCoins">
+        <span style="color:#a855f7;font-size:0.8rem;">R</span><span id="nav-rcoin-val">{{ player.rcoins or 0 }}</span>
+      </a>
+      {% endif %}
       <a href="/logout" class="btn btn-ghost">Logout</a>
     {% else %}
       <a href="/login" class="btn btn-ghost">Login with Discord</a>
@@ -355,10 +370,10 @@
 
   <!-- RCOIN BALANCE -->
   {% if user and player %}
-  <div class="rcoin-bar">
+  <div class="rcoin-bar" style="cursor:pointer;" onclick="window.location.href='/wallet'" title="Cliquer pour recharger">
     <img class="rcoin-icon" src="/static/rcoin.svg" alt="RCoin">
     <div class="rcoin-info">
-      <span class="rcoin-label">RCOINS</span>
+      <span class="rcoin-label">RCOINS · <a href="/wallet" style="color:var(--rcoin);font-size:0.75rem;letter-spacing:1px;text-decoration:none;">+ Recharger</a></span>
       <span class="rcoin-amount" id="rcoin-balance"><span>R</span>{{ player.rcoins or 0 }}</span>
     </div>
   </div>
@@ -602,6 +617,8 @@
     currentRCoins = newAmount;
     const el = document.getElementById('rcoin-balance');
     if (el) el.innerHTML = '<span>R</span>' + newAmount.toLocaleString();
+    const navEl = document.getElementById('nav-rcoin-val');
+    if (navEl) navEl.textContent = newAmount.toLocaleString();
     // Re-check affordability on all buy buttons
     document.querySelectorAll('.btn-buy[data-price]').forEach(btn => {
       const price = parseInt(btn.dataset.price);
