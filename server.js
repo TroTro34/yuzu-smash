@@ -994,14 +994,15 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
     scoreStr = sanitizeStr(rawScore || '', 20);
   }
 
-  if (![c.challenger_id, c.challenged_id].includes(winner_id)) return res.status(400).json({ error: 'Invalid winner' });
-  const loser_id = winner_id === c.challenger_id ? c.challenged_id : c.challenger_id;
+  if (![c.challenger_id, c.challenged_id].includes(winner_id) && winner_id !== null && winner_id !== undefined && winner_id !== '') return res.status(400).json({ error: 'Invalid winner' });
+  const isDraw  = !winner_id;
+  const loser_id = isDraw ? null : (winner_id === c.challenger_id ? c.challenged_id : c.challenger_id);
 
   if (c.status === 'accepted') {
     await sbPatch('challenges', { id: challenge_id }, {
       status: 'reported', reported_by: userId, reported_at: new Date().toISOString(),
       report: {
-        winner_id, score: scoreStr,
+        winner_id: isDraw ? null : winner_id, score: scoreStr,
         winner_stocks_taken: wSt, loser_stocks_taken: lSt,
         winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
         is_stocks_mode: isStocks
@@ -1013,7 +1014,24 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
 
   if (c.status === 'reported' && c.reported_by !== userId) {
     const report = typeof c.report === 'object' ? c.report : {};
-    if (String(winner_id) === String(report.winner_id)) {
+    const reportedWinnerId = report.winner_id || null;
+    const submittedWinnerId = isDraw ? null : winner_id;
+    if (String(submittedWinnerId) === String(reportedWinnerId)) {
+      if (isDraw) {
+        // Draw confirmé par les deux joueurs — clôture sans ELO
+        await Promise.all([
+          sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
+          sbPost('matches', { challenge_id, winner_id: null, winner_name: 'DRAW',
+            winner_main: '', loser_id: null, loser_name: 'DRAW',
+            loser_main: '', score: scoreStr || '0-0',
+            format: c.format, elo_change: 0, date: new Date().toISOString() }),
+        ]);
+        await new Promise(r => setTimeout(r, 300));
+        await emitMatchUpdate(challenge_id, { status: 'completed', winner_id: null, score: scoreStr || '0-0', elo_change: 0 });
+        await emitLeaderboardUpdate();
+        chatHistory.delete(challenge_id);
+        return res.json({ success: true, message: 'Match ended in a draw. No ELO change.', elo_change: 0, winner_id: null });
+      }
       const [winnerArr, loserArr] = await Promise.all([
         sbGet('players', `id=eq.${winner_id}`),
         sbGet('players', `id=eq.${loser_id}`),
@@ -1037,16 +1055,12 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
-        // Petit délai pour laisser Supabase propager le PATCH avant les re-queries
         await new Promise(r => setTimeout(r, 300));
         await emitMatchUpdate(challenge_id, {
-          status: 'completed',
-          winner_id,
-          score: report.score || scoreStr,
-          elo_change: eloGain,
+          status: 'completed', winner_id, score: report.score || scoreStr, elo_change: eloGain,
         });
         await emitLeaderboardUpdate();
-        chatHistory.delete(challenge_id); // clear chat history on match end
+        chatHistory.delete(challenge_id);
         return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
       }
     } else {
