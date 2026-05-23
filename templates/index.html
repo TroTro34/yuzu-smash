@@ -640,6 +640,16 @@
         renderLFM(d.lfm_posts, d.banners_map || {});
       }
     });
+
+    // J1 (auteur de l'annonce) : reçoit match_redirect quand quelqu'un accepte
+    sock.on('match_redirect', (d) => {
+      if (!d || !d.challenge_id) return;
+      showMatchFound(d.p1 || '???', d.p2 || '???');
+      setTimeout(() => { window.location.href = '/match/' + d.challenge_id; }, 2800);
+    });
+
+    // Rejoindre la room user pour recevoir match_redirect
+    sock.on('connect', () => { sock.emit('join_user', {}); });
   });
 </script>
 
