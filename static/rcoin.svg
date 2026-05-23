@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="coinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#c084fc"/>
+      <stop offset="45%"  stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </linearGradient>
+    <linearGradient id="shineGrad" x1="0%" y1="0%" x2="60%" y2="100%">
+      <stop offset="0%"   stop-color="#e9d5ff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#9333ea"  stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer rim -->
+  <circle cx="32" cy="32" r="30" fill="url(#rimGrad)" opacity="0.9"/>
+
+  <!-- Main coin body -->
+  <circle cx="32" cy="32" r="27" fill="url(#coinGrad)"/>
+
+  <!-- Inner bevel ring -->
+  <circle cx="32" cy="32" r="27" fill="none" stroke="#d8b4fe" stroke-width="1" opacity="0.4"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#4c1d95" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- Shine overlay -->
+  <circle cx="32" cy="32" r="27" fill="url(#shineGrad)"/>
+
+  <!-- Highlight arc top-left -->
+  <ellipse cx="24" cy="22" rx="8" ry="4.5" fill="white" opacity="0.18" transform="rotate(-30 24 22)"/>
+
+  <!-- R letter — bold, centered -->
+  <g filter="url(#glow)">
+    <text x="32" y="43"
+      font-family="'Bebas Neue', 'Arial Black', sans-serif"
+      font-size="30"
+      font-weight="900"
+      text-anchor="middle"
+      fill="#ffffff"
+      opacity="0.97"
+      letter-spacing="-1">R</text>
+  </g>
+
+  <!-- Bottom subtle shadow on text -->
+  <text x="32" y="44"
+    font-family="'Bebas Neue', 'Arial Black', sans-serif"
+    font-size="30"
+    font-weight="900"
+    text-anchor="middle"
+    fill="#4c1d95"
+    opacity="0.35"
+    letter-spacing="-1">R</text>
+  <text x="32" y="43"
+    font-family="'Bebas Neue', 'Arial Black', sans-serif"
+    font-size="30"
+    font-weight="900"
+    text-anchor="middle"
+    fill="#ffffff"
+    opacity="0.97"
+    letter-spacing="-1">R</text>
+</svg>
