@@ -10,6 +10,7 @@
     "express-session": "^1.18.0",
     "socket.io": "^4.7.5",
     "nunjucks": "^3.2.4",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "stripe": ">=14.0.0"
   }
 }
