@@ -6,6 +6,7 @@
   <link rel="icon" type="image/png" href="/static/favicon.png">
   <title>Banner Shop — Smash YUZU</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
       --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
@@ -233,7 +234,103 @@
       .banner-info { padding: 0.7rem 0.8rem; }
     }
     @media (max-width: 400px) { .banners-grid { grid-template-columns: 1fr; } }
-  </style>
+
+    /* ── COIN SHOP ── */
+    .coin-shop-section {
+      margin-bottom: 3.5rem;
+      background: linear-gradient(135deg, rgba(126,34,206,0.1) 0%, rgba(88,28,135,0.07) 100%);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 0 40px rgba(168,85,247,0.07), inset 0 1px 0 rgba(192,132,252,0.08);
+    }
+    .coin-shop-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 5px;
+      color: var(--rcoin); margin-bottom: 0.3rem;
+    }
+    .coin-shop-sub {
+      color: var(--muted); font-size: 0.9rem; letter-spacing: 1px; margin-bottom: 1.8rem;
+    }
+    .coin-packs { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+    .coin-pack {
+      flex: 1; min-width: 220px;
+      background: rgba(15,15,26,0.8);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 12px;
+      padding: 1.5rem 1.3rem;
+      display: flex; flex-direction: column; align-items: center; gap: 0.7rem;
+      transition: all 0.25s; position: relative; overflow: hidden;
+      cursor: pointer;
+    }
+    .coin-pack:hover {
+      border-color: var(--rcoin);
+      transform: translateY(-3px);
+      box-shadow: 0 0 28px rgba(168,85,247,0.2);
+    }
+    .coin-pack.best-value {
+      border-color: rgba(255,215,0,0.5);
+      background: linear-gradient(135deg, rgba(126,34,206,0.15) 0%, rgba(88,28,135,0.1) 100%);
+    }
+    .coin-pack.best-value:hover {
+      border-color: #ffd700;
+      box-shadow: 0 0 28px rgba(255,215,0,0.15);
+    }
+    .pack-badge {
+      position: absolute; top: 10px; right: 10px;
+      background: linear-gradient(135deg, #ffd700, #ff8000);
+      color: #0a0a0f; font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.65rem; letter-spacing: 2px; padding: 2px 8px; border-radius: 3px;
+    }
+    .pack-emoji { font-size: 2.2rem; }
+    .pack-coins {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 3px;
+      color: #fff; line-height: 1;
+      text-shadow: 0 0 20px rgba(192,132,252,0.4);
+    }
+    .pack-coins span { color: var(--rcoin); font-size: 1.3rem; margin-right: 2px; }
+    .pack-label { color: var(--muted); font-size: 0.82rem; letter-spacing: 2px; font-family: 'Bebas Neue', sans-serif; }
+    .pack-price {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 2px;
+      color: var(--text); margin-top: 0.3rem;
+    }
+    .btn-buy-coins {
+      width: 100%; padding: 0.65rem 1rem; border-radius: 7px; border: none; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700; letter-spacing: 1px;
+      background: linear-gradient(135deg, #7e22ce 0%, #6d28d9 100%);
+      color: white; transition: all 0.2s;
+      box-shadow: 0 2px 12px rgba(126,34,206,0.3);
+    }
+    .btn-buy-coins:hover:not(:disabled) {
+      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+      box-shadow: 0 4px 20px rgba(168,85,247,0.4);
+    }
+    .btn-buy-coins:disabled { opacity: 0.5; cursor: not-allowed; }
+    .coin-pack.best-value .btn-buy-coins {
+      background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+      box-shadow: 0 2px 12px rgba(217,119,6,0.3);
+    }
+    .coin-pack.best-value .btn-buy-coins:hover:not(:disabled) {
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+      box-shadow: 0 4px 20px rgba(245,158,11,0.4);
+    }
+    .stripe-note {
+      display: flex; align-items: center; gap: 0.5rem;
+      color: rgba(96,96,160,0.7); font-size: 0.78rem; margin-top: 1.2rem;
+      letter-spacing: 0.5px;
+    }
+    .stripe-note svg { flex-shrink: 0; }
+    .payment-banner {
+      padding: 0.8rem 1.2rem; border-radius: 8px; margin-bottom: 1.5rem;
+      font-weight: 700; font-size: 0.95rem; display: none;
+    }
+    .payment-banner.success {
+      display: flex; align-items: center; gap: 0.7rem;
+      background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.3); color: var(--green);
+    }
+    .payment-banner.cancel {
+      display: flex; align-items: center; gap: 0.7rem;
+      background: rgba(255,85,85,0.08); border: 1px solid rgba(255,85,85,0.25); color: var(--red);
+    }
 </head>
 <body>
 
@@ -270,6 +367,48 @@
   <div class="login-notice">
     <span>🔒</span>
     <span>You must be <a href="/login">logged in</a> to buy and equip banners.</span>
+  </div>
+  {% endif %}
+
+  <!-- PAYMENT STATUS BANNER -->
+  <div class="payment-banner success" id="payment-success">
+    ✅ Paiement confirmé ! Vos RCoins ont été crédités.
+  </div>
+  <div class="payment-banner cancel" id="payment-cancel">
+    ❌ Paiement annulé. Aucun montant débité.
+  </div>
+
+  {% if user %}
+  <!-- COIN SHOP -->
+  <div class="coin-shop-section">
+    <div class="coin-shop-title">💜 ACHETER DES RCOINS</div>
+    <div class="coin-shop-sub">Paiement sécurisé par Stripe — aucune donnée bancaire stockée sur le site</div>
+    <div class="coin-packs">
+
+      <!-- Pack 500 RCoins — 2€ -->
+      <div class="coin-pack" onclick="buyCoins('pack_500')">
+        <span class="pack-emoji">💜</span>
+        <div class="pack-coins"><span>R</span>500</div>
+        <div class="pack-label">RCOINS</div>
+        <div class="pack-price">2,00 €</div>
+        <button class="btn-buy-coins" id="btn-pack_500">Acheter →</button>
+      </div>
+
+      <!-- Pack 2000 RCoins — 5€ -->
+      <div class="coin-pack best-value" onclick="buyCoins('pack_2000')">
+        <div class="pack-badge">⭐ MEILLEURE OFFRE</div>
+        <span class="pack-emoji">⭐</span>
+        <div class="pack-coins"><span>R</span>2000</div>
+        <div class="pack-label">RCOINS</div>
+        <div class="pack-price">5,00 €</div>
+        <button class="btn-buy-coins" id="btn-pack_2000">Acheter →</button>
+      </div>
+
+    </div>
+    <div class="stripe-note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Paiement 100% sécurisé via Stripe · Vos RCoins sont crédités instantanément après confirmation
+    </div>
   </div>
   {% endif %}
 
@@ -389,6 +528,66 @@
 <script>
   const USER_LOGGED = {% if user %}true{% else %}false{% endif %};
   let currentRCoins = {% if player %}{{ player.rcoins or 0 }}{% else %}0{% endif %};
+
+  // ── Payment status banner ──────────────────────────────────────────────────
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      document.getElementById('payment-success').style.display = 'flex';
+      const coins = params.get('coins');
+      if (coins) {
+        document.getElementById('payment-success').textContent =
+          `✅ Paiement confirmé ! +${parseInt(coins).toLocaleString()} RCoins crédités sur votre compte.`;
+      }
+      // Recharger le solde depuis le serveur (le webhook a peut-être crédité entre-temps)
+      setTimeout(() => fetch('/api/dashboard').then(r => r.json()).then(d => {
+        if (d.player?.rcoins !== undefined) updateBalanceDisplay(d.player.rcoins);
+      }).catch(() => {}), 1500);
+    }
+    if (params.get('payment') === 'cancel') {
+      document.getElementById('payment-cancel').style.display = 'flex';
+    }
+    // Nettoyer l'URL
+    if (params.get('payment')) {
+      window.history.replaceState({}, '', '/shop');
+    }
+  })();
+
+  // ── Acheter des RCoins ────────────────────────────────────────────────────
+  async function buyCoins(packId) {
+    if (!USER_LOGGED) { showToast('Connecte-toi pour acheter des RCoins !', 'red'); return; }
+    const btn = document.getElementById('btn-' + packId);
+    if (btn) { btn.disabled = true; btn.textContent = 'Redirection…'; }
+    try {
+      const r = await fetch('/shop/buy-coins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack_id: packId })
+      });
+      const data = await r.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast(data.error || 'Erreur — réessaie.', 'red');
+        if (btn) { btn.disabled = false; btn.textContent = 'Acheter →'; }
+      }
+    } catch (e) {
+      showToast('Erreur réseau', 'red');
+      if (btn) { btn.disabled = false; btn.textContent = 'Acheter →'; }
+    }
+  }
+
+  // ── Mise à jour solde temps réel (Socket.IO rcoins_update) ───────────────
+  // Si socket.io est chargé sur la page, écouter l'événement
+  if (typeof io !== 'undefined') {
+    try {
+      const socket = io();
+      socket.on('rcoins_update', ({ new_balance }) => {
+        updateBalanceDisplay(new_balance);
+        showToast(`✅ RCoins crédités ! Nouveau solde : ${new_balance.toLocaleString()} R`, 'purple');
+      });
+    } catch(e) {}
+  }
 
   function filterRarity(rarity, btn) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
