@@ -2046,24 +2046,32 @@ function endMatch() {
     score: `${winnerMeds}-${loserMeds}`,
     winner_stocks_taken: winnerMeds,
     loser_stocks_taken: loserMeds,
-    is_stocks_mode: true
+    is_stocks_mode: true,
+    games_history: stockGameHistory.map(g => ({ p1: g.p1, p2: g.p2, isReset: !!g.isReset }))
   };
 
-  // Recap : liste chaque game
+  // Recap : liste chaque game avec les vrais deltas (en tenant compte des resets)
   const gamesDiv = document.getElementById('recap-games');
+  let recapSegBase1 = 0, recapSegBase2 = 0;
   gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
-    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
-    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
-    const d1 = g.p1 - prev1, d2 = g.p2 - prev2;
-    const wName = d1 > d2 ? P1_NAME : P2_NAME;
-    const wColor = d1 > d2 ? 'var(--blue)' : 'var(--accent)';
+    const d1 = g.p1 - recapSegBase1;
+    const d2 = g.p2 - recapSegBase2;
+    const isReset = !!g.isReset;
+    const label = isReset ? `RESET ${i+1}` : `GAME ${i+1}`;
+    const labelColor = isReset ? '#c39bd3' : 'var(--muted)';
+    const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'var(--border)';
+    const wName = d1 > d2 ? P1_NAME : d2 > d1 ? P2_NAME : 'TIE';
+    const wColor = d1 > d2 ? 'var(--blue)' : d2 > d1 ? 'var(--accent)' : 'var(--muted)';
+    // Avance la base selon le type d'entrée
+    if (isReset) { recapSegBase1 = 0; recapSegBase2 = 0; }
+    else { recapSegBase1 = g.p1; recapSegBase2 = g.p2; }
     return `<div style="display:flex;align-items:center;justify-content:space-between;
-      background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
+      background:var(--surface2);border:1px solid ${borderColor};border-radius:8px;padding:0.6rem 1rem;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:${labelColor};letter-spacing:2px;">${label}</span>
       <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">${g.p1}</span>
+        <span style="color:var(--blue)">${d1}</span>
         <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
-        <span style="color:var(--accent)">${g.p2}</span>
+        <span style="color:var(--accent)">${d2}</span>
       </span>
       <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
     </div>`;
@@ -2492,34 +2500,57 @@ function showOpponentRecap(d) {
       loser_stocks_taken: report.loser_stocks_taken,
       is_stocks_mode: true
     };
-    // Utilise winner_stocks_total (totaux cumulés) pour l'affichage,
-    // avec fallback sur le score string si dispo
     let t1, t2;
     if (report.winner_stocks_total !== undefined || report.loser_stocks_total !== undefined) {
       const wTotal = report.winner_stocks_total || 0;
       const lTotal = report.loser_stocks_total  || 0;
       t1 = report.winner_id === P1_ID ? wTotal : (report.winner_id === P2_ID ? lTotal : wTotal);
       t2 = report.winner_id === P2_ID ? wTotal : (report.winner_id === P1_ID ? lTotal : lTotal);
-      // Draw : winner_id null → lire directement le score
       if (!report.winner_id) {
         const parts = (report.score || '0-0').split('-');
         t1 = parseInt(parts[0]) || 0;
         t2 = parseInt(parts[1]) || 0;
       }
     } else {
-      // Fallback : lire le score "totalP1-totalP2"
       const parts = (report.score || '0-0').split('-');
       t1 = parseInt(parts[0]) || 0;
       t2 = parseInt(parts[1]) || 0;
     }
     const gamesDiv = document.getElementById('recap-games');
-    gamesDiv.innerHTML = `
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
-        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">TOTAL MEDALS</div>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${t1}</span>
-        <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${t2}</span>
-      </div>`;
+    // Afficher le détail des games si disponible, sinon fallback sur le total
+    if (report.games_history && Array.isArray(report.games_history) && report.games_history.length > 0) {
+      let segBase1 = 0, segBase2 = 0;
+      gamesDiv.innerHTML = report.games_history.map((g, i) => {
+        const d1 = g.p1 - segBase1;
+        const d2 = g.p2 - segBase2;
+        const isReset = !!g.isReset;
+        const label = isReset ? `RESET ${i+1}` : `GAME ${i+1}`;
+        const labelColor = isReset ? '#c39bd3' : 'var(--muted)';
+        const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'var(--border)';
+        const wName = d1 > d2 ? P1_NAME : d2 > d1 ? P2_NAME : 'TIE';
+        const wColor = d1 > d2 ? 'var(--blue)' : d2 > d1 ? 'var(--accent)' : 'var(--muted)';
+        if (isReset) { segBase1 = 0; segBase2 = 0; }
+        else { segBase1 = g.p1; segBase2 = g.p2; }
+        return `<div style="display:flex;align-items:center;justify-content:space-between;
+          background:var(--surface2);border:1px solid ${borderColor};border-radius:8px;padding:0.6rem 1rem;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:${labelColor};letter-spacing:2px;">${label}</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
+            <span style="color:var(--blue)">${d1}</span>
+            <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
+            <span style="color:var(--accent)">${d2}</span>
+          </span>
+          <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
+        </div>`;
+      }).join('');
+    } else {
+      gamesDiv.innerHTML = `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
+          <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.8rem;">TOTAL MEDALS</div>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--blue);">${t1}</span>
+          <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${t2}</span>
+        </div>`;
+    }
     populateRecapTotals(t1, t2, report.winner_id || null);
     document.getElementById('recap-subtitle').textContent = 'MEDALS — SUBMITTED BY YOUR OPPONENT';
   } else {
