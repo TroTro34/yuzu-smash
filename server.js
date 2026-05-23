@@ -475,7 +475,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     ]);
     const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
     const banners_map = Object.fromEntries(banners.map(b => [b.id, b]));
-    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), is_admin, banners, banners_map });
+    res.render('dashboard.html', { user: req.session.user, ...data, active_match_ids: Object.keys(data.active_matches), pending_challenge_ids: Object.keys(data.challenges_sent), is_admin, banners, banners_map });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
