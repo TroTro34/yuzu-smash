@@ -81,6 +81,17 @@
     }
     @keyframes shop-shimmer { 0%,100% { opacity:0; } 50% { opacity:1; } }
     .btn-shop:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 22px rgba(160,60,255,0.5); }
+    /* RCoin balance badge in nav */
+    .nav-rcoin-badge {
+      display: flex; align-items: center; gap: 0.35rem;
+      background: linear-gradient(135deg, rgba(126,34,206,0.22) 0%, rgba(88,28,135,0.18) 100%);
+      border: 1px solid rgba(168,85,247,0.45);
+      border-radius: 20px; padding: 0.3rem 0.9rem;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+      color: #c084fc; text-decoration: none;
+      transition: all 0.2s; box-shadow: 0 0 10px rgba(168,85,247,0.12);
+    }
+    .nav-rcoin-badge:hover { border-color: #a855f7; box-shadow: 0 0 18px rgba(168,85,247,0.28); color: #e9d5ff; }
 
     /* Nav layout */
     .nav-left { display: flex; align-items: center; gap: 1.2rem; }
@@ -378,6 +389,10 @@
       </div>
       <div class="nav-divider"></div>
       <a href="/dashboard" class="btn btn-primary">⚡ Dashboard</a>
+      {% set current_player = players | selectattr('id', 'equalto', user.id) | list %}
+      <a href="/wallet" class="nav-rcoin-badge" title="Wallet — RCoins">
+        <span style="color:#a855f7;font-size:0.8rem;">R</span>{{ (current_player[0].rcoins or 0) if current_player | length else 0 }}
+      </a>
       <a href="/logout" class="btn btn-ghost" style="font-size:0.85rem;padding:0.4rem 0.9rem;">↩ Out</a>
     {% else %}
       <a href="/login" class="btn btn-discord">
