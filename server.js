@@ -987,7 +987,7 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
     const prevL = prev.loser_stocks_total  || 0;
     wSt = Math.max(0, wStRaw - prevW); // delta pour ce match
     lSt = Math.max(0, lStRaw - prevL);
-    scoreStr = `${wStRaw}-${lStRaw}`; // score = totaux pour l'affichage
+    scoreStr = sanitizeStr(rawScore || '', 20) || `${wStRaw}-${lStRaw}`; // score P1-P2 from front
   } else {
     const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
     if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
