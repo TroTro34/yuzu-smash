@@ -1745,7 +1745,6 @@ function renderStocksGames() {
   // Historique des games déjà validés
   const list = document.getElementById('stocks-games-list');
   let segBase1 = 0, segBase2 = 0;
-  let realGameIdx = 0; // compteur de vrais games (hors resets)
   stockGameHistory.forEach((g, i) => {
     const row = document.createElement('div');
     const delta1 = g.p1 - segBase1;
@@ -1755,8 +1754,7 @@ function renderStocksGames() {
     const wColor      = delta1 > delta2 ? 'var(--blue)' : 'var(--accent)';
     const borderColor = isReset ? 'rgba(155,89,182,0.4)' : 'rgba(61,220,132,0.3)';
     const labelColor  = isReset ? '#c39bd3' : 'var(--muted)';
-    if (!isReset) realGameIdx++;
-    const label       = isReset ? '🔄 RESET' : 'GAME ' + realGameIdx;
+    const label       = isReset ? '🔄 RESET ' + (i+1) : 'GAME ' + (i+1);
     // Met à jour la base pour le prochain game
     if (isReset) { segBase1 = 0; segBase2 = 0; }
     else { segBase1 = g.p1; segBase2 = g.p2; }
@@ -1774,9 +1772,8 @@ function renderStocksGames() {
     list.appendChild(row);
   });
 
-  // Game courant — numéro = games normaux confirmés + 1 (exclut les resets)
-  const realGameCount = stockGameHistory.filter(g => !g.isReset).length;
-  const gameNum = realGameCount + 1;
+  // Game courant
+  const gameNum = stockGameHistory.length + 1;
   const block = document.getElementById('current-game-block');
   block.innerHTML = `
     <div style="display:flex;gap:0.75rem;align-items:stretch;">
@@ -1848,19 +1845,17 @@ function changeStockGame(player, delta) {
     if (newVal < currentGameMinP1) return;
     medalsP1 = newVal;
     document.getElementById('sg-p1').value = medalsP1;
+    // Score live = total historique + médailles du segment en cours
+    const { totalP1 } = computeTotalMedals();
+    p1Score = totalP1 - currentGameMinP1 + medalsP1;
   } else {
     const newVal = medalsP2 + delta;
     if (newVal < currentGameMinP2) return;
     medalsP2 = newVal;
     document.getElementById('sg-p2').value = medalsP2;
+    const { totalP2 } = computeTotalMedals();
+    p2Score = totalP2 - currentGameMinP2 + medalsP2;
   }
-  // Score live = total de tous les segments confirmés + médailles en cours dans le segment actif
-  // computeTotalMedals utilise currentGameMinP1/P2 comme base du segment actif ;
-  // on calcule donc avec les valeurs live (medalsP1/P2) à la place.
-  const { totalP1, totalP2 } = computeTotalMedals();
-  // computeTotalMedals a utilisé currentGameMin — on remplace par les valeurs live
-  p1Score = totalP1 - currentGameMinP1 + medalsP1;
-  p2Score = totalP2 - currentGameMinP2 + medalsP2;
   updateScoreDisplay();
   updateMinusButtons();
 }
@@ -1877,6 +1872,9 @@ function confirmStockGame() {
   const delta2 = medalsP2 - currentGameMinP2;
   if (delta1 === 0 && delta2 === 0) {
     showToast('Enter at least one medal for this game!', false); return;
+  }
+  if (delta1 === delta2) {
+    showToast('Tie not allowed — there must be a winner!', false); return;
   }
   resetMatchTimer(); // reset timer à chaque action
   // Enregistre le game — stocke les valeurs absolues courantes
@@ -1916,26 +1914,27 @@ function computeGameWinners() {
 }
 
 // ── Calcule le total de médailles de chaque joueur (somme de tous les segments) ──
-// Après chaque medal reset, un nouveau segment repart de 0. Les games normaux avancent
-// la base du segment. Le segment en cours est représenté par currentGameMin.
 function computeTotalMedals() {
   let totalP1 = 0, totalP2 = 0;
   let segBaseP1 = 0, segBaseP2 = 0;
   for (let i = 0; i < stockGameHistory.length; i++) {
     const g = stockGameHistory[i];
     if (g.isReset) {
+      // Ajoute les médailles gagnées dans ce segment
       totalP1 += g.p1 - segBaseP1;
       totalP2 += g.p2 - segBaseP2;
+      // Repart de 0
       segBaseP1 = 0;
       segBaseP2 = 0;
     } else {
+      // Game normal : met à jour la base du segment
       segBaseP1 = g.p1;
       segBaseP2 = g.p2;
     }
   }
-  // Segment en cours: currentGameMin contient les valeurs absolues depuis le dernier reset
-  totalP1 += currentGameMinP1 - segBaseP1;
-  totalP2 += currentGameMinP2 - segBaseP2;
+  // Ajoute le segment en cours (currentGameMin = dernières valeurs du segment actif)
+  totalP1 += currentGameMinP1;
+  totalP2 += currentGameMinP2;
   return { totalP1, totalP2 };
 }
 
@@ -2030,42 +2029,41 @@ let pendingResult = null; // { winner_id, score, [stocks fields] }
 
 // ── MEDALS MODE: end match button ──
 function endMatch() {
-  if (!stockGameHistory.filter(g => !g.isReset).length) {
+  if (!stockGameHistory.length) {
     showToast('Confirm at least one game before finishing!', false); return;
   }
   const { totalP1, totalP2 } = computeTotalMedals();
+  if (totalP1 === totalP2) {
+    showToast('Tie not allowed — there must be a winner!', false); return;
+  }
 
-  const isDraw    = totalP1 === totalP2;
-  const winnerId  = isDraw ? null : (totalP1 > totalP2 ? P1_ID : P2_ID);
+  const winnerId   = totalP1 > totalP2 ? P1_ID : P2_ID;
   const winnerMeds = Math.max(totalP1, totalP2);
   const loserMeds  = Math.min(totalP1, totalP2);
 
   pendingResult = {
     winner_id: winnerId,
-    score: `${totalP1}-${totalP2}`,
+    score: `${winnerMeds}-${loserMeds}`,
     winner_stocks_taken: winnerMeds,
     loser_stocks_taken: loserMeds,
     is_stocks_mode: true
   };
 
-  // Recap : liste chaque game (hors resets)
+  // Recap : liste chaque game
   const gamesDiv = document.getElementById('recap-games');
-  let segBase1 = 0, segBase2 = 0, realIdx = 0;
-  gamesDiv.innerHTML = stockGameHistory.map((g) => {
-    const d1 = g.p1 - segBase1, d2 = g.p2 - segBase2;
-    if (g.isReset) { segBase1 = 0; segBase2 = 0; return ''; }
-    realIdx++;
-    segBase1 = g.p1; segBase2 = g.p2;
-    const isTie = d1 === d2;
-    const wName = isTie ? 'Tie' : (d1 > d2 ? P1_NAME : P2_NAME);
-    const wColor = isTie ? 'var(--muted)' : (d1 > d2 ? 'var(--blue)' : 'var(--accent)');
+  gamesDiv.innerHTML = stockGameHistory.map((g, i) => {
+    const prev1 = i > 0 ? stockGameHistory[i-1].p1 : 0;
+    const prev2 = i > 0 ? stockGameHistory[i-1].p2 : 0;
+    const d1 = g.p1 - prev1, d2 = g.p2 - prev2;
+    const wName = d1 > d2 ? P1_NAME : P2_NAME;
+    const wColor = d1 > d2 ? 'var(--blue)' : 'var(--accent)';
     return `<div style="display:flex;align-items:center;justify-content:space-between;
       background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.6rem 1rem;">
-      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${realIdx}</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:0.8rem;color:var(--muted);letter-spacing:2px;">GAME ${i+1}</span>
       <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">
-        <span style="color:var(--blue)">+${d1}</span>
+        <span style="color:var(--blue)">${g.p1}</span>
         <span style="color:var(--muted);margin:0 0.4rem;font-size:0.9rem;">—</span>
-        <span style="color:var(--accent)">+${d2}</span>
+        <span style="color:var(--accent)">${g.p2}</span>
       </span>
       <span style="font-size:0.75rem;color:${wColor};font-weight:700;">${wName}</span>
     </div>`;
@@ -2081,8 +2079,8 @@ function endMatch() {
 
 // ── BO : affiche le recap côté soumetteur ──
 function showBORecap(result, state) {
-  const winnerName = result.winner_id === P1_ID ? P1_NAME : P2_NAME;
-  const parts = result.score.split('-');
+  const winnerName = !result.winner_id ? 'DRAW' : (result.winner_id === P1_ID ? P1_NAME : P2_NAME);
+  const parts = (result.score || '0-0').split('-');
   const t1 = parseInt(parts[0]) || 0;
   const t2 = parseInt(parts[1]) || 0;
 
@@ -2464,9 +2462,10 @@ function checkInitialState() {
     } else if (d.status === 'reported' && d.reported_by === MY_ID) {
       // J'ai soumis, en attente de l'adversaire — restaurer le recap waiting
       const report = (typeof d.report === 'object' && d.report) ? d.report : {};
-      if (report.winner_id) {
+      // Accepter aussi winner_id null (draw)
+      if (report.winner_id !== undefined || report.is_stocks_mode) {
         pendingResult = {
-          winner_id: report.winner_id,
+          winner_id: report.winner_id || null,
           score: report.score || '',
           winner_stocks_taken: report.winner_stocks_taken,
           loser_stocks_taken: report.loser_stocks_taken,
@@ -2481,19 +2480,38 @@ function checkInitialState() {
 // ── Show recap submitted by opponent ──
 function showOpponentRecap(d) {
   const report = d.report || d;
-  if (!report || !report.winner_id) return;
+  // winner_id peut être null en cas de draw — on bloque seulement si report est vide
+  if (!report) return;
 
   if (report.is_stocks_mode || FORMAT === 'STOCKS') {
     // Medals mode
     pendingResult = {
-      winner_id: report.winner_id,
+      winner_id: report.winner_id || null,
       score: report.score,
       winner_stocks_taken: report.winner_stocks_taken,
       loser_stocks_taken: report.loser_stocks_taken,
       is_stocks_mode: true
     };
-    const t1 = report.winner_id === P1_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
-    const t2 = report.winner_id === P2_ID ? report.winner_stocks_taken : report.loser_stocks_taken;
+    // Utilise winner_stocks_total (totaux cumulés) pour l'affichage,
+    // avec fallback sur le score string si dispo
+    let t1, t2;
+    if (report.winner_stocks_total !== undefined || report.loser_stocks_total !== undefined) {
+      const wTotal = report.winner_stocks_total || 0;
+      const lTotal = report.loser_stocks_total  || 0;
+      t1 = report.winner_id === P1_ID ? wTotal : (report.winner_id === P2_ID ? lTotal : wTotal);
+      t2 = report.winner_id === P2_ID ? wTotal : (report.winner_id === P1_ID ? lTotal : lTotal);
+      // Draw : winner_id null → lire directement le score
+      if (!report.winner_id) {
+        const parts = (report.score || '0-0').split('-');
+        t1 = parseInt(parts[0]) || 0;
+        t2 = parseInt(parts[1]) || 0;
+      }
+    } else {
+      // Fallback : lire le score "totalP1-totalP2"
+      const parts = (report.score || '0-0').split('-');
+      t1 = parseInt(parts[0]) || 0;
+      t2 = parseInt(parts[1]) || 0;
+    }
     const gamesDiv = document.getElementById('recap-games');
     gamesDiv.innerHTML = `
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
@@ -2502,7 +2520,7 @@ function showOpponentRecap(d) {
         <span style="color:var(--muted);margin:0 1rem;font-family:'Bebas Neue',sans-serif;font-size:1.5rem;">—</span>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--accent);">${t2}</span>
       </div>`;
-    populateRecapTotals(t1, t2, report.winner_id);
+    populateRecapTotals(t1, t2, report.winner_id || null);
     document.getElementById('recap-subtitle').textContent = 'MEDALS — SUBMITTED BY YOUR OPPONENT';
   } else {
     // BO mode
@@ -2542,8 +2560,9 @@ function showToast(msg, success = true) {
 }
 
 function showWinner(winnerId, score, eloChange) {
-  const name = winnerId === P1_ID ? P1_NAME : P2_NAME;
-  const iWon = winnerId === MY_ID;
+  const isDraw = !winnerId;
+  const name = isDraw ? 'DRAW' : (winnerId === P1_ID ? P1_NAME : P2_NAME);
+  const iWon = !isDraw && winnerId === MY_ID;
 
   // Fermer le recap s'il est encore ouvert
   document.getElementById('stocks-recap').classList.remove('show');
@@ -2551,7 +2570,9 @@ function showWinner(winnerId, score, eloChange) {
   document.getElementById('winner-name-big').textContent = name;
   document.getElementById('winner-score-big').textContent = score;
   const eloLine = document.getElementById('winner-elo-line');
-  if (eloChange) {
+  if (isDraw) {
+    eloLine.innerHTML = `<span style="color:var(--muted);font-size:1.4rem;display:block;letter-spacing:2px;">No ELO change — it's a draw!</span>`;
+  } else if (eloChange) {
     if (iWon) {
       eloLine.innerHTML = `
         <span style="color:var(--green);font-size:2rem;display:block">+${eloChange} ELO 🏆</span>
