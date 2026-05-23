@@ -275,6 +275,72 @@
       nav { padding: 0.8rem 1rem; }
       .hero-cta { gap: 0.6rem; }
     }
+
+    /* ── WHAT'S UP ── */
+    .whatsup-wrap {
+      max-width: 980px; margin: 0 auto 0; padding: 1.5rem 1.5rem 0;
+    }
+    .whatsup-header {
+      display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.75rem;
+    }
+    .whatsup-label {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem;
+      letter-spacing: 3px; color: var(--accent2);
+    }
+    .whatsup-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 6px var(--green); flex-shrink: 0;
+      animation: wu-blink 1.8s ease-in-out infinite;
+    }
+    @keyframes wu-blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+    .whatsup-line { flex:1; height:1px; background: var(--border); }
+
+    .whatsup-stage {
+      position: relative; overflow: hidden;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface);
+      min-height: 90px;
+    }
+    /* Slide track */
+    .wu-track {
+      display: flex; transition: transform 0.55s cubic-bezier(.4,0,.2,1);
+      will-change: transform;
+    }
+    .wu-slide {
+      min-width: 100%; display: flex; align-items: center;
+      padding: 1rem 1.5rem; gap: 1.2rem; box-sizing: border-box;
+      position: relative; overflow: hidden;
+    }
+    .wu-slide-img {
+      flex-shrink: 0; max-height: 64px; max-width: 160px;
+      object-fit: cover; border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .wu-slide-text {
+      font-size: 0.97rem; line-height: 1.55; color: var(--text);
+      white-space: pre-wrap; word-break: break-word;
+    }
+    /* Progress bar */
+    .wu-progress {
+      position: absolute; bottom: 0; left: 0; height: 2px;
+      background: linear-gradient(90deg, var(--blue), var(--accent2));
+      transform-origin: left; transform: scaleX(0);
+      border-radius: 0 1px 0 0;
+    }
+    /* Dots nav */
+    .wu-dots {
+      display: flex; justify-content: center; gap: 5px; margin-top: 0.5rem;
+    }
+    .wu-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--border); cursor: pointer; transition: all 0.2s;
+      border: 1px solid var(--border);
+    }
+    .wu-dot.active { background: var(--accent2); border-color: var(--accent2); box-shadow: 0 0 5px rgba(255,128,0,0.5); }
+    .wu-empty {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 72px; color: var(--muted); font-size: 0.85rem; letter-spacing: 1px;
+    }
   </style>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
@@ -326,6 +392,21 @@
     <a href="/ranking" class="btn btn-ranking" style="font-size:1.05rem;padding:0.7rem 1.8rem;">🏅 View Rankings</a>
   </div>
   {% endif %}
+</div>
+
+
+<!-- ── WHAT'S UP ── -->
+<div class="whatsup-wrap" id="whatsup-section" style="display:none;">
+  <div class="whatsup-header">
+    <div class="whatsup-dot"></div>
+    <div class="whatsup-label">WHAT'S UP</div>
+    <div class="whatsup-line"></div>
+  </div>
+  <div class="whatsup-stage" id="wu-stage">
+    <div class="wu-track" id="wu-track"></div>
+    <div class="wu-progress" id="wu-progress"></div>
+  </div>
+  <div class="wu-dots" id="wu-dots"></div>
 </div>
 
 <!-- ── TABS ── -->
@@ -629,27 +710,103 @@
     resolveCharIcons();
   }
 
+
+  // ── WHAT'S UP SLIDESHOW ──────────────────────────────────────────────────────
+  let wuPosts = [], wuIdx = 0, wuTimer = null, wuProgressAnim = null;
+
+  async function loadWhatsUp() {
+    try {
+      const r = await fetch('/api/whatsup');
+      const d = await r.json();
+      renderWhatsUp(d.posts || []);
+    } catch(e) {}
+  }
+
+  function renderWhatsUp(posts) {
+    wuPosts = posts;
+    const section = document.getElementById('whatsup-section');
+    const track   = document.getElementById('wu-track');
+    const dots    = document.getElementById('wu-dots');
+    if (!section || !track || !dots) return;
+
+    if (!posts.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+
+    track.innerHTML = posts.map(p => {
+      const bg = p.bg_color ? `background:${p.bg_color};` : '';
+      const tc = p.text_color ? `color:${p.text_color};` : '';
+      return `<div class="wu-slide" style="${bg}">
+        ${p.image ? `<img class="wu-slide-img" src="${p.image}" alt="">` : ''}
+        ${p.text  ? `<div class="wu-slide-text" style="${tc}">${escHtml(p.text)}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    dots.innerHTML = posts.map((_, i) =>
+      `<div class="wu-dot${i===0?' active':''}" onclick="wuGoTo(${i})"></div>`
+    ).join('');
+
+    wuIdx = 0;
+    wuApply(0, false);
+    wuSchedule();
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function wuApply(idx, animate) {
+    const track = document.getElementById('wu-track');
+    const prog  = document.getElementById('wu-progress');
+    const dotEls = document.querySelectorAll('.wu-dot');
+    if (!track) return;
+    if (!animate) track.style.transition = 'none';
+    track.style.transform = `translateX(-${idx * 100}%)`;
+    if (!animate) requestAnimationFrame(() => { track.style.transition = ''; });
+    dotEls.forEach((d, i) => d.classList.toggle('active', i === idx));
+    // Progress bar animation
+    if (prog) {
+      prog.style.transition = 'none';
+      prog.style.transform  = 'scaleX(0)';
+      requestAnimationFrame(() => {
+        const dur = (wuPosts[idx]?.duration || 5) * 1000;
+        prog.style.transition = `transform ${dur}ms linear`;
+        prog.style.transform  = 'scaleX(1)';
+      });
+    }
+  }
+
+  function wuSchedule() {
+    if (wuTimer) clearTimeout(wuTimer);
+    if (wuPosts.length < 2) return;
+    const dur = (wuPosts[wuIdx]?.duration || 5) * 1000;
+    wuTimer = setTimeout(() => {
+      wuIdx = (wuIdx + 1) % wuPosts.length;
+      wuApply(wuIdx, true);
+      wuSchedule();
+    }, dur);
+  }
+
+  function wuGoTo(idx) {
+    wuIdx = idx;
+    wuApply(idx, true);
+    wuSchedule();
+  }
+
+  loadWhatsUp();
+
   // Connecte le socket et écoute leaderboard_update pour rafraîchir la grille LFM.
   // notifications.js (chargé après) peut partager ce socket via window.socket.
   document.addEventListener('DOMContentLoaded', () => {
     if (typeof io === 'undefined') return; // socket.io pas chargé
     const sock = io({ transports: ['websocket'], upgrade: false });
     window.socket = sock; // partagé avec notifications.js
+    sock.on('whatsup_update', () => { loadWhatsUp(); });
     sock.on('leaderboard_update', (d) => {
       if (d && d.lfm_posts !== undefined) {
         renderLFM(d.lfm_posts, d.banners_map || {});
       }
     });
-
-    // J1 (auteur de l'annonce) : reçoit match_redirect quand quelqu'un accepte
-    sock.on('match_redirect', (d) => {
-      if (!d || !d.challenge_id) return;
-      showMatchFound(d.p1 || '???', d.p2 || '???');
-      setTimeout(() => { window.location.href = '/match/' + d.challenge_id; }, 2800);
-    });
-
-    // Rejoindre la room user pour recevoir match_redirect
-    sock.on('connect', () => { sock.emit('join_user', {}); });
   });
 </script>
 
