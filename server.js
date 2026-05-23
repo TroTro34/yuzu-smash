@@ -1005,7 +1005,8 @@ app.post('/result/:challenge_id', requireAuth, async (req, res) => {
         winner_id: isDraw ? null : winner_id, score: scoreStr,
         winner_stocks_taken: wSt, loser_stocks_taken: lSt,
         winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
-        is_stocks_mode: isStocks
+        is_stocks_mode: isStocks,
+        games_history: req.body.games_history || null
       }
     });
     await emitMatchUpdate(challenge_id);
