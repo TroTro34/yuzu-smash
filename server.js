@@ -1263,6 +1263,68 @@ app.post('/shop/unequip', requireAuth, async (req, res) => {
 });
 
 // Admin — page gestion des bannières
+
+// ── WHAT'S UP — public read ───────────────────────────────────────────────────
+app.get('/api/whatsup', async (req, res) => {
+  try {
+    const posts = await sbGet('whatsup_posts', 'order=position.asc,created_at.asc');
+    res.json({ posts: posts || [] });
+  } catch(e) { res.json({ posts: [] }); }
+});
+
+// ── WHAT'S UP — admin CRUD ────────────────────────────────────────────────────
+app.post('/admin/whatsup', requireAdmin, async (req, res) => {
+  const { text, image, bg_color, text_color, duration } = req.body;
+  if (!text && !image) return res.status(400).json({ error: 'text or image required' });
+  const id = `wu_${require('crypto').randomBytes(6).toString('hex')}`;
+  // Get current max position
+  const existing = await sbGet('whatsup_posts', 'order=position.desc&limit=1');
+  const position = existing && existing.length ? (existing[0].position || 0) + 1 : 0;
+  await sbPost('whatsup_posts', {
+    id, text: text || null,
+    image: image || null,          // base64 data URL
+    bg_color: bg_color || null,
+    text_color: text_color || null,
+    duration: parseInt(duration) || 5,
+    position,
+    created_at: new Date().toISOString()
+  });
+  io.emit('whatsup_update'); // notify all connected clients
+  res.json({ success: true, id });
+});
+
+app.patch('/admin/whatsup/:post_id', requireAdmin, async (req, res) => {
+  const { post_id } = req.params;
+  const { text, image, bg_color, text_color, duration, position } = req.body;
+  const update = {};
+  if (text     !== undefined) update.text      = text;
+  if (image    !== undefined) update.image     = image;
+  if (bg_color !== undefined) update.bg_color  = bg_color;
+  if (text_color !== undefined) update.text_color = text_color;
+  if (duration !== undefined) update.duration  = parseInt(duration) || 5;
+  if (position !== undefined) update.position  = parseInt(position);
+  await sbPatch('whatsup_posts', { id: post_id }, update);
+  io.emit('whatsup_update');
+  res.json({ success: true });
+});
+
+app.delete('/admin/whatsup/:post_id', requireAdmin, async (req, res) => {
+  const { post_id } = req.params;
+  await sbDelete('whatsup_posts', { id: post_id });
+  io.emit('whatsup_update');
+  res.json({ success: true });
+});
+
+// Reorder — receive array of { id, position }
+app.post('/admin/whatsup/reorder', requireAdmin, async (req, res) => {
+  const { order } = req.body; // [{ id, position }, ...]
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'invalid' });
+  await Promise.all(order.map(({ id, position }) =>
+    sbPatch('whatsup_posts', { id }, { position: parseInt(position) })
+  ));
+  io.emit('whatsup_update');
+  res.json({ success: true });
+});
 app.get('/admin/shop', requireAdmin, async (req, res) => {
   try {
     const banners = await sbGet('banners', 'order=created_at.desc');
