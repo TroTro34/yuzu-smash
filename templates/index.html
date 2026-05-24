@@ -650,19 +650,45 @@
   }
 
   function acceptLFM(postId, posterName) {
+    // J1 affiche l'overlay immédiatement comme J2
     showMatchFound(currentUserName || '???', posterName || '???');
+    // On stocke le challenge_id dès que le serveur répond,
+    // mais on attend le match_redirect socket pour rediriger (même timing que J2)
+    let pendingChallengeId = null;
+    let redirectDone = false;
+
+    function doRedirect(cid) {
+      if (redirectDone) return;
+      redirectDone = true;
+      // Minimum 2.5s d'overlay pour que J1 voie la même animation que J2
+      const elapsed = Date.now() - overlayStart;
+      const delay = Math.max(0, 2500 - elapsed);
+      setTimeout(() => { window.location.href = cid ? '/match/' + cid : '/dashboard'; }, delay);
+    }
+
+    const overlayStart = Date.now();
+
+    // Écouter match_redirect sur le socket (join_user déjà fait dans DOMContentLoaded)
+    if (window.socket) {
+      window.socket.once('match_redirect', (data) => {
+        doRedirect(data.challenge_id || pendingChallengeId);
+      });
+    }
+
     fetch('/lfm/' + postId + '/accept', { method: 'POST' })
       .then(r => r.json()).then(d => {
         if (d.error) {
           const ov = document.getElementById('match-found-overlay');
           if (ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display='none', 300); }
           alert(d.error);
+          redirectDone = true; // annule le redirect
           return;
         }
-        const cid = d.challenge_id;
-        setTimeout(() => { window.location.href = cid ? '/match/' + cid : '/dashboard'; }, 2800);
+        pendingChallengeId = d.challenge_id;
+        // Fallback : si le socket ne répond pas dans 4s, on redirige quand même
+        setTimeout(() => doRedirect(pendingChallengeId), 4000);
       }).catch(() => {
-        setTimeout(() => { window.location.href = '/dashboard'; }, 2800);
+        setTimeout(() => doRedirect(null), 3000);
       });
   }
 
@@ -832,8 +858,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (typeof io === 'undefined') return; // socket.io pas chargé
     const sock = io({ transports: ['websocket'], upgrade: false });
+    if (currentUserId) sock.emit('join_user', {});
     window.socket = sock; // partagé avec notifications.js
     sock.on('whatsup_update', () => { loadWhatsUp(); });
+    sock.on('match_redirect', () => {}); // handled via socket.once in acceptLFM
     sock.on('leaderboard_update', (d) => {
       if (d && d.lfm_posts !== undefined) {
         renderLFM(d.lfm_posts, d.banners_map || {});
