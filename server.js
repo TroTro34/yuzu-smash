@@ -1365,6 +1365,30 @@ app.post('/shop/unequip', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Shop — mettre à jour l'opacité d'une bannière possédée
+app.post('/shop/banner-opacity', authApiLimiter, requireAuth, async (req, res) => {
+  const { banner_id, opacity } = req.body;
+  if (!banner_id || !validateId(String(banner_id)))
+    return res.status(400).json({ error: 'Invalid banner ID' });
+  const opVal = parseInt(opacity, 10);
+  if (isNaN(opVal) || opVal < 10 || opVal > 100)
+    return res.status(400).json({ error: 'Opacity must be between 10 and 100' });
+
+  // Vérifier que le joueur possède bien cette bannière
+  const playerRows = await sbGet('players', `id=eq.${req.session.user.id}`);
+  if (!playerRows.length) return res.status(404).json({ error: 'Player not found' });
+  const player = playerRows[0];
+  const owned = Array.isArray(player.owned_banners) ? player.owned_banners : [];
+  if (!owned.includes(banner_id))
+    return res.status(403).json({ error: 'You do not own this banner' });
+
+  // Merge dans le JSON existant banner_opacity: { [banner_id]: opacity }
+  const currentOpacity = (typeof player.banner_opacity === 'object' && player.banner_opacity) ? player.banner_opacity : {};
+  const newOpacity = { ...currentOpacity, [banner_id]: opVal };
+  await sbPatch('players', { id: req.session.user.id }, { banner_opacity: newOpacity });
+  res.json({ success: true });
+});
+
 // Shop — acheter une bannière avec des RCoins
 app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   const { banner_id } = req.body;
