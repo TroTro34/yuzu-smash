@@ -217,6 +217,43 @@
       padding: 2px 8px; border-radius: 3px;
     }
 
+    /* ── OPACITY SLIDER ── */
+    .opacity-section {
+      margin-top: 0.6rem; padding-top: 0.6rem;
+      border-top: 1px solid var(--border);
+    }
+    .opacity-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .opacity-label {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.65rem; letter-spacing: 2px;
+      color: var(--muted);
+    }
+    .opacity-value {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem; letter-spacing: 1px;
+      color: var(--text); min-width: 32px; text-align: right;
+    }
+    .opacity-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
+      background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--pct, 100%), var(--border) var(--pct, 100%));
+    }
+    .opacity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%; cursor: pointer;
+      background: var(--text); border: 2px solid var(--accent);
+      box-shadow: 0 0 6px rgba(232,64,10,0.5);
+      transition: transform 0.15s;
+    }
+    .opacity-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    .opacity-slider::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%; cursor: pointer;
+      background: var(--text); border: 2px solid var(--accent);
+    }
+    .opacity-saving { font-size: 0.65rem; color: var(--muted); letter-spacing: 1px;
+      font-family: 'Bebas Neue', sans-serif; display: none; margin-top: 2px; text-align: right; }
+
     /* ── EMPTY ── */
     .empty { text-align: center; padding: 4rem 2rem; color: var(--muted); }
     .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
@@ -393,7 +430,7 @@
             {% if user %}
             <div class="banner-actions">
               {% if is_owned %}
-                <!-- Owned: show equip buttons -->
+                <!-- Owned: show equip buttons + opacity slider -->
                 <div class="equip-row">
                   <button class="btn-equip-dash {% if is_equipped_dash %}active{% endif %}"
                     onclick="equipBanner('{{ banner.id }}', 'dash', this)"
@@ -405,6 +442,19 @@
                     title="Equip on Leaderboard row">
                     {% if is_equipped_lb %}✓ {% endif %}Leaderboard
                   </button>
+                </div>
+                {% set opacity_val = player.banner_opacity[banner.id] if player.banner_opacity and player.banner_opacity[banner.id] else 100 %}
+                <div class="opacity-section">
+                  <div class="opacity-header">
+                    <span class="opacity-label">🎨 OPACITY</span>
+                    <span class="opacity-value" id="opval-{{ banner.id }}">{{ opacity_val }}%</span>
+                  </div>
+                  <input type="range" min="10" max="100" value="{{ opacity_val }}"
+                    class="opacity-slider" id="opslider-{{ banner.id }}"
+                    style="--pct: {{ opacity_val }}%"
+                    oninput="onOpacityInput('{{ banner.id }}', this)"
+                    onchange="saveOpacity('{{ banner.id }}', this.value)">
+                  <div class="opacity-saving" id="opsaving-{{ banner.id }}">Saving…</div>
                 </div>
               {% else %}
                 <!-- Not owned: show buy button -->
@@ -535,6 +585,18 @@
           <div class="equip-row">
             <button class="btn-equip-dash" onclick="equipBanner('${bannerId}', 'dash', this)" title="Equip on Dashboard card">Dashboard</button>
             <button class="btn-equip-lb" onclick="equipBanner('${bannerId}', 'lb', this)" title="Equip on Leaderboard row">Leaderboard</button>
+          </div>
+          <div class="opacity-section">
+            <div class="opacity-header">
+              <span class="opacity-label">🎨 OPACITY</span>
+              <span class="opacity-value" id="opval-${bannerId}">100%</span>
+            </div>
+            <input type="range" min="10" max="100" value="100"
+              class="opacity-slider" id="opslider-${bannerId}"
+              style="--pct: 100%"
+              oninput="onOpacityInput('${bannerId}', this)"
+              onchange="saveOpacity('${bannerId}', this.value)">
+            <div class="opacity-saving" id="opsaving-${bannerId}">Saving…</div>
           </div>`;
 
         // Remove price tag
@@ -592,6 +654,60 @@
       }
     } catch (e) { showToast('Network error', 'red'); }
   }
+
+  // ── OPACITY SLIDER ─────────────────────────────────────────────────────────
+  const opacityTimers = {};
+
+  function onOpacityInput(bannerId, slider) {
+    const val = parseInt(slider.value);
+    const pct = val + '%';
+    slider.style.setProperty('--pct', pct);
+    const label = document.getElementById('opval-' + bannerId);
+    if (label) label.textContent = pct;
+    // Live preview on the banner images
+    const card = slider.closest('.banner-card');
+    if (card) {
+      card.querySelectorAll('.banner-preview-dash img, .banner-preview-lb img').forEach(img => {
+        img.style.opacity = val / 100;
+      });
+    }
+  }
+
+  const opacitySaveTimers = {};
+  function saveOpacity(bannerId, value) {
+    clearTimeout(opacitySaveTimers[bannerId]);
+    opacitySaveTimers[bannerId] = setTimeout(async () => {
+      const savingEl = document.getElementById('opsaving-' + bannerId);
+      if (savingEl) { savingEl.style.display = 'block'; savingEl.textContent = 'Saving…'; }
+      try {
+        const r = await fetch('/shop/banner-opacity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ banner_id: bannerId, opacity: parseInt(value) })
+        });
+        const data = await r.json();
+        if (savingEl) {
+          savingEl.textContent = data.success ? '✓ Saved' : '✗ Error';
+          setTimeout(() => { savingEl.style.display = 'none'; }, 1500);
+        }
+      } catch {
+        if (savingEl) { savingEl.textContent = '✗ Error'; setTimeout(() => { savingEl.style.display = 'none'; }, 1500); }
+      }
+    }, 600);
+  }
+
+  // Apply saved opacity on page load
+  (function applyInitialOpacities() {
+    document.querySelectorAll('.opacity-slider').forEach(slider => {
+      const val = parseInt(slider.value);
+      const card = slider.closest('.banner-card');
+      if (card && val < 100) {
+        card.querySelectorAll('.banner-preview-dash img, .banner-preview-lb img').forEach(img => {
+          img.style.opacity = val / 100;
+        });
+      }
+    });
+  })();
 
   function showToast(msg, type = 'green') {
     const t = document.getElementById('toast');
