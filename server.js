@@ -213,7 +213,12 @@ async function sbPatch(table, match, data) {
 // Retourne true si au moins 1 ligne a été modifiée (= on a "gagné la course").
 async function sbPatchIf(table, match, data) {
   try {
-    const params = Object.entries(match).map(([k, v]) => `${k}=eq.${v}`).join('&');
+    const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
+    const params = Object.entries(match).map(([k, v]) => {
+      const s = String(v);
+      const op = s.split('.')[0];
+      return OPERATORS.has(op) ? `${k}=${s}` : `${k}=eq.${s}`;
+    }).join('&');
     const headers = { ...sbHeaders(), 'Prefer': 'return=minimal,count=exact' };
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
       method: 'PATCH', headers, body: JSON.stringify(data)
