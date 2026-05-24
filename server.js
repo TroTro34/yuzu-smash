@@ -58,6 +58,7 @@ const CHAT_RATE_LIMIT_WINDOW = 4000; // ms
 // ── APP ───────────────────────────────────────────────────────────────────────
 
 const app    = express();
+app.set("trust proxy", 1); // Render est derrière un reverse proxy
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
 
@@ -66,7 +67,7 @@ const sessionMiddleware = session({
   secret: SECRET_KEY,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV !== 'development', httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
+  cookie: { secure: process.env.NODE_ENV !== 'development', httpOnly: true, sameSite: process.env.NODE_ENV !== 'development' ? 'none' : 'lax', maxAge: 86400 * 1000 }
 });
 app.use(sessionMiddleware);
 
