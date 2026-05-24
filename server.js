@@ -8,6 +8,7 @@ const nunjucks   = require('nunjucks');
 const crypto     = require('crypto');
 const fetch      = require('node-fetch');
 const path       = require('path');
+const rateLimit   = require('express-rate-limit');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ const sessionMiddleware = session({
   secret: SECRET_KEY,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
+  cookie: { secure: process.env.NODE_ENV !== 'development', httpOnly: true, sameSite: 'lax', maxAge: 86400 * 1000 }
 });
 app.use(sessionMiddleware);
 
@@ -114,6 +115,33 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: false }));
 
+
+// ── RATE LIMITERS ─────────────────────────────────────────────────────────────
+
+// API publiques (leaderboard, search, lfm) : 60 req/min par IP
+const publicApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Actions authentifiées (challenges, résultats, shop) : 30 req/min par IP
+const authApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Login : 10 tentatives/5min par IP (anti-flood OAuth)
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many login attempts, try again later." },
+});
 // Static files
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
@@ -431,8 +459,21 @@ io.on('connection', (socket) => {
 
 // ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
 
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.redirect('/login');
+async function requireAuth(req, res, next) {
+  if (!req.session.user) return res.redirect("/login");
+  try {
+    const players = await sbGet("players", `id=eq.${req.session.user.id}`);
+    if (!players.length) { req.session.destroy(() => {}); return res.redirect("/login"); }
+    if (players[0].is_banned) {
+      const uid = req.session.user.id;
+      const banReason = players[0].ban_reason || null;
+      req.session.destroy(() => {});
+      if (req.path.startsWith("/api/") || req.method !== "GET") {
+        return res.status(403).json({ error: "Your account has been banned." });
+      }
+      return res.render("banned.html", { user_id: uid, ban_reason: banReason });
+    }
+  } catch (e) { console.error("[requireAuth ban check]", e); }
   next();
 }
 
@@ -455,7 +496,7 @@ app.get('/', async (req, res) => {
 });
 
 // Rankings
-app.get('/ranking', async (req, res) => {
+app.get('/ranking', publicApiLimiter, async (req, res) => {
   try {
     const players = await sbGet('players', 'order=points.desc');
     res.render('ranking.html', { user: req.session.user || null, players });
@@ -463,7 +504,7 @@ app.get('/ranking', async (req, res) => {
 });
 
 // Login
-app.get('/login', (req, res) => {
+app.get('/login', loginLimiter, (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauth_state = state;
   res.redirect(DISCORD_AUTH_URL + `&state=${state}`);
@@ -589,17 +630,17 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
   catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
-app.get('/api/leaderboard', async (req, res) => {
+app.get('/api/leaderboard', publicApiLimiter, async (req, res) => {
   try { res.json(await leaderboardData()); }
   catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
-app.get('/api/lfm', async (req, res) => {
+app.get('/api/lfm', publicApiLimiter, async (req, res) => {
   const now = new Date().toISOString();
   res.json(await sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`));
 });
 
-app.get('/api/players/search', async (req, res) => {
+app.get('/api/players/search', publicApiLimiter, async (req, res) => {
   const q = (req.query.q || '').toLowerCase();
   let players = await sbGet('players', 'order=points.desc');
   if (q) players = players.filter(p => p.username.toLowerCase().includes(q));
@@ -631,7 +672,7 @@ app.post('/api/update_profile', requireAuth, async (req, res) => {
 
 // ── CHALLENGES ────────────────────────────────────────────────────────────────
 
-app.post('/challenge/:opponent_id', requireAuth, async (req, res) => {
+app.post('/challenge/:opponent_id', authApiLimiter, requireAuth, async (req, res) => {
   const { opponent_id } = req.params;
   if (!validateId(opponent_id)) return res.status(400).json({ error: 'Invalid opponent ID' });
   const userId = req.session.user.id;
@@ -1041,7 +1082,7 @@ app.post('/api/save_progress/:challenge_id', requireAuth, async (req, res) => {
   return res.json({ success: true });
 });
 
-app.post('/result/:challenge_id', requireAuth, async (req, res) => {
+app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
   const userId     = req.session.user.id;
@@ -1319,7 +1360,7 @@ app.post('/shop/unequip', requireAuth, async (req, res) => {
 });
 
 // Shop — acheter une bannière avec des RCoins
-app.post('/shop/buy', requireAuth, async (req, res) => {
+app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   const { banner_id } = req.body;
   if (!banner_id || !validateId(String(banner_id)))
     return res.status(400).json({ error: 'Invalid banner ID' });
@@ -1349,15 +1390,24 @@ app.post('/shop/buy', requireAuth, async (req, res) => {
   const newBalance = rcoins - price;
   const newOwned   = [...owned, banner_id];
 
-  await sbPatch('players', { id: req.session.user.id }, {
-    rcoins: newBalance,
-    owned_banners: newOwned,
-  });
+  // Patch conditionnel : ne débite que si le solde est encore >= price
+  // Evite la race condition si deux requêtes simultanées arrivent
+  const won = await sbPatchIf("players",
+    { id: req.session.user.id, rcoins: `gte.${price}` },
+    { rcoins: newBalance, owned_banners: newOwned }
+  );
+  if (!won) {
+    const fresh = await sbGet("players", `id=eq.${req.session.user.id}`);
+    const fp = fresh[0] || {};
+    const fo = Array.isArray(fp.owned_banners) ? fp.owned_banners : [];
+    if (fo.includes(banner_id)) return res.status(400).json({ error: "You already own this banner" });
+    return res.status(400).json({ error: `Not enough RCoins (need ${price}, have ${fp.rcoins || 0})` });
+  }
   res.json({ success: true, new_balance: newBalance });
 });
 
 // Shop — acheter des RCoins avec Stripe
-app.post('/shop/buy-coins', requireAuth, async (req, res) => {
+app.post('/shop/buy-coins', authApiLimiter, requireAuth, async (req, res) => {
   const { pack_id } = req.body;
   const pack = RCOIN_PACKS.find(p => p.id === pack_id);
   if (!pack) return res.status(400).json({ error: 'Pack invalide' });
