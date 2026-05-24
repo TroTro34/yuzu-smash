@@ -443,7 +443,7 @@
                     {% if is_equipped_lb %}✓ {% endif %}Leaderboard
                   </button>
                 </div>
-                {% set opacity_val = player.banner_opacity[banner.id] if player.banner_opacity and player.banner_opacity[banner.id] else 100 %}
+                {% set opacity_val = player.banner_opacity[banner.id] if player.banner_opacity and player.banner_opacity[banner.id] else 40 %}
                 <div class="opacity-section">
                   <div class="opacity-header">
                     <span class="opacity-label">🎨 OPACITY</span>
@@ -589,11 +589,11 @@
           <div class="opacity-section">
             <div class="opacity-header">
               <span class="opacity-label">🎨 OPACITY</span>
-              <span class="opacity-value" id="opval-${bannerId}">100%</span>
+              <span class="opacity-value" id="opval-${bannerId}">40%</span>
             </div>
-            <input type="range" min="10" max="100" value="100"
+            <input type="range" min="10" max="100" value="40"
               class="opacity-slider" id="opslider-${bannerId}"
-              style="--pct: 100%"
+              style="--pct: 40%"
               oninput="onOpacityInput('${bannerId}', this)"
               onchange="saveOpacity('${bannerId}', this.value)">
             <div class="opacity-saving" id="opsaving-${bannerId}">Saving…</div>
@@ -664,13 +664,8 @@
     slider.style.setProperty('--pct', pct);
     const label = document.getElementById('opval-' + bannerId);
     if (label) label.textContent = pct;
-    // Live preview on the banner images
-    const card = slider.closest('.banner-card');
-    if (card) {
-      card.querySelectorAll('.banner-preview-dash img, .banner-preview-lb img').forEach(img => {
-        img.style.opacity = val / 100;
-      });
-    }
+    // Ne pas modifier l'aperçu du shop — il reste à pleine opacité pour bien voir la bannière.
+    // L'opacité choisie s'appliquera sur le vrai dashboard/leaderboard après save.
   }
 
   const opacitySaveTimers = {};
@@ -697,17 +692,8 @@
   }
 
   // Apply saved opacity on page load
-  (function applyInitialOpacities() {
-    document.querySelectorAll('.opacity-slider').forEach(slider => {
-      const val = parseInt(slider.value);
-      const card = slider.closest('.banner-card');
-      if (card && val < 100) {
-        card.querySelectorAll('.banner-preview-dash img, .banner-preview-lb img').forEach(img => {
-          img.style.opacity = val / 100;
-        });
-      }
-    });
-  })();
+  // Les previews du shop restent à pleine opacité — l'opacité sauvegardée
+  // s'applique uniquement sur le vrai dashboard et leaderboard (via Nunjucks inline style).
 
   function showToast(msg, type = 'green') {
     const t = document.getElementById('toast');
