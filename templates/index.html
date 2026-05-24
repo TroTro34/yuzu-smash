@@ -652,6 +652,7 @@
   function acceptLFM(postId, posterName) {
     // J1 affiche l'overlay immédiatement comme J2
     showMatchFound(currentUserName || '???', posterName || '???');
+    window._lfmAccepting = true; // signale au handler persistant de ne pas intervenir
     // On stocke le challenge_id dès que le serveur répond,
     // mais on attend le match_redirect socket pour rediriger (même timing que J2)
     let pendingChallengeId = null;
@@ -861,7 +862,18 @@
     if (currentUserId) sock.emit('join_user', {});
     window.socket = sock; // partagé avec notifications.js
     sock.on('whatsup_update', () => { loadWhatsUp(); });
-    sock.on('match_redirect', () => {}); // handled via socket.once in acceptLFM
+    sock.on('match_redirect', (data) => {
+      // Si on est déjà en train de rediriger (via acceptLFM), on ignore — acceptLFM a son propre once()
+      // Sinon, c'est qu'on est le POSTER de l'annonce : on affiche l'overlay puis on redirige
+      if (window._lfmAccepting) return;
+      const cid = data && data.challenge_id;
+      const p1  = (data && data.p1) || '???';
+      const p2  = (data && data.p2) || '???';
+      showMatchFound(p1, p2);
+      setTimeout(() => {
+        window.location.href = cid ? '/match/' + cid : '/dashboard';
+      }, 2500);
+    });
     sock.on('leaderboard_update', (d) => {
       if (d && d.lfm_posts !== undefined) {
         renderLFM(d.lfm_posts, d.banners_map || {});
