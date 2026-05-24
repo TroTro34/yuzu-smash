@@ -157,7 +157,7 @@
       border-radius: 8px; transition: all 0.2s; position: relative; overflow: hidden; cursor: pointer;
     }
     .player-row-banner { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-    .player-row-banner img { width: 100%; height: 100%; object-fit: cover; opacity: 0.13; display: block; }
+    .player-row-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .player-row-banner::after {
       content: ''; position: absolute; inset: 0;
       background: linear-gradient(90deg, rgba(7,7,15,0.4) 0%, transparent 50%, rgba(7,7,15,0.3) 100%);
@@ -233,7 +233,7 @@
     .lfm-card-banner {
       position: absolute; inset: 0; z-index: 0; pointer-events: none;
     }
-    .lfm-card-banner img { width: 100%; height: 100%; object-fit: cover; opacity: 0.15; display: block; }
+    .lfm-card-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .lfm-card-banner::after {
       content: ''; position: absolute; inset: 0;
       background: linear-gradient(135deg, rgba(7,7,15,0.55) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.5) 100%);
@@ -474,7 +474,9 @@
             {% set lb_img = banners_map[player.banner_dash].img_dash %}
           {% endif %}
           {% if lb_img %}
-          <div class="player-row-banner"><img src="{{ lb_img }}" alt=""></div>
+          {% set lb_slot = player.banner_lb if player.banner_lb else player.banner_dash %}
+          {% set lb_op = (player.banner_opacity[lb_slot] / 100) if player.banner_opacity and lb_slot and player.banner_opacity[lb_slot] else 0.13 %}
+          <div class="player-row-banner"><img src="{{ lb_img }}" alt="" style="opacity:{{ lb_op }}"></div>
           {% endif %}
           <div class="rank-num">
             {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
@@ -555,7 +557,9 @@
             {% set lfm_banner_img = banners_map[post.banner_dash].img_dash %}
           {% endif %}
           {% if lfm_banner_img %}
-          <div class="lfm-card-banner"><img src="{{ lfm_banner_img }}" alt=""></div>
+          {% set lfm_slot = post.banner_lb if post.banner_lb else post.banner_dash %}
+          {% set lfm_op = (post.banner_opacity[lfm_slot] / 100) if post.banner_opacity and lfm_slot and post.banner_opacity[lfm_slot] else 0.15 %}
+          <div class="lfm-card-banner"><img src="{{ lfm_banner_img }}" alt="" style="opacity:{{ lfm_op }}"></div>
           <div class="lfm-skin-badge">✦ SKIN</div>
           {% endif %}
           <div class="lfm-player">
