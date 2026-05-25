@@ -166,36 +166,51 @@ app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json()
 
 // ── /redeem — page de réclamation RCoins après achat Ko-fi ───────────────────
 app.get('/redeem', async (req, res) => {
-  // Si pas connecté, redirige vers login puis revient ici
+  const txId = req.query.tx || null;
+  // Si pas connecté, redirige vers login puis revient ici avec le tx intact
   if (!req.session.user) {
-    req.session.returnTo = '/redeem';
+    req.session.returnTo = `/redeem${txId ? '?tx=' + encodeURIComponent(txId) : ''}`;
     return res.redirect('/login');
   }
   try {
     const playerRows = await sbGet('players', `id=eq.${req.session.user.id}`);
     const player = playerRows[0] || null;
-    res.render('redeem.html', { user: req.session.user, player });
+    // Pré-vérifier la transaction pour afficher les infos du pack sur la page
+    let txInfo = null;
+    if (txId) {
+      const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
+      if (txRows && txRows.length) txInfo = txRows[0];
+    }
+    res.render('redeem.html', { user: req.session.user, player, tx_id: txId, tx_info: txInfo });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
-// ── /api/redeem — réclamer une transaction Ko-fi ─────────────────────────────
+// ── /api/redeem — réclamer une transaction Ko-fi via son ID unique ────────────
 app.post('/api/redeem', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
   const userId = req.session.user.id;
+  const { tx_id } = req.body;
+
+  if (!tx_id || typeof tx_id !== 'string' || tx_id.length > 200) {
+    return res.status(400).json({ error: 'missing_tx', message: 'Lien invalide — utilise le lien reçu dans ton email Ko-fi.' });
+  }
 
   try {
-    // 1. Chercher les transactions pending non réclamées (pas encore liées à un joueur)
-    const pending = await sbGet('kofi_transactions', 'status=eq.pending&order=created_at.asc&limit=1');
-
-    if (!pending || !pending.length) {
-      return res.status(404).json({ error: 'no_pending', message: 'Aucune transaction en attente de réclamation.' });
+    // 1. Chercher cette transaction précise
+    const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(tx_id)}`);
+    if (!txRows || !txRows.length) {
+      return res.status(404).json({ error: 'not_found', message: 'Transaction introuvable. Vérifie que tu utilises bien le lien reçu par Ko-fi.' });
     }
 
-    const tx = pending[0];
+    const tx = txRows[0];
 
-    // 2. Marquer la transaction comme "claimed" de façon atomique
-    //    (on ajoute claimed_by_discord_id seulement si status est encore 'pending')
+    // 2. Vérifier qu'elle n'est pas déjà réclamée
+    if (tx.status === 'claimed') {
+      return res.status(409).json({ error: 'already_claimed', message: 'Ces RCoins ont déjà été réclamés.' });
+    }
+
+    // 3. Marquer comme "claimed" de façon atomique — uniquement si encore 'pending'
     const claimed = await sbPatchIf(
       'kofi_transactions',
       { kofi_transaction_id: tx.kofi_transaction_id, status: 'pending' },
@@ -203,14 +218,13 @@ app.post('/api/redeem', async (req, res) => {
     );
 
     if (!claimed) {
-      // Quelqu'un d'autre vient de la réclamer en même temps
-      return res.status(409).json({ error: 'already_claimed', message: 'Cette transaction a déjà été réclamée.' });
+      return res.status(409).json({ error: 'already_claimed', message: 'Ces RCoins ont déjà été réclamés.' });
     }
 
-    // 3. Créditer les RCoins
+    // 4. Créditer les RCoins
     const playerRows = await sbGet('players', `id=eq.${userId}`);
     if (!playerRows || !playerRows.length) {
-      // Annuler le claim si le joueur n'existe pas
+      // Rollback
       await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
       return res.status(404).json({ error: 'player_not_found', message: 'Ton compte joueur est introuvable.' });
     }
@@ -222,12 +236,12 @@ app.post('/api/redeem', async (req, res) => {
 
     const ok = await sbPatch('players', { id: userId }, { rcoins: newTotal });
     if (!ok) {
-      // Rollback du claim
+      // Rollback
       await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
       return res.status(500).json({ error: 'db_error', message: 'Erreur DB lors du crédit — réessaie.' });
     }
 
-    // 4. Notifier en temps réel
+    // 5. Notifier en temps réel
     io.to(`user_${userId}`).emit('rcoins_update', { new_balance: newTotal, added });
 
     console.log(`✅ [Redeem] ${added} RCoins crédités à ${userId} (${player.username || userId}) — tx: ${tx.kofi_transaction_id} — total: ${newTotal}`);
