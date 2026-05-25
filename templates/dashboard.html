@@ -399,7 +399,7 @@
     {% if dash_banner %}
     <div class="profile-banner-bg">
       {% set dash_op = (player.banner_opacity[player.banner_dash] / 100) if player.banner_opacity and player.banner_dash and player.banner_opacity[player.banner_dash] else 0.4 %}
-      <img src="{{ dash_banner.img_dash or dash_banner.img_lb }}" alt="" style="opacity:{{ dash_op }}">
+      <img src="{{ dash_banner.img_dash_gif or dash_banner.img_dash or dash_banner.img_lb_gif or dash_banner.img_lb }}" alt="" style="opacity:{{ dash_op }}">
     </div>
     {% endif %}
     <div class="profile-left">
@@ -567,9 +567,9 @@
         <div class="player-card" data-name="{{ p.username|lower }}">
           {% set pc_banner_img = null %}
           {% if p.banner_lb and banners_map and banners_map[p.banner_lb] %}
-            {% set pc_banner_img = banners_map[p.banner_lb].img_lb or banners_map[p.banner_lb].img_dash %}
+            {% set pc_banner_img = banners_map[p.banner_lb].img_lb_gif or banners_map[p.banner_lb].img_lb or banners_map[p.banner_lb].img_dash_gif or banners_map[p.banner_lb].img_dash %}
           {% elif p.banner_dash and banners_map and banners_map[p.banner_dash] %}
-            {% set pc_banner_img = banners_map[p.banner_dash].img_dash %}
+            {% set pc_banner_img = banners_map[p.banner_dash].img_dash_gif or banners_map[p.banner_dash].img_dash %}
           {% endif %}
           {% if pc_banner_img %}
           {% set lb_slot = p.banner_lb if p.banner_lb else p.banner_dash %}
