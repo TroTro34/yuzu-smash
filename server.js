@@ -82,10 +82,10 @@ app.use(sessionMiddleware);
 // Share session with Socket.IO
 io.engine.use(sessionMiddleware);
 
-// ── KO-FI WEBHOOK (100% automatique) ─────────────────────────────────────────
+// ── KO-FI WEBHOOK — stocke la transaction, le joueur réclame via /redeem ─────
 // Ko-fi envoie un POST form-urlencoded avec un champ "data" contenant du JSON.
-// Le joueur doit avoir inclus son Discord ID dans le champ "message" du paiement Ko-fi.
-// Format attendu dans le message : son Discord ID (ex: 123456789012345678)
+// On stocke la transaction dans la table kofi_transactions (status: 'pending').
+// Le joueur clique sur le lien /redeem dans le Thank You Message Ko-fi pour réclamer.
 app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json(), async (req, res) => {
   try {
     // Ko-fi envoie les données dans un champ form "data" encodé en JSON
@@ -106,67 +106,136 @@ app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json()
       return res.status(401).send('Invalid verification token');
     }
 
-    // 2. Ignorer les abonnements / donations récurrentes (on ne gère que les achats one-shot)
+    // 2. Ignorer les types non gérés
     if (payload.type !== 'Shop Order' && payload.type !== 'Donation') {
       console.log('[Ko-fi Webhook] Type ignoré:', payload.type);
       return res.status(200).send('OK');
     }
 
-    // 3. Récupérer le montant et identifier le pack
+    // 3. Identifier le pack selon le montant
     const amountRaw = parseFloat(payload.amount || '0');
     const currency  = (payload.currency || 'EUR').toUpperCase();
-
-    // On n'accepte que les EUR pour éviter les conversions approximatives
     if (currency !== 'EUR') {
       console.warn('[Ko-fi Webhook] Devise non supportée:', currency);
       return res.status(200).send('Currency not supported');
     }
-
     const pack = KOFI_PACKS.find(p => Math.abs(p.amount - amountRaw) < 0.01);
     if (!pack) {
       console.warn('[Ko-fi Webhook] Montant non reconnu:', amountRaw, currency);
       return res.status(200).send('Amount not matched to a pack');
     }
 
-    // 4. Récupérer le Discord ID depuis le champ "message" laissé par l'acheteur
-    //    On cherche le premier token ressemblant à un Discord ID (17-19 chiffres)
-    const message = (payload.message || payload.kofi_message || '').trim();
-    const discordIdMatch = message.match(/\b(\d{17,19})\b/);
-    if (!discordIdMatch) {
-      console.warn('[Ko-fi Webhook] Aucun Discord ID trouvé dans le message:', message);
-      // On répond 200 pour éviter que Ko-fi réessaie indéfiniment
-      return res.status(200).send('No Discord ID in message — coins not credited');
-    }
-    const discordId = discordIdMatch[1];
-
-    // 5. Trouver le joueur dans Supabase
-    const playerRows = await sbGet('players', `id=eq.${discordId}`);
-    if (!playerRows || !playerRows.length) {
-      console.warn('[Ko-fi Webhook] Joueur introuvable pour ID Discord:', discordId);
-      return res.status(200).send('Player not found — coins not credited');
+    const txId = payload.kofi_transaction_id || payload.message_id || null;
+    if (!txId) {
+      console.warn('[Ko-fi Webhook] Pas de kofi_transaction_id dans le payload');
+      return res.status(200).send('No transaction ID');
     }
 
-    const player  = playerRows[0];
-    const current = player.rcoins || 0;
-    const added   = pack.coins;
-    const newTotal = current + added;
+    // 4. Vérifier si cette transaction existe déjà (idempotence)
+    const existing = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
+    if (existing && existing.length) {
+      console.log('[Ko-fi Webhook] Transaction déjà enregistrée:', txId);
+      return res.status(200).send('Already recorded');
+    }
 
-    // 6. Créditer les RCoins
-    const ok = await sbPatch('players', { id: discordId }, { rcoins: newTotal });
+    // 5. Stocker la transaction en "pending" — le joueur réclamera via /redeem
+    const ok = await sbPost('kofi_transactions', {
+      kofi_transaction_id: txId,
+      coins:               pack.coins,
+      pack_id:             pack.id,
+      amount_eur:          amountRaw,
+      status:              'pending',
+      kofi_email:          payload.email || null,
+      kofi_from_name:      payload.from_name || null,
+      created_at:          new Date().toISOString(),
+    });
+
     if (!ok) {
-      console.error('[Ko-fi Webhook] Échec du patch Supabase pour:', discordId);
+      console.error('[Ko-fi Webhook] Échec de l\'insertion Supabase pour tx:', txId);
       return res.status(500).send('DB error');
     }
 
-    // 7. Notifier le joueur en temps réel si connecté (Socket.IO)
-    io.to(`user_${discordId}`).emit('rcoins_update', { new_balance: newTotal, added });
-
-    console.log(`✅ [Ko-fi] Crédité ${added} RCoins à ${discordId} (${player.username || discordId}) — total: ${newTotal} — transaction: ${payload.kofi_transaction_id || 'N/A'}`);
+    console.log(`✅ [Ko-fi] Transaction stockée (pending) : ${txId} — ${pack.coins} RCoins — ${amountRaw}€`);
     return res.status(200).send('OK');
 
   } catch (err) {
     console.error('[Ko-fi Webhook] Erreur inattendue:', err);
     return res.status(500).send('Internal error');
+  }
+});
+
+// ── /redeem — page de réclamation RCoins après achat Ko-fi ───────────────────
+app.get('/redeem', async (req, res) => {
+  // Si pas connecté, redirige vers login puis revient ici
+  if (!req.session.user) {
+    req.session.returnTo = '/redeem';
+    return res.redirect('/login');
+  }
+  try {
+    const playerRows = await sbGet('players', `id=eq.${req.session.user.id}`);
+    const player = playerRows[0] || null;
+    res.render('redeem.html', { user: req.session.user, player });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// ── /api/redeem — réclamer une transaction Ko-fi ─────────────────────────────
+app.post('/api/redeem', authApiLimiter, async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+
+  const userId = req.session.user.id;
+
+  try {
+    // 1. Chercher les transactions pending non réclamées (pas encore liées à un joueur)
+    const pending = await sbGet('kofi_transactions', 'status=eq.pending&order=created_at.asc&limit=1');
+
+    if (!pending || !pending.length) {
+      return res.status(404).json({ error: 'no_pending', message: 'Aucune transaction en attente de réclamation.' });
+    }
+
+    const tx = pending[0];
+
+    // 2. Marquer la transaction comme "claimed" de façon atomique
+    //    (on ajoute claimed_by_discord_id seulement si status est encore 'pending')
+    const claimed = await sbPatchIf(
+      'kofi_transactions',
+      { kofi_transaction_id: tx.kofi_transaction_id, status: 'pending' },
+      { status: 'claimed', claimed_by: userId, claimed_at: new Date().toISOString() }
+    );
+
+    if (!claimed) {
+      // Quelqu'un d'autre vient de la réclamer en même temps
+      return res.status(409).json({ error: 'already_claimed', message: 'Cette transaction a déjà été réclamée.' });
+    }
+
+    // 3. Créditer les RCoins
+    const playerRows = await sbGet('players', `id=eq.${userId}`);
+    if (!playerRows || !playerRows.length) {
+      // Annuler le claim si le joueur n'existe pas
+      await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
+      return res.status(404).json({ error: 'player_not_found', message: 'Ton compte joueur est introuvable.' });
+    }
+
+    const player   = playerRows[0];
+    const current  = player.rcoins || 0;
+    const added    = tx.coins;
+    const newTotal = current + added;
+
+    const ok = await sbPatch('players', { id: userId }, { rcoins: newTotal });
+    if (!ok) {
+      // Rollback du claim
+      await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
+      return res.status(500).json({ error: 'db_error', message: 'Erreur DB lors du crédit — réessaie.' });
+    }
+
+    // 4. Notifier en temps réel
+    io.to(`user_${userId}`).emit('rcoins_update', { new_balance: newTotal, added });
+
+    console.log(`✅ [Redeem] ${added} RCoins crédités à ${userId} (${player.username || userId}) — tx: ${tx.kofi_transaction_id} — total: ${newTotal}`);
+    return res.json({ success: true, added, new_balance: newTotal });
+
+  } catch (err) {
+    console.error('[/api/redeem] Erreur:', err);
+    return res.status(500).json({ error: 'internal', message: 'Erreur serveur inattendue.' });
   }
 });
 
