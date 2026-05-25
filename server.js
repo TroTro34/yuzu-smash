@@ -116,10 +116,10 @@ app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json()
     const amountRaw = parseFloat(payload.amount || '0');
     const currency  = (payload.currency || 'EUR').toUpperCase();
   
-    const pack = KOFI_PACKS.find(p => Math.abs(p.amount - amountRaw) < 0.01);
+    let pack = KOFI_PACKS.find(p => Math.abs(p.amount - amountRaw) < 0.01);
     if (!pack) {
-      console.warn('[Ko-fi Webhook] Montant non reconnu:', amountRaw, currency);
-      return res.status(200).send('Amount not matched to a pack');
+      console.warn('[Ko-fi Webhook] Montant non reconnu:', amountRaw, '— fallback pack_500 pour test');
+      pack = KOFI_PACKS[0];
     }
 
     const txId = payload.kofi_transaction_id || payload.message_id || null;
