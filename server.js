@@ -110,7 +110,7 @@ app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (re
 const jsonDefault = express.json();
 const jsonLarge   = express.json({ limit: '10mb' });
 app.use((req, res, next) => {
-  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/whatsup'))
+  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/whatsup') || req.path.startsWith('/admin/shop/banner'))
     return jsonLarge(req, res, next);
   return jsonDefault(req, res, next);
 });
