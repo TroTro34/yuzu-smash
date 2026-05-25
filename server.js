@@ -115,10 +115,7 @@ app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json()
     // 3. Identifier le pack selon le montant
     const amountRaw = parseFloat(payload.amount || '0');
     const currency  = (payload.currency || 'EUR').toUpperCase();
-    if (currency !== 'EUR') {
-      console.warn('[Ko-fi Webhook] Devise non supportée:', currency);
-      return res.status(200).send('Currency not supported');
-    }
+  
     const pack = KOFI_PACKS.find(p => Math.abs(p.amount - amountRaw) < 0.01);
     if (!pack) {
       console.warn('[Ko-fi Webhook] Montant non reconnu:', amountRaw, currency);
