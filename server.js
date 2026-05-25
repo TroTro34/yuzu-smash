@@ -79,6 +79,16 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
+// Body parsing
+const jsonDefault = express.json();
+const jsonLarge   = express.json({ limit: '10mb' });
+app.use((req, res, next) => {
+  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/whatsup') || req.path.startsWith('/admin/shop/banner'))
+    return jsonLarge(req, res, next);
+  return jsonDefault(req, res, next);
+});
+app.use(express.urlencoded({ extended: false }));
+
 // Share session with Socket.IO
 io.engine.use(sessionMiddleware);
 
@@ -249,18 +259,6 @@ app.post('/api/redeem', async (req, res) => {
     return res.status(500).json({ error: 'internal', message: 'Erreur serveur inattendue.' });
   }
 });
-
-// Body parsing — DOIT être placé AVANT les routes qui utilisent req.body
-// Limite par défaut 100 kb — augmentée à 6 Mo sur /report pour les screenshots base64
-const jsonDefault = express.json();
-const jsonLarge   = express.json({ limit: '10mb' });
-app.use((req, res, next) => {
-  if (req.path.startsWith('/report/') || req.path.startsWith('/admin/whatsup') || req.path.startsWith('/admin/shop/banner'))
-    return jsonLarge(req, res, next);
-  return jsonDefault(req, res, next);
-});
-app.use(express.urlencoded({ extended: false }));
-
 
 // ── RATE LIMITERS ─────────────────────────────────────────────────────────────
 
