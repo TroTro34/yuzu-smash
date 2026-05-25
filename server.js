@@ -328,7 +328,7 @@ async function leaderboardData() {
     sbGet('players', 'order=points.desc'),
     sbGet('matches', 'order=date.desc&limit=10'),
     sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`),
-    sbGet('banners', 'select=id,img_dash,img_lb'),
+    sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
   ]);
   const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
   return { players, recent_matches: recentMatches, lfm_posts: lfmPosts, banners_map };
@@ -494,7 +494,7 @@ app.get('/', async (req, res) => {
       sbGet('players', 'order=points.desc'),
       sbGet('matches', 'order=date.desc&limit=10'),
       sbGet('lfm_posts', 'order=created_at.desc'),
-      sbGet('banners', 'select=id,img_dash,img_lb'),
+      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
     ]);
     const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
     res.render('index.html', { user: req.session.user || null, players, recent_matches: matches, lfm_posts: lfm, banners_map });
@@ -576,7 +576,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     const [data, playerRow, banners] = await Promise.all([
       dashboardData(userId),
       sbGet('players', `id=eq.${userId}`),
-      sbGet('banners', 'select=id,img_dash,img_lb'),
+      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
     ]);
     const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
     const banners_map = Object.fromEntries(banners.map(b => [b.id, b]));
@@ -592,7 +592,7 @@ app.get('/player/:player_id', async (req, res) => {
     const [players, myMatches, bannersArr] = await Promise.all([
       sbGet('players', 'order=points.desc'),
       getPlayerMatches(player_id, 10),
-      sbGet('banners', 'select=id,img_dash,img_lb'),
+      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
     ]);
     const player = players.find(p => p.id === player_id);
     if (!player) return res.redirect('/');
