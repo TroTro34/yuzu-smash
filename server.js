@@ -1307,12 +1307,24 @@ async function resolveDeadMatches() {
 
 const VALID_RARITIES = new Set(['common', 'rare', 'epic', 'legendary']);
 const RARITY_PRICES = { common: 100, rare: 500, epic: 1500, legendary: 3000 };
-const MAX_BANNER_IMG_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_BANNER_IMG_BYTES     = 2 * 1024 * 1024; // 2 MB (static)
+const MAX_BANNER_GIF_BYTES     = 5 * 1024 * 1024; // 5 MB (animated GIF)
+const VALID_BANNER_MIME_STATIC = new Set(['data:image/png;', 'data:image/jpeg;', 'data:image/webp;']);
 
 function validateBannerImg(raw) {
   if (!raw || typeof raw !== 'string') return null;
   if (!raw.startsWith('data:image/')) return null;
+  // GIFs must use validateBannerGif — reject here if GIF
+  if (raw.startsWith('data:image/gif;')) return null;
   if (raw.length > Math.ceil(MAX_BANNER_IMG_BYTES * 1.4)) return null;
+  return raw;
+}
+
+// Valide un GIF animé (data URL) — limite 5 MB
+function validateBannerGif(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  if (!raw.startsWith('data:image/gif;')) return null;
+  if (raw.length > Math.ceil(MAX_BANNER_GIF_BYTES * 1.4)) return null;
   return raw;
 }
 
@@ -1556,19 +1568,23 @@ app.post('/admin/shop/banner', requireAdmin, async (req, res) => {
   const rarity = req.body.rarity || 'common';
   if (!name)                       return res.status(400).json({ error: 'Name is required' });
   if (!VALID_RARITIES.has(rarity)) return res.status(400).json({ error: 'Invalid rarity' });
-  const img_dash = validateBannerImg(req.body.img_dash);
-  const img_lb   = validateBannerImg(req.body.img_lb);
-  if (!img_dash && !img_lb)
+  const img_dash     = validateBannerImg(req.body.img_dash);
+  const img_lb       = validateBannerImg(req.body.img_lb);
+  const img_dash_gif = validateBannerGif(req.body.img_dash_gif);
+  const img_lb_gif   = validateBannerGif(req.body.img_lb_gif);
+  if (!img_dash && !img_lb && !img_dash_gif && !img_lb_gif)
     return res.status(400).json({ error: 'At least one image is required' });
   const bid = `ban_${crypto.randomBytes(8).toString('hex')}`;
   await sbPost('banners', {
     id: bid, name, rarity,
-    img_dash: img_dash || null,
-    img_lb:   img_lb   || null,
+    img_dash:     img_dash     || null,
+    img_lb:       img_lb       || null,
+    img_dash_gif: img_dash_gif || null,
+    img_lb_gif:   img_lb_gif   || null,
     created_by: req.session.user.id,
     created_at: new Date().toISOString(),
   });
-  res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb } });
+  res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb, img_dash_gif, img_lb_gif } });
 });
 
 // Admin — supprimer une bannière
