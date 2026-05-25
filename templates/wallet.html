@@ -254,8 +254,8 @@
 <div class="container">
 
   <!-- Payment status banners -->
-  <div class="payment-banner success" id="payment-success">✅ Payment confirmed! Your RCoins have been credited.</div>
-  <div class="payment-banner cancel" id="payment-cancel">❌ Payment cancelled. No charge was made.</div>
+  <div class="payment-banner success" id="payment-success">✅ Paiement confirmé ! Tes RCoins ont été crédités.</div>
+  <div class="payment-banner cancel" id="payment-cancel">❌ Paiement annulé. Aucun débit effectué.</div>
 
   <!-- Header -->
   <div class="wallet-header">
@@ -281,34 +281,43 @@
   </div>
 
   <!-- Packs -->
-  <div class="section-title">Top up RCoins</div>
+  <div class="section-title">Recharger des RCoins</div>
+
+  <!-- Instructions Ko-fi -->
+  <div style="background:rgba(240,74,0,0.07);border:1px solid rgba(240,74,0,0.25);border-radius:10px;padding:1rem 1.3rem;margin-bottom:1.5rem;font-size:0.93rem;color:#e8d0c0;line-height:1.7;">
+    <strong style="color:#ff8000;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1rem;">⚠ IMPORTANT — COMMENT RECEVOIR TES RCOINS</strong><br>
+    Lors du paiement sur Ko-fi, tu <strong>dois</strong> écrire ton <strong>Discord ID</strong> dans le champ <em>"Message"</em>.<br>
+    Ton Discord ID : <strong id="discord-id-display" style="color:#c084fc;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:1px;">{{ user.id if user else '—' }}</strong>
+    <button onclick="copyDiscordId()" style="margin-left:8px;background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.4);color:#c084fc;border-radius:4px;padding:2px 10px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.85rem;" title="Copier mon Discord ID">📋 Copier</button><br>
+    <span style="color:var(--muted);font-size:0.85rem;">Les RCoins sont crédités automatiquement dès confirmation du paiement Ko-fi.</span>
+  </div>
 
   <div class="packs-grid">
 
-    <!-- Pack 500 -->
+    <!-- Pack 500 — 2€ -->
     <div class="coin-pack" onclick="buyCoins('pack_500')">
       <span class="pack-emoji">💜</span>
       <div class="pack-coins"><span>R</span>500</div>
       <div class="pack-label">RCOINS</div>
       <div class="pack-price">2,00 €</div>
-      <button class="btn-buy-coins" id="btn-pack_500">Buy →</button>
+      <button class="btn-buy-coins" id="btn-pack_500">Acheter sur Ko-fi →</button>
     </div>
 
-    <!-- Pack 2000 -->
+    <!-- Pack 2000 — 5€ -->
     <div class="coin-pack best-value" onclick="buyCoins('pack_2000')">
       <div class="pack-badge">⭐ MEILLEURE OFFRE</div>
       <span class="pack-emoji">⭐</span>
       <div class="pack-coins"><span>R</span>2000</div>
       <div class="pack-label">RCOINS</div>
       <div class="pack-price">5,00 €</div>
-      <button class="btn-buy-coins" id="btn-pack_2000">Buy →</button>
+      <button class="btn-buy-coins" id="btn-pack_2000">Acheter sur Ko-fi →</button>
     </div>
 
   </div>
 
   <div class="stripe-note">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    100% secure payment via Stripe · RCoins credited instantly after confirmation
+    Paiement sécurisé via Ko-fi · PayPal · RCoins crédités automatiquement dès confirmation
   </div>
 
   {% else %}
@@ -325,18 +334,18 @@
   <div class="info-grid">
     <div class="info-card">
       <span class="info-card-icon">💜</span>
-      <div class="info-card-title">Buy RCoins</div>
-      <div class="info-card-text">Pick a pack above. Payment is secured by Stripe. Your RCoins are credited automatically once confirmed.</div>
+      <div class="info-card-title">Acheter des RCoins</div>
+      <div class="info-card-text">Choisis un pack, clique sur "Acheter sur Ko-fi". Sur Ko-fi, note ton Discord ID dans le champ Message, puis paye via PayPal.</div>
     </div>
     <div class="info-card">
       <span class="info-card-icon">🖼</span>
-      <div class="info-card-title">Spend</div>
-      <div class="info-card-text">Head to the Shop to buy exclusive banners and customise your profile and leaderboard row.</div>
+      <div class="info-card-title">Dépenser</div>
+      <div class="info-card-text">Va dans le Shop pour acheter des bannières exclusives et personnaliser ton profil et ta ligne dans le classement.</div>
     </div>
     <div class="info-card">
       <span class="info-card-icon">⚡</span>
-      <div class="info-card-title">Instant credits</div>
-      <div class="info-card-text">As soon as Stripe confirms your payment, RCoins appear on your balance in real time via Socket.IO.</div>
+      <div class="info-card-title">Crédit instantané</div>
+      <div class="info-card-text">Dès que Ko-fi confirme ton paiement, les RCoins apparaissent sur ton solde en temps réel via Socket.IO.</div>
     </div>
   </div>
 
@@ -366,11 +375,11 @@
     if (params.get('payment')) window.history.replaceState({}, '', '/wallet');
   })();
 
-  // ── Buy coins ───────────────────────────────────────────────────────────────
+  // ── Buy coins — redirige vers Ko-fi ────────────────────────────────────────
   async function buyCoins(packId) {
-    if (!USER_LOGGED) { showToast('Log in to buy RCoins!', 'red'); return; }
+    if (!USER_LOGGED) { showToast('Connecte-toi pour acheter des RCoins !', 'red'); return; }
     const btn = document.getElementById('btn-' + packId);
-    if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Chargement…'; }
     try {
       const r = await fetch('/shop/buy-coins', {
         method: 'POST',
@@ -379,14 +388,40 @@
       });
       const data = await r.json();
       if (data.url) {
-        window.location.href = data.url;
+        // Afficher le rappel Discord ID avant de partir sur Ko-fi
+        const discordId = data.discord_id || '';
+        const confirmed = confirm(
+          `⚠️ IMPORTANT — AVANT DE PAYER SUR KO-FI\n\n` +
+          `Tu DOIS écrire ton Discord ID dans le champ "Message" de Ko-fi :\n\n` +
+          `👉  ${discordId}\n\n` +
+          `Sans ça, tes RCoins ne pourront pas être crédités automatiquement.\n\n` +
+          `Clique OK pour ouvrir Ko-fi (le message ci-dessus a été copié dans ton presse-papier).`
+        );
+        if (confirmed) {
+          // Copier l'ID dans le presse-papier pour faciliter le collage
+          try { await navigator.clipboard.writeText(discordId); } catch(e) {}
+          window.open(data.url, '_blank');
+        }
+        if (btn) { btn.disabled = false; btn.textContent = 'Acheter sur Ko-fi →'; }
       } else {
-        showToast(data.error || 'Error — please try again.', 'red');
-        if (btn) { btn.disabled = false; btn.textContent = 'Buy →'; }
+        showToast(data.error || 'Erreur — réessaie.', 'red');
+        if (btn) { btn.disabled = false; btn.textContent = 'Acheter sur Ko-fi →'; }
       }
     } catch (e) {
-      showToast('Network error', 'red');
-      if (btn) { btn.disabled = false; btn.textContent = 'Buy →'; }
+      showToast('Erreur réseau', 'red');
+      if (btn) { btn.disabled = false; btn.textContent = 'Acheter sur Ko-fi →'; }
+    }
+  }
+
+  async function copyDiscordId() {
+    const el = document.getElementById('discord-id-display');
+    if (!el) return;
+    const id = el.textContent.trim();
+    try {
+      await navigator.clipboard.writeText(id);
+      showToast('Discord ID copié !', 'purple');
+    } catch(e) {
+      showToast('Copie manuelle : ' + id, 'purple');
     }
   }
 
@@ -396,7 +431,7 @@
       const socket = io();
       socket.on('rcoins_update', ({ new_balance }) => {
         updateBalance(new_balance);
-        showToast(`✅ RCoins credited! New balance: ${new_balance.toLocaleString()} R`, 'purple');
+        showToast(`✅ RCoins crédités ! Nouveau solde : ${new_balance.toLocaleString()} R`, 'purple');
       });
     } catch(e) {}
   }
