@@ -399,18 +399,18 @@
 
           <!-- Dashboard banner preview -->
           <div class="banner-preview-dash">
-            {% if banner.img_dash %}
-              <img src="{{ banner.img_dash }}" alt="{{ banner.name }}">
+            {% if banner.img_dash_gif or banner.img_dash %}
+              <img src="{{ banner.img_dash_gif or banner.img_dash }}" alt="{{ banner.name }}">
             {% endif %}
             <div class="preview-label">DASHBOARD</div>
           </div>
 
           <!-- Leaderboard banner preview -->
           <div class="banner-preview-lb">
-            {% if banner.img_lb %}
-              <img src="{{ banner.img_lb }}" alt="{{ banner.name }}">
-            {% elif banner.img_dash %}
-              <img src="{{ banner.img_dash }}" alt="{{ banner.name }}">
+            {% if banner.img_lb_gif or banner.img_lb %}
+              <img src="{{ banner.img_lb_gif or banner.img_lb }}" alt="{{ banner.name }}">
+            {% elif banner.img_dash_gif or banner.img_dash %}
+              <img src="{{ banner.img_dash_gif or banner.img_dash }}" alt="{{ banner.name }}">
             {% endif %}
             <div class="preview-label">LEADERBOARD</div>
           </div>
