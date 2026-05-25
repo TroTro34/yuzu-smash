@@ -1306,7 +1306,7 @@ async function resolveDeadMatches() {
 // ── BANNER SHOP ───────────────────────────────────────────────────────────────
 
 const VALID_RARITIES = new Set(['common', 'rare', 'epic', 'legendary']);
-const RARITY_PRICES = { common: 100, rare: 500, epic: 1500, legendary: 3000 };
+const RARITY_PRICES = { common: 100, rare: 500, epic: 1500, legendary: 2000 };
 const MAX_BANNER_IMG_BYTES     = 2 * 1024 * 1024; // 2 MB (static)
 const MAX_BANNER_GIF_BYTES     = 5 * 1024 * 1024; // 5 MB (animated GIF)
 const VALID_BANNER_MIME_STATIC = new Set(['data:image/png;', 'data:image/jpeg;', 'data:image/webp;']);
