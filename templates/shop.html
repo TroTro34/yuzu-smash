@@ -385,7 +385,7 @@
         {% set is_equipped_dash = player and player.banner_dash == banner.id %}
         {% set is_equipped_lb   = player and player.banner_lb   == banner.id %}
         {% set is_owned = player and (player.owned_banners and banner.id in player.owned_banners) %}
-        {% set rarity_price = {'common': 100, 'rare': 500, 'epic': 1500, 'legendary': 3000} %}
+        {% set rarity_price = {'common': 100, 'rare': 500, 'epic': 1500, 'legendary': 2000} %}
         {% set price = rarity_price[banner.rarity] %}
         {% set can_afford = player and (player.rcoins or 0) >= price %}
 
