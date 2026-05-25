@@ -12,16 +12,24 @@ const rateLimit   = require('express-rate-limit');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
-const stripe              = require('stripe')(process.env.STRIPE_SECRET_KEY || '');
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
-
 const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
 
-// ── RCOIN PACKS (paiement réel) ───────────────────────────────────────────────
+// ── KO-FI CONFIG ──────────────────────────────────────────────────────────────
+const KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN || 'f76a8972-3395-41e8-aa51-827effffadeb';
+
+// Mapping montant (en EUR) → RCoins à créditer
+// Pack 2€ (lien ko-fi.com/s/fc3ccb0369) → 500 RCoins
+// Pack 5€ (lien ko-fi.com/s/63ab51d2f4) → 2000 RCoins
+const KOFI_PACKS = [
+  { amount: 2.00, coins: 500,  label: '500 RCoins',  emoji: '💜', id: 'pack_500'  },
+  { amount: 5.00, coins: 2000, label: '2000 RCoins', emoji: '⭐', id: 'pack_2000' },
+];
+
+// ── RCOIN PACKS (affiché côté client) ────────────────────────────────────────
 const RCOIN_PACKS = [
-  { id: 'pack_500',  coins: 500,  price_cents: 200, label: '500 RCoins',  emoji: '💜' },
-  { id: 'pack_2000', coins: 2000, price_cents: 500, label: '2000 RCoins', emoji: '⭐' },
+  { id: 'pack_500',  coins: 500,  price_euros: 2.00, label: '500 RCoins',  emoji: '💜', kofi_url: 'https://ko-fi.com/s/fc3ccb0369' },
+  { id: 'pack_2000', coins: 2000, price_euros: 5.00, label: '2000 RCoins', emoji: '⭐', kofi_url: 'https://ko-fi.com/s/63ab51d2f4' },
 ];
 
 const CLIENT_ID           = '1504467669712240861';
@@ -74,35 +82,92 @@ app.use(sessionMiddleware);
 // Share session with Socket.IO
 io.engine.use(sessionMiddleware);
 
-// ── STRIPE WEBHOOK (doit être avant express.json() — raw body requis) ────────
-app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
+// ── KO-FI WEBHOOK (100% automatique) ─────────────────────────────────────────
+// Ko-fi envoie un POST form-urlencoded avec un champ "data" contenant du JSON.
+// Le joueur doit avoir inclus son Discord ID dans le champ "message" du paiement Ko-fi.
+// Format attendu dans le message : son Discord ID (ex: 123456789012345678)
+app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json(), async (req, res) => {
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('[Stripe Webhook] Signature invalide:', err.message);
-    return res.status(400).send(`Webhook error: ${err.message}`);
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    if (session.payment_status === 'paid') {
-      const { user_id, coins } = session.metadata || {};
-      if (user_id && coins) {
-        const playerRows = await sbGet('players', `id=eq.${user_id}`);
-        if (playerRows.length) {
-          const current = playerRows[0].rcoins || 0;
-          const added   = parseInt(coins, 10);
-          await sbPatch('players', { id: user_id }, { rcoins: current + added });
-          // Notifier le joueur en temps réel si connecté
-          io.to(`user_${user_id}`).emit('rcoins_update', { new_balance: current + added, added });
-          console.log(`✅ [Stripe] Crédité ${coins} RCoins à ${user_id} (total: ${current + added})`);
-        }
-      }
+    // Ko-fi envoie les données dans un champ form "data" encodé en JSON
+    let payload;
+    if (req.body && req.body.data) {
+      try { payload = JSON.parse(req.body.data); }
+      catch { return res.status(400).send('Invalid JSON in data field'); }
+    } else if (req.body && req.body.verification_token) {
+      payload = req.body;
+    } else {
+      console.warn('[Ko-fi Webhook] Payload inattendu:', JSON.stringify(req.body).slice(0, 200));
+      return res.status(400).send('Missing data field');
     }
+
+    // 1. Vérifier le token
+    if (payload.verification_token !== KOFI_VERIFICATION_TOKEN) {
+      console.warn('[Ko-fi Webhook] Token invalide reçu:', payload.verification_token);
+      return res.status(401).send('Invalid verification token');
+    }
+
+    // 2. Ignorer les abonnements / donations récurrentes (on ne gère que les achats one-shot)
+    if (payload.type !== 'Shop Order' && payload.type !== 'Donation') {
+      console.log('[Ko-fi Webhook] Type ignoré:', payload.type);
+      return res.status(200).send('OK');
+    }
+
+    // 3. Récupérer le montant et identifier le pack
+    const amountRaw = parseFloat(payload.amount || '0');
+    const currency  = (payload.currency || 'EUR').toUpperCase();
+
+    // On n'accepte que les EUR pour éviter les conversions approximatives
+    if (currency !== 'EUR') {
+      console.warn('[Ko-fi Webhook] Devise non supportée:', currency);
+      return res.status(200).send('Currency not supported');
+    }
+
+    const pack = KOFI_PACKS.find(p => Math.abs(p.amount - amountRaw) < 0.01);
+    if (!pack) {
+      console.warn('[Ko-fi Webhook] Montant non reconnu:', amountRaw, currency);
+      return res.status(200).send('Amount not matched to a pack');
+    }
+
+    // 4. Récupérer le Discord ID depuis le champ "message" laissé par l'acheteur
+    //    On cherche le premier token ressemblant à un Discord ID (17-19 chiffres)
+    const message = (payload.message || payload.kofi_message || '').trim();
+    const discordIdMatch = message.match(/\b(\d{17,19})\b/);
+    if (!discordIdMatch) {
+      console.warn('[Ko-fi Webhook] Aucun Discord ID trouvé dans le message:', message);
+      // On répond 200 pour éviter que Ko-fi réessaie indéfiniment
+      return res.status(200).send('No Discord ID in message — coins not credited');
+    }
+    const discordId = discordIdMatch[1];
+
+    // 5. Trouver le joueur dans Supabase
+    const playerRows = await sbGet('players', `id=eq.${discordId}`);
+    if (!playerRows || !playerRows.length) {
+      console.warn('[Ko-fi Webhook] Joueur introuvable pour ID Discord:', discordId);
+      return res.status(200).send('Player not found — coins not credited');
+    }
+
+    const player  = playerRows[0];
+    const current = player.rcoins || 0;
+    const added   = pack.coins;
+    const newTotal = current + added;
+
+    // 6. Créditer les RCoins
+    const ok = await sbPatch('players', { id: discordId }, { rcoins: newTotal });
+    if (!ok) {
+      console.error('[Ko-fi Webhook] Échec du patch Supabase pour:', discordId);
+      return res.status(500).send('DB error');
+    }
+
+    // 7. Notifier le joueur en temps réel si connecté (Socket.IO)
+    io.to(`user_${discordId}`).emit('rcoins_update', { new_balance: newTotal, added });
+
+    console.log(`✅ [Ko-fi] Crédité ${added} RCoins à ${discordId} (${player.username || discordId}) — total: ${newTotal} — transaction: ${payload.kofi_transaction_id || 'N/A'}`);
+    return res.status(200).send('OK');
+
+  } catch (err) {
+    console.error('[Ko-fi Webhook] Erreur inattendue:', err);
+    return res.status(500).send('Internal error');
   }
-  res.json({ received: true });
 });
 
 // Body parsing
@@ -1448,43 +1513,20 @@ app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   res.json({ success: true, new_balance: newBalance });
 });
 
-// Shop — acheter des RCoins avec Stripe
+// Shop — obtenir le lien Ko-fi pour acheter des RCoins
 app.post('/shop/buy-coins', authApiLimiter, requireAuth, async (req, res) => {
   const { pack_id } = req.body;
   const pack = RCOIN_PACKS.find(p => p.id === pack_id);
   if (!pack) return res.status(400).json({ error: 'Pack invalide' });
-  if (!process.env.STRIPE_SECRET_KEY)
-    return res.status(500).json({ error: 'Paiement non configuré' });
 
-  try {
-    const siteUrl = process.env.SITE_URL || 'https://yuzu-smash.onrender.com';
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'eur',
-          product_data: {
-            name: `${pack.emoji} ${pack.label} — Smash YUZU`,
-            description: `Crédite ${pack.coins} RCoins sur votre compte Smash YUZU`,
-          },
-          unit_amount: pack.price_cents,
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: `${siteUrl}/wallet?payment=success&coins=${pack.coins}`,
-      cancel_url:  `${siteUrl}/wallet?payment=cancel`,
-      metadata: {
-        user_id: req.session.user.id,
-        pack_id: pack.id,
-        coins:   String(pack.coins),
-      },
-    });
-    res.json({ url: session.url });
-  } catch (e) {
-    console.error('[Stripe buy-coins]', e);
-    res.status(500).json({ error: 'Erreur Stripe — réessayez.' });
-  }
+  // On retourne l'URL Ko-fi directement — le joueur y paie
+  // Il DOIT mettre son Discord ID dans le champ "message" Ko-fi pour recevoir ses coins
+  res.json({
+    url:       pack.kofi_url,
+    discord_id: req.session.user.id,
+    pack_id:    pack.id,
+    coins:      pack.coins,
+  });
 });
 
 // ── WHAT'S UP — public read ───────────────────────────────────────────────────
