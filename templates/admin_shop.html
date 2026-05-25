@@ -421,10 +421,22 @@
   // Drag & drop visual feedback
   ['dash','lb','dash_gif','lb_gif'].forEach(slot => {
     const zoneId = slot === 'dash_gif' ? 'zone-dash-gif' : slot === 'lb_gif' ? 'zone-lb-gif' : `zone-${slot}`;
+    const inputId = slot === 'dash_gif' ? 'file-dash-gif' : slot === 'lb_gif' ? 'file-lb-gif' : `file-${slot}`;
     const zone = document.getElementById(zoneId);
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
-    zone.addEventListener('drop', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag');
+      const files = e.dataTransfer.files;
+      if (!files.length) return;
+      const input = document.getElementById(inputId);
+      // Assign dropped file to the hidden input then trigger preview
+      const dt = new DataTransfer();
+      dt.items.add(files[0]);
+      input.files = dt.files;
+      previewFile(slot);
+    });
   });
 
   // ── CREATE BANNER ──
