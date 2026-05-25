@@ -86,7 +86,7 @@ io.engine.use(sessionMiddleware);
 // Ko-fi envoie un POST form-urlencoded avec un champ "data" contenant du JSON.
 // On stocke la transaction dans la table kofi_transactions (status: 'pending').
 // Le joueur clique sur le lien /redeem dans le Thank You Message Ko-fi pour réclamer.
-app.post('/webhook/kofi', express.urlencoded({ extended: true }), express.json(), async (req, res) => {
+app.post('/webhook/kofi', async (req, res) => {
   try {
     // Ko-fi envoie les données dans un champ form "data" encodé en JSON
     let payload;
@@ -250,7 +250,7 @@ app.post('/api/redeem', async (req, res) => {
   }
 });
 
-// Body parsing
+// Body parsing — DOIT être placé AVANT les routes qui utilisent req.body
 // Limite par défaut 100 kb — augmentée à 6 Mo sur /report pour les screenshots base64
 const jsonDefault = express.json();
 const jsonLarge   = express.json({ limit: '10mb' });
@@ -313,6 +313,17 @@ env.addFilter('selectattr', function(arr, attr, op, val) {
 env.addFilter('datefmt', (val) => {
   if (!val) return '';
   return String(val).slice(0, 16).replace('T', ' ');
+});
+// format: formatte un nombre avec décimales (ex: {{ value | format('0.00') }})
+env.addFilter('format', function(val, pattern) {
+  if (val === null || val === undefined) return '';
+  const num = Number(val);
+  if (isNaN(num)) return String(val);
+  if (pattern) {
+    const decimals = (pattern.match(/0/g) || []).length;
+    return num.toFixed(decimals);
+  }
+  return num.toLocaleString('fr-FR');
 });
 
 // ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
