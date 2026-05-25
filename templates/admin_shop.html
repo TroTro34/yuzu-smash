@@ -448,7 +448,16 @@
     errEl.classList.remove('show');
 
     if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
-    if (!b64Cache.dash && !b64Cache.lb) {
+    // Si un GIF a été uploadé dans une zone statique, le rediriger vers le champ gif
+    if (b64Cache.dash && b64Cache.dash.startsWith('data:image/gif;')) {
+      b64Cache.dash_gif = b64Cache.dash_gif || b64Cache.dash;
+      b64Cache.dash = null;
+    }
+    if (b64Cache.lb && b64Cache.lb.startsWith('data:image/gif;')) {
+      b64Cache.lb_gif = b64Cache.lb_gif || b64Cache.lb;
+      b64Cache.lb = null;
+    }
+    if (!b64Cache.dash && !b64Cache.lb && !b64Cache.dash_gif && !b64Cache.lb_gif) {
       errEl.textContent = 'Upload at least one banner image.';
       errEl.classList.add('show'); return;
     }
