@@ -161,9 +161,9 @@
 
   {% set prof_banner_img = null %}
   {% if player.banner_lb and banners_map and banners_map[player.banner_lb] %}
-    {% set prof_banner_img = banners_map[player.banner_lb].img_lb or banners_map[player.banner_lb].img_dash %}
+    {% set prof_banner_img = banners_map[player.banner_lb].img_lb_gif or banners_map[player.banner_lb].img_lb or banners_map[player.banner_lb].img_dash_gif or banners_map[player.banner_lb].img_dash %}
   {% elif player.banner_dash and banners_map and banners_map[player.banner_dash] %}
-    {% set prof_banner_img = banners_map[player.banner_dash].img_dash %}
+    {% set prof_banner_img = banners_map[player.banner_dash].img_dash_gif or banners_map[player.banner_dash].img_dash %}
   {% endif %}
 
   <div class="profile-card"
