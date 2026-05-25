@@ -469,9 +469,9 @@
              onclick="{% if user %}window.location='/player/{{ player.id }}'{% endif %}">
           {% set lb_img = null %}
           {% if player.banner_lb and banners_map[player.banner_lb] %}
-            {% set lb_img = banners_map[player.banner_lb].img_lb or banners_map[player.banner_lb].img_dash %}
+            {% set lb_img = banners_map[player.banner_lb].img_lb_gif or banners_map[player.banner_lb].img_lb or banners_map[player.banner_lb].img_dash_gif or banners_map[player.banner_lb].img_dash %}
           {% elif player.banner_dash and banners_map[player.banner_dash] %}
-            {% set lb_img = banners_map[player.banner_dash].img_dash %}
+            {% set lb_img = banners_map[player.banner_dash].img_dash_gif or banners_map[player.banner_dash].img_dash %}
           {% endif %}
           {% if lb_img %}
           {% set lb_slot = player.banner_lb if player.banner_lb else player.banner_dash %}
