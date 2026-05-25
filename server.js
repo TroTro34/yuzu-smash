@@ -179,7 +179,7 @@ app.get('/redeem', async (req, res) => {
 });
 
 // ── /api/redeem — réclamer une transaction Ko-fi ─────────────────────────────
-app.post('/api/redeem', authApiLimiter, async (req, res) => {
+app.post('/api/redeem', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
   const userId = req.session.user.id;
