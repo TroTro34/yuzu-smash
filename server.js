@@ -187,7 +187,7 @@ app.post('/api/redeem', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
   const userId = req.session.user.id;
-  const { tx_id } = req.body;
+  const { tx_id } = req.body || {};
 
   if (!tx_id || typeof tx_id !== 'string' || tx_id.length > 200) {
     return res.status(400).json({ error: 'missing_tx', message: 'Lien invalide — utilise le lien reçu dans ton email Ko-fi.' });
