@@ -388,20 +388,12 @@
       });
       const data = await r.json();
       if (data.url) {
-        // Afficher le rappel Discord ID avant de partir sur Ko-fi
         const discordId = data.discord_id || '';
-        const confirmed = confirm(
-          `⚠️ IMPORTANT — AVANT DE PAYER SUR KO-FI\n\n` +
-          `Tu DOIS écrire ton Discord ID dans le champ "Message" de Ko-fi :\n\n` +
-          `👉  ${discordId}\n\n` +
-          `Sans ça, tes RCoins ne pourront pas être crédités automatiquement.\n\n` +
-          `Clique OK pour ouvrir Ko-fi (le message ci-dessus a été copié dans ton presse-papier).`
-        );
-        if (confirmed) {
-          // Copier l'ID dans le presse-papier pour faciliter le collage
-          try { await navigator.clipboard.writeText(discordId); } catch(e) {}
-          window.open(data.url, '_blank');
-        }
+        // Copier l'ID automatiquement dans le presse-papier
+        try { await navigator.clipboard.writeText(discordId); } catch(e) {}
+        showToast(`📋 Discord ID copié ! Colle-le dans le champ Message sur Ko-fi.`, 'purple');
+        // Ouvrir Ko-fi après un court instant pour que le toast soit visible
+        setTimeout(() => window.open(data.url, '_blank'), 800);
         if (btn) { btn.disabled = false; btn.textContent = 'Acheter sur Ko-fi →'; }
       } else {
         showToast(data.error || 'Erreur — réessaie.', 'red');
