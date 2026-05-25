@@ -25,7 +25,6 @@
       padding: 2rem 1rem;
     }
 
-    /* ── NAV ── */
     nav {
       position: fixed; top: 0; left: 0; right: 0;
       display: flex; justify-content: space-between; align-items: center;
@@ -45,7 +44,6 @@
     .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
     .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
-    /* ── CARD ── */
     .card {
       margin-top: 5rem;
       background: rgba(15,15,26,0.92);
@@ -63,28 +61,48 @@
     }
 
     .card-icon { font-size: 3.5rem; margin-bottom: 0.8rem; display: block; }
-
     .card-title {
       font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 5px;
       background: linear-gradient(135deg, var(--rcoin2), var(--rcoin));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       line-height: 1; margin-bottom: 0.5rem;
     }
+    .card-sub { color: var(--muted); font-size: 1rem; margin-bottom: 1.5rem; line-height: 1.6; }
 
-    .card-sub { color: var(--muted); font-size: 1rem; margin-bottom: 2rem; line-height: 1.6; }
+    /* Pack preview box */
+    .pack-preview {
+      background: linear-gradient(135deg, rgba(126,34,206,0.15) 0%, rgba(88,28,135,0.1) 100%);
+      border: 1px solid rgba(168,85,247,0.35); border-radius: 12px;
+      padding: 1rem 1.5rem; margin-bottom: 1.5rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .pack-preview-coins {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 3px;
+      color: #fff; line-height: 1;
+    }
+    .pack-preview-coins span { color: var(--rcoin); font-size: 1.3rem; margin-right: 2px; }
+    .pack-preview-label { color: var(--muted); font-size: 0.78rem; letter-spacing: 3px; font-family: 'Bebas Neue', sans-serif; }
+    .pack-preview-price {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 2px;
+      color: var(--accent2);
+    }
 
-    /* User info bar */
+    /* No tx warning */
+    .no-tx-box {
+      background: rgba(255,85,85,0.07); border: 1px solid rgba(255,85,85,0.25);
+      border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1.5rem;
+      color: var(--red); font-size: 0.95rem; line-height: 1.6;
+    }
+
+    /* User bar */
     .user-bar {
       display: flex; align-items: center; gap: 0.8rem; justify-content: center;
       background: rgba(168,85,247,0.07); border: 1px solid rgba(168,85,247,0.2);
-      border-radius: 10px; padding: 0.75rem 1.2rem; margin-bottom: 2rem;
+      border-radius: 10px; padding: 0.75rem 1.2rem; margin-bottom: 1.5rem;
     }
     .user-avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(168,85,247,0.4); }
     .user-name { font-weight: 700; font-size: 1rem; color: var(--text); }
-    .user-balance {
-      margin-left: auto; font-family: 'Bebas Neue', sans-serif;
-      color: var(--rcoin2); letter-spacing: 2px; font-size: 1rem;
-    }
+    .user-balance { margin-left: auto; font-family: 'Bebas Neue', sans-serif; color: var(--rcoin2); letter-spacing: 2px; font-size: 1rem; }
     .user-balance span { color: var(--rcoin); }
 
     /* Claim button */
@@ -96,67 +114,27 @@
       transition: all 0.25s; box-shadow: 0 4px 24px rgba(126,34,206,0.35);
       margin-bottom: 1rem;
     }
-    #btn-claim:hover:not(:disabled) {
-      transform: translateY(-2px); box-shadow: 0 8px 36px rgba(126,34,206,0.5);
-      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
-    }
+    #btn-claim:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 36px rgba(126,34,206,0.5); }
     #btn-claim:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-    .btn-wallet {
-      display: inline-block; color: var(--muted); font-size: 0.9rem;
-      text-decoration: none; transition: color 0.2s;
-    }
+    .btn-wallet { display: inline-block; color: var(--muted); font-size: 0.9rem; text-decoration: none; transition: color 0.2s; }
     .btn-wallet:hover { color: var(--accent2); }
 
-    /* Status boxes */
-    .status-box {
-      display: none; border-radius: 10px; padding: 1.2rem 1.5rem;
-      font-size: 1rem; font-weight: 700; line-height: 1.5; margin-bottom: 1.2rem;
-    }
-    .status-box.success {
-      background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.3); color: var(--green);
-    }
-    .status-box.error {
-      background: rgba(255,85,85,0.08); border: 1px solid rgba(255,85,85,0.25); color: var(--red);
-    }
+    .status-box { display: none; border-radius: 10px; padding: 1.2rem 1.5rem; font-size: 1rem; font-weight: 700; line-height: 1.5; margin-bottom: 1.2rem; }
+    .status-box.success { background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.3); color: var(--green); }
+    .status-box.error   { background: rgba(255,85,85,0.08);  border: 1px solid rgba(255,85,85,0.25); color: var(--red); }
 
-    .coins-added {
-      font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 4px;
-      color: #fff; display: block; line-height: 1; margin: 0.5rem 0;
-      text-shadow: 0 0 30px rgba(168,85,247,0.5);
-    }
+    .coins-added { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 4px; color: #fff; display: block; line-height: 1; margin: 0.5rem 0; text-shadow: 0 0 30px rgba(168,85,247,0.5); }
     .coins-added span { color: var(--rcoin); font-size: 2.2rem; }
 
     /* How it works */
-    .how {
-      margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1.8rem;
-      text-align: left;
-    }
-    .how-title {
-      font-family: 'Bebas Neue', sans-serif; letter-spacing: 3px; color: var(--muted);
-      font-size: 0.8rem; margin-bottom: 1rem;
-    }
-    .how-step {
-      display: flex; gap: 0.8rem; align-items: flex-start; margin-bottom: 0.9rem;
-      font-size: 0.92rem; color: var(--muted); line-height: 1.5;
-    }
-    .how-step .num {
-      min-width: 22px; height: 22px; border-radius: 50%;
-      background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3);
-      color: var(--rcoin2); font-family: 'Bebas Neue', sans-serif;
-      font-size: 0.8rem; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; margin-top: 1px;
-    }
+    .how { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; text-align: left; }
+    .how-title { font-family: 'Bebas Neue', sans-serif; letter-spacing: 3px; color: var(--muted); font-size: 0.8rem; margin-bottom: 1rem; }
+    .how-step { display: flex; gap: 0.8rem; align-items: flex-start; margin-bottom: 0.9rem; font-size: 0.92rem; color: var(--muted); line-height: 1.5; }
+    .how-step .num { min-width: 22px; height: 22px; border-radius: 50%; background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); color: var(--rcoin2); font-family: 'Bebas Neue', sans-serif; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
     .how-step strong { color: var(--text); }
 
-    /* Toast */
-    #toast {
-      position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px);
-      background: #1e1e35; color: var(--text); padding: 0.75rem 1.4rem;
-      border-radius: 8px; font-weight: 700; font-size: 0.95rem; letter-spacing: 0.5px;
-      opacity: 0; transition: all 0.3s; z-index: 999; pointer-events: none;
-      border: 1px solid var(--border); white-space: nowrap;
-    }
+    #toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px); background: #1e1e35; color: var(--text); padding: 0.75rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.95rem; letter-spacing: 0.5px; opacity: 0; transition: all 0.3s; z-index: 999; pointer-events: none; border: 1px solid var(--border); white-space: nowrap; }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.purple { border-color: rgba(168,85,247,0.5); color: var(--rcoin2); }
     #toast.green  { border-color: rgba(61,220,132,0.4); color: var(--green); }
@@ -168,9 +146,7 @@
 <nav>
   <a href="/" class="logo">SMASH YUZU</a>
   <div style="display:flex;gap:0.6rem;align-items:center;">
-    {% if user %}
-    <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
-    {% endif %}
+    {% if user %}<a href="/dashboard" class="btn btn-ghost">Dashboard</a>{% endif %}
     <a href="/wallet" class="btn btn-ghost">Wallet</a>
   </div>
 </nav>
@@ -180,13 +156,39 @@
   <div class="card-title">Réclamer mes RCoins</div>
   <p class="card-sub">Tu viens d'acheter des RCoins sur Ko-fi ?<br>Clique ci-dessous pour les créditer sur ton compte.</p>
 
-  {% if user %}
+  {% if not tx_id %}
+  <!-- Pas de ?tx= dans l'URL -->
+  <div class="no-tx-box">
+    ⚠ Lien incomplet.<br>
+    Utilise le lien reçu dans ton <strong>email de confirmation Ko-fi</strong>,<br>
+    il ressemble à : <code style="font-size:0.8rem;color:var(--muted);">yuzu-smash.onrender.com/redeem?tx=…</code>
+  </div>
+  <a href="/wallet" class="btn" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text);width:100%;display:block;text-align:center;border-radius:10px;padding:0.9rem;">← Retour au Wallet</a>
+
+  {% elif tx_info and tx_info.status == 'claimed' %}
+  <!-- Déjà réclamée -->
+  <div class="status-box error" style="display:block;">
+    ⚠ Ces RCoins ont déjà été réclamés.
+  </div>
+  <a href="/wallet" class="btn-wallet">← Retour au Wallet</a>
+
+  {% elif user %}
+
+  <!-- Pack preview -->
+  {% if tx_info %}
+  <div class="pack-preview">
+    <div>
+      <div class="pack-preview-coins"><span>R</span>{{ tx_info.coins }}</div>
+      <div class="pack-preview-label">RCOINS</div>
+    </div>
+    <div class="pack-preview-price">{{ "%.2f"|format(tx_info.amount_eur) }} €</div>
+  </div>
+  {% endif %}
+
   <!-- User info -->
   <div class="user-bar">
     {% if user.avatar %}
-    <img class="user-avatar"
-      src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png?size=64"
-      alt="{{ user.username }}">
+    <img class="user-avatar" src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png?size=64" alt="{{ user.username }}">
     {% else %}
     <div class="user-avatar" style="background:rgba(168,85,247,0.2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">👤</div>
     {% endif %}
@@ -197,7 +199,7 @@
   <!-- Status boxes -->
   <div class="status-box success" id="box-success">
     ✅ RCoins crédités avec succès !<br>
-    <span class="coins-added" id="coins-added-amount"><span>+R</span><span id="coins-num">0</span></span>
+    <span class="coins-added"><span>+R</span><span id="coins-num">0</span></span>
     Nouveau solde : <strong id="new-balance-text">—</strong>
   </div>
   <div class="status-box error" id="box-error">
@@ -208,37 +210,26 @@
   <a href="/wallet" class="btn-wallet">← Retour au Wallet</a>
 
   {% else %}
+  <!-- Pas connecté mais tx valide — login puis retour ici -->
   <a href="/login" class="btn" style="background:linear-gradient(135deg,#7e22ce,#6d28d9);color:white;padding:0.9rem 2rem;font-size:1.1rem;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;width:100%;display:block;text-align:center;border-radius:10px;">
     Se connecter avec Discord →
   </a>
   {% endif %}
 
-  <!-- How it works -->
   <div class="how">
     <div class="how-title">💡 COMMENT ÇA MARCHE</div>
-    <div class="how-step">
-      <span class="num">1</span>
-      <span>Tu achètes un pack sur <strong>Ko-fi</strong> — aucun Discord ID nécessaire.</span>
-    </div>
-    <div class="how-step">
-      <span class="num">2</span>
-      <span>Ko-fi t'envoie un <strong>Thank You Message</strong> avec ce lien.</span>
-    </div>
-    <div class="how-step">
-      <span class="num">3</span>
-      <span>Tu arrives ici, <strong>connecté via Discord</strong>, et tu cliques "Réclamer".</span>
-    </div>
-    <div class="how-step">
-      <span class="num">4</span>
-      <span>Les RCoins sont <strong>crédités instantanément</strong> sur ton compte.</span>
-    </div>
+    <div class="how-step"><span class="num">1</span><span>Tu achètes un pack sur <strong>Ko-fi</strong> via PayPal.</span></div>
+    <div class="how-step"><span class="num">2</span><span>Ko-fi t'envoie un email avec un <strong>lien unique</strong> vers cette page.</span></div>
+    <div class="how-step"><span class="num">3</span><span>Tu arrives ici <strong>connecté via Discord</strong> et tu cliques "Réclamer".</span></div>
+    <div class="how-step"><span class="num">4</span><span>Les RCoins sont <strong>crédités instantanément</strong> sur ton compte.</span></div>
   </div>
 </div>
 
 <div id="toast"></div>
 
-{% if user %}
+{% if user and tx_id and tx_info and tx_info.status != 'claimed' %}
 <script>
+  const TX_ID = {{ tx_id | tojson }};
   let claimed = false;
 
   async function claimCoins() {
@@ -248,7 +239,11 @@
     btn.textContent = '⏳ Vérification…';
 
     try {
-      const r = await fetch('/api/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const r = await fetch('/api/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tx_id: TX_ID })
+      });
       const data = await r.json();
 
       if (data.success) {
@@ -262,20 +257,21 @@
         showToast('🎉 RCoins crédités !', 'green');
       } else {
         const msgs = {
-          no_pending:    'Aucune transaction en attente trouvée.<br>Assure-toi d\'avoir acheté un pack Ko-fi récemment.',
-          already_claimed: 'Cette transaction a déjà été réclamée.',
-          player_not_found: 'Compte joueur introuvable. Connecte-toi d\'abord.',
-          db_error: 'Erreur de base de données — réessaie dans un instant.',
+          not_found:       'Transaction introuvable. Vérifie ton lien Ko-fi.',
+          already_claimed: 'Ces RCoins ont déjà été réclamés.',
+          player_not_found:'Compte joueur introuvable.',
+          db_error:        'Erreur DB — réessaie dans un instant.',
+          missing_tx:      'Lien invalide.',
         };
         const msg = msgs[data.error] || data.message || 'Une erreur est survenue.';
         document.getElementById('error-text').innerHTML = '⚠ ' + msg;
         document.getElementById('box-error').style.display = 'block';
         btn.disabled = false;
         btn.textContent = '🎁 Réclamer mes RCoins';
-        showToast('Erreur : ' + (data.message || data.error), 'red');
+        showToast('Erreur : ' + msg, 'red');
       }
     } catch (e) {
-      document.getElementById('error-text').textContent = '⚠ Erreur réseau — vérifie ta connexion et réessaie.';
+      document.getElementById('error-text').textContent = '⚠ Erreur réseau — vérifie ta connexion.';
       document.getElementById('box-error').style.display = 'block';
       btn.disabled = false;
       btn.textContent = '🎁 Réclamer mes RCoins';
@@ -283,7 +279,6 @@
     }
   }
 
-  // Socket.IO real-time update
   if (typeof io !== 'undefined') {
     try {
       const socket = io();
