@@ -281,14 +281,26 @@
   </div>
 
   <!-- Packs -->
-  <div class="section-title">Recharger des RCoins</div>
+  <div class="section-title">Top up RCoins</div>
 
-  <!-- Réclamation RCoins via lien Ko-fi -->
+  <!-- Claim RCoins via Ko-fi link -->
   <div style="background:rgba(168,85,247,0.07);border:1px solid rgba(168,85,247,0.28);border-radius:12px;padding:1.3rem 1.5rem;margin-bottom:1.5rem;">
-    <strong style="color:#c084fc;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1rem;display:block;margin-bottom:0.8rem;">🎁 RÉCLAMER MES RCOINS</strong>
-    <p style="font-size:0.9rem;color:#b0b0d0;line-height:1.6;margin-bottom:1rem;">
-      Après ton achat sur Ko-fi, ouvre l'email de confirmation, clique sur <em>"Go to your order"</em> et colle le lien complet ci-dessous.
-    </p>
+    <strong style="color:#c084fc;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1rem;display:block;margin-bottom:1rem;">🎁 CLAIM YOUR RCOINS</strong>
+    <!-- Steps -->
+    <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.2rem;">
+      <div style="display:flex;align-items:flex-start;gap:0.75rem;font-size:0.88rem;color:#b0b0d0;line-height:1.5;">
+        <span style="min-width:22px;height:22px;border-radius:50%;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.4);color:#c084fc;font-family:'Bebas Neue',sans-serif;font-size:0.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">1</span>
+        <span>Open your <strong style="color:var(--text);">Ko-fi confirmation email</strong> and click <em>"Go to your order"</em>.</span>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:0.75rem;font-size:0.88rem;color:#b0b0d0;line-height:1.5;">
+        <span style="min-width:22px;height:22px;border-radius:50%;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.4);color:#c084fc;font-family:'Bebas Neue',sans-serif;font-size:0.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">2</span>
+        <span><strong style="color:var(--text);">Copy the full URL</strong> from your browser's address bar.</span>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:0.75rem;font-size:0.88rem;color:#b0b0d0;line-height:1.5;">
+        <span style="min-width:22px;height:22px;border-radius:50%;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.4);color:#c084fc;font-family:'Bebas Neue',sans-serif;font-size:0.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">3</span>
+        <span><strong style="color:var(--text);">Paste it below</strong> and click Claim — your RCoins will be credited instantly.</span>
+      </div>
+    </div>
     <div style="display:flex;gap:0.6rem;align-items:stretch;">
       <input
         id="kofi-link-input"
@@ -302,11 +314,11 @@
         id="btn-redeem-link"
         onclick="redeemKofi()"
         style="background:linear-gradient(135deg,#7e22ce,#6d28d9);color:white;border:none;border-radius:8px;padding:0.7rem 1.3rem;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:1.05rem;letter-spacing:2px;white-space:nowrap;transition:all 0.2s;box-shadow:0 2px 14px rgba(126,34,206,0.35);flex-shrink:0;"
-      >Réclamer →</button>
+      >Claim →</button>
     </div>
     <div id="kofi-link-error" style="display:none;color:var(--red);font-size:0.83rem;margin-top:0.5rem;"></div>
     <p style="color:var(--muted);font-size:0.8rem;margin-top:0.7rem;">
-      Le lien ressemble à : <code style="color:rgba(192,132,252,0.5);font-size:0.78rem;">ko-fi.com/transactions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/thank-you</code>
+      The link looks like: <code style="color:rgba(192,132,252,0.5);font-size:0.78rem;">ko-fi.com/transactions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/thank-you</code>
     </p>
   </div>
 
@@ -318,7 +330,7 @@
       <div class="pack-coins"><span>R</span>500</div>
       <div class="pack-label">RCOINS</div>
       <div class="pack-price">2,00 €</div>
-      <button class="btn-buy-coins" id="btn-pack_500">Acheter sur Ko-fi →</button>
+      <button class="btn-buy-coins" id="btn-pack_500">Buy on Ko-fi →</button>
     </div>
 
     <!-- Pack 2000 — 5€ -->
@@ -328,14 +340,14 @@
       <div class="pack-coins"><span>R</span>2000</div>
       <div class="pack-label">RCOINS</div>
       <div class="pack-price">5,00 €</div>
-      <button class="btn-buy-coins" id="btn-pack_2000">Acheter sur Ko-fi →</button>
+      <button class="btn-buy-coins" id="btn-pack_2000">Buy on Ko-fi →</button>
     </div>
 
   </div>
 
   <div class="stripe-note">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    Paiement sécurisé via Ko-fi · PayPal · RCoins crédités automatiquement dès confirmation
+    Secure payment via Ko-fi · PayPal · RCoins credited instantly upon confirmation
   </div>
 
   {% else %}
@@ -352,18 +364,18 @@
   <div class="info-grid">
     <div class="info-card">
       <span class="info-card-icon">💜</span>
-      <div class="info-card-title">Acheter des RCoins</div>
-      <div class="info-card-text">Choisis un pack, clique sur "Acheter sur Ko-fi" et paye via PayPal. Une fois confirmé, colle ton lien de commande dans la section "Réclamer mes RCoins".</div>
+      <div class="info-card-title">Buy RCoins</div>
+      <div class="info-card-text">Pick a pack and click "Buy on Ko-fi". Pay via PayPal. Once confirmed, paste your order link in the "Claim your RCoins" section above.</div>
     </div>
     <div class="info-card">
       <span class="info-card-icon">🖼</span>
-      <div class="info-card-title">Dépenser</div>
-      <div class="info-card-text">Va dans le Shop pour acheter des bannières exclusives et personnaliser ton profil et ta ligne dans le classement.</div>
+      <div class="info-card-title">Spend</div>
+      <div class="info-card-text">Head to the Shop to buy exclusive banners and customise your profile and ranking row.</div>
     </div>
     <div class="info-card">
       <span class="info-card-icon">⚡</span>
-      <div class="info-card-title">Crédit instantané</div>
-      <div class="info-card-text">Dès que Ko-fi confirme ton paiement, les RCoins apparaissent sur ton solde en temps réel via Socket.IO.</div>
+      <div class="info-card-title">Instant credit</div>
+      <div class="info-card-text">As soon as Ko-fi confirms your payment, RCoins appear on your balance in real time.</div>
     </div>
   </div>
 
