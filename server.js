@@ -96,9 +96,10 @@ io.engine.use(sessionMiddleware);
 // Ko-fi envoie un POST form-urlencoded avec un champ "data" contenant du JSON.
 // On stocke la transaction dans la table kofi_transactions (status: 'pending').
 // Le joueur clique sur le lien /redeem dans le Thank You Message Ko-fi pour réclamer.
+
+
 app.post('/webhook/kofi', async (req, res) => {
   try {
-    // Ko-fi envoie les données dans un champ form "data" encodé en JSON
     let payload;
     if (req.body && req.body.data) {
       try { payload = JSON.parse(req.body.data); }
@@ -109,6 +110,9 @@ app.post('/webhook/kofi', async (req, res) => {
       console.warn('[Ko-fi Webhook] Payload inattendu:', JSON.stringify(req.body).slice(0, 200));
       return res.status(400).send('Missing data field');
     }
+
+    // ← ICI, après le bloc if/else
+    console.log('[Ko-fi Webhook] Payload complet:', JSON.stringify(payload, null, 2));
 
     // 1. Vérifier le token
     if (payload.verification_token !== KOFI_VERIFICATION_TOKEN) {
