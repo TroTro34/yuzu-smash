@@ -283,13 +283,31 @@
   <!-- Packs -->
   <div class="section-title">Recharger des RCoins</div>
 
-  <!-- Instructions Ko-fi -->
-  <div style="background:rgba(240,74,0,0.07);border:1px solid rgba(240,74,0,0.25);border-radius:10px;padding:1rem 1.3rem;margin-bottom:1.5rem;font-size:0.93rem;color:#e8d0c0;line-height:1.7;">
-    <strong style="color:#ff8000;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1rem;">⚠ IMPORTANT — COMMENT RECEVOIR TES RCOINS</strong><br>
-    Lors du paiement sur Ko-fi, tu <strong>dois</strong> écrire ton <strong>Discord ID</strong> dans le champ <em>"Message"</em>.<br>
-    Ton Discord ID : <strong id="discord-id-display" style="color:#c084fc;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:1px;">{{ user.id if user else '—' }}</strong>
-    <button onclick="copyDiscordId()" style="margin-left:8px;background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.4);color:#c084fc;border-radius:4px;padding:2px 10px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.85rem;" title="Copier mon Discord ID">📋 Copier</button><br>
-    <span style="color:var(--muted);font-size:0.85rem;">Les RCoins sont crédités automatiquement dès confirmation du paiement Ko-fi.</span>
+  <!-- Réclamation RCoins via lien Ko-fi -->
+  <div style="background:rgba(168,85,247,0.07);border:1px solid rgba(168,85,247,0.28);border-radius:12px;padding:1.3rem 1.5rem;margin-bottom:1.5rem;">
+    <strong style="color:#c084fc;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:1rem;display:block;margin-bottom:0.8rem;">🎁 RÉCLAMER MES RCOINS</strong>
+    <p style="font-size:0.9rem;color:#b0b0d0;line-height:1.6;margin-bottom:1rem;">
+      Après ton achat sur Ko-fi, ouvre l'email de confirmation, clique sur <em>"Go to your order"</em> et colle le lien complet ci-dessous.
+    </p>
+    <div style="display:flex;gap:0.6rem;align-items:stretch;">
+      <input
+        id="kofi-link-input"
+        type="text"
+        placeholder="https://ko-fi.com/transactions/ca676c8c-…/thank-you"
+        style="flex:1;background:rgba(7,7,15,0.8);border:1px solid rgba(168,85,247,0.35);border-radius:8px;padding:0.7rem 1rem;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.93rem;outline:none;transition:border-color 0.2s;min-width:0;"
+        oninput="validateKofiLink(this)"
+        onkeydown="if(event.key==='Enter')redeemKofi()"
+      />
+      <button
+        id="btn-redeem-link"
+        onclick="redeemKofi()"
+        style="background:linear-gradient(135deg,#7e22ce,#6d28d9);color:white;border:none;border-radius:8px;padding:0.7rem 1.3rem;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:1.05rem;letter-spacing:2px;white-space:nowrap;transition:all 0.2s;box-shadow:0 2px 14px rgba(126,34,206,0.35);flex-shrink:0;"
+      >Réclamer →</button>
+    </div>
+    <div id="kofi-link-error" style="display:none;color:var(--red);font-size:0.83rem;margin-top:0.5rem;"></div>
+    <p style="color:var(--muted);font-size:0.8rem;margin-top:0.7rem;">
+      Le lien ressemble à : <code style="color:rgba(192,132,252,0.5);font-size:0.78rem;">ko-fi.com/transactions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/thank-you</code>
+    </p>
   </div>
 
   <div class="packs-grid">
@@ -335,7 +353,7 @@
     <div class="info-card">
       <span class="info-card-icon">💜</span>
       <div class="info-card-title">Acheter des RCoins</div>
-      <div class="info-card-text">Choisis un pack, clique sur "Acheter sur Ko-fi". Sur Ko-fi, note ton Discord ID dans le champ Message, puis paye via PayPal.</div>
+      <div class="info-card-text">Choisis un pack, clique sur "Acheter sur Ko-fi" et paye via PayPal. Une fois confirmé, colle ton lien de commande dans la section "Réclamer mes RCoins".</div>
     </div>
     <div class="info-card">
       <span class="info-card-icon">🖼</span>
@@ -388,12 +406,8 @@
       });
       const data = await r.json();
       if (data.url) {
-        const discordId = data.discord_id || '';
-        // Copier l'ID automatiquement dans le presse-papier
-        try { await navigator.clipboard.writeText(discordId); } catch(e) {}
-        showToast(`📋 Discord ID copié ! Colle-le dans le champ Message sur Ko-fi.`, 'purple');
-        // Ouvrir Ko-fi après un court instant pour que le toast soit visible
-        setTimeout(() => window.open(data.url, '_blank'), 800);
+        showToast('Ouverture de Ko-fi…', 'purple');
+        setTimeout(() => window.open(data.url, '_blank'), 400);
         if (btn) { btn.disabled = false; btn.textContent = 'Acheter sur Ko-fi →'; }
       } else {
         showToast(data.error || 'Erreur — réessaie.', 'red');
@@ -405,16 +419,47 @@
     }
   }
 
-  async function copyDiscordId() {
-    const el = document.getElementById('discord-id-display');
-    if (!el) return;
-    const id = el.textContent.trim();
-    try {
-      await navigator.clipboard.writeText(id);
-      showToast('Discord ID copié !', 'purple');
-    } catch(e) {
-      showToast('Copie manuelle : ' + id, 'purple');
+  // ── Ko-fi link → redeem ─────────────────────────────────────────────────────
+  const KOFI_TX_REGEX = /ko-fi\.com\/transactions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+
+  function extractTxId(link) {
+    const m = link.match(KOFI_TX_REGEX);
+    return m ? m[1] : null;
+  }
+
+  function validateKofiLink(input) {
+    const errEl = document.getElementById('kofi-link-error');
+    const btn   = document.getElementById('btn-redeem-link');
+    const val   = input.value.trim();
+    if (!val) {
+      input.style.borderColor = 'rgba(168,85,247,0.35)';
+      errEl.style.display = 'none';
+      btn.disabled = false;
+      return;
     }
+    const txId = extractTxId(val);
+    if (txId) {
+      input.style.borderColor = 'rgba(61,220,132,0.5)';
+      errEl.style.display = 'none';
+      btn.disabled = false;
+    } else {
+      input.style.borderColor = 'rgba(255,85,85,0.5)';
+      errEl.textContent = '⚠ Lien invalide — colle l\'URL complète depuis l\'email Ko-fi.';
+      errEl.style.display = 'block';
+      btn.disabled = true;
+    }
+  }
+
+  function redeemKofi() {
+    if (!USER_LOGGED) { showToast('Connecte-toi d\'abord !', 'red'); return; }
+    const input = document.getElementById('kofi-link-input');
+    const val   = input ? input.value.trim() : '';
+    const txId  = extractTxId(val);
+    if (!txId) {
+      showToast('Lien Ko-fi invalide.', 'red');
+      return;
+    }
+    window.location.href = '/redeem?tx=' + encodeURIComponent(txId);
   }
 
   // ── Socket.IO real-time balance update ──────────────────────────────────────
