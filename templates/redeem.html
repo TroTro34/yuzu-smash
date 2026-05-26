@@ -229,8 +229,7 @@
 
 {% if user and tx_id and tx_info and tx_info.status != 'claimed' %}
 <script>
-  const TX_ID    = {{ tx_id | tojson }};
-  const USE_REF  = {{ use_ref | tojson }};
+  const TX_ID = {{ tx_id | tojson }};
   let claimed = false;
 
   async function claimCoins() {
@@ -240,12 +239,10 @@
     btn.textContent = '⏳ Vérification…';
 
     try {
-      // Si use_ref, on envoie kofi_ref ; sinon tx_id (compat ancienne URL)
-      const payload = USE_REF ? { kofi_ref: TX_ID } : { tx_id: TX_ID };
       const r = await fetch('/api/redeem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ tx_id: TX_ID })
       });
       const data = await r.json();
 
