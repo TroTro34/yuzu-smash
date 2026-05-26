@@ -132,7 +132,10 @@ app.post('/webhook/kofi', async (req, res) => {
       pack = KOFI_PACKS[0];
     }
 
-    const txId = payload.kofi_transaction_id || payload.message_id || null;
+    const txId    = payload.kofi_transaction_id || payload.message_id || null;
+    // La référence visible dans l'email Ko-fi (ex: S-W4S4207ZFY)
+    const kofiRef = payload.shop_order_id || payload.kofi_transaction_id || null;
+
     if (!txId) {
       console.warn('[Ko-fi Webhook] Pas de kofi_transaction_id dans le payload');
       return res.status(200).send('No transaction ID');
@@ -145,9 +148,10 @@ app.post('/webhook/kofi', async (req, res) => {
       return res.status(200).send('Already recorded');
     }
 
-    // 5. Stocker la transaction en "pending" — le joueur réclamera via /redeem
+    // 5. Stocker la transaction en "pending" — le joueur réclamera via /redeem?ref=
     const ok = await sbPost('kofi_transactions', {
       kofi_transaction_id: txId,
+      kofi_ref:            kofiRef,   // référence visible dans l'email Ko-fi (S-XXXXXX)
       coins:               pack.coins,
       pack_id:             pack.id,
       amount_eur:          amountRaw,
@@ -172,11 +176,19 @@ app.post('/webhook/kofi', async (req, res) => {
 });
 
 // ── /redeem — page de réclamation RCoins après achat Ko-fi ───────────────────
+// ?ref=S-XXXXXX  (référence Ko-fi visible dans l'email — mode recommandé)
+// ?tx=XXXXXXXXX  (kofi_transaction_id — ancien mode, gardé pour compatibilité)
 app.get('/redeem', async (req, res) => {
-  const txId = req.query.tx || null;
-  // Si pas connecté, redirige vers login puis revient ici avec le tx intact
+  const kofiRef  = req.query.ref || null;
+  const txId     = req.query.tx  || null;
+  const lookupKey = kofiRef || txId;
+
+  // Si pas connecté, redirige vers login puis revient ici avec les params intacts
   if (!req.session.user) {
-    req.session.returnTo = `/redeem${txId ? '?tx=' + encodeURIComponent(txId) : ''}`;
+    let returnPath = '/redeem';
+    if (kofiRef)   returnPath += '?ref=' + encodeURIComponent(kofiRef);
+    else if (txId) returnPath += '?tx='  + encodeURIComponent(txId);
+    req.session.returnTo = returnPath;
     return res.redirect('/login');
   }
   try {
@@ -184,28 +196,37 @@ app.get('/redeem', async (req, res) => {
     const player = playerRows[0] || null;
     // Pré-vérifier la transaction pour afficher les infos du pack sur la page
     let txInfo = null;
-    if (txId) {
-      const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
+    if (lookupKey) {
+      const txRows = kofiRef
+        ? await sbGet('kofi_transactions', `kofi_ref=eq.${encodeURIComponent(kofiRef)}`)
+        : await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
       if (txRows && txRows.length) txInfo = txRows[0];
     }
-    res.render('redeem.html', { user: req.session.user, player, tx_id: txId, tx_info: txInfo });
+    // On passe lookupKey et use_ref au template
+    res.render('redeem.html', { user: req.session.user, player, tx_id: lookupKey, tx_info: txInfo, use_ref: !!kofiRef });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
-// ── /api/redeem — réclamer une transaction Ko-fi via son ID unique ────────────
+// ── /api/redeem — réclamer une transaction Ko-fi via ref ou tx_id ────────────
 app.post('/api/redeem', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
   const userId = req.session.user.id;
-  const { tx_id } = req.body || {};
+  // kofi_ref  = référence visible dans l'email Ko-fi (S-XXXXXX) — mode recommandé
+  // tx_id     = kofi_transaction_id — ancien mode, gardé pour compatibilité
+  const { tx_id, kofi_ref } = req.body || {};
+  const lookupValue = kofi_ref || tx_id;
 
-  if (!tx_id || typeof tx_id !== 'string' || tx_id.length > 200) {
+  if (!lookupValue || typeof lookupValue !== 'string' || lookupValue.length > 200) {
     return res.status(400).json({ error: 'missing_tx', message: 'Lien invalide — utilise le lien reçu dans ton email Ko-fi.' });
   }
 
   try {
-    // 1. Chercher cette transaction précise
-    const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(tx_id)}`);
+    // 1. Chercher cette transaction précise (par ref ou par tx_id)
+    const txRows = kofi_ref
+      ? await sbGet('kofi_transactions', `kofi_ref=eq.${encodeURIComponent(kofi_ref)}`)
+      : await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(tx_id)}`);
+
     if (!txRows || !txRows.length) {
       return res.status(404).json({ error: 'not_found', message: 'Transaction introuvable. Vérifie que tu utilises bien le lien reçu par Ko-fi.' });
     }
@@ -251,7 +272,7 @@ app.post('/api/redeem', async (req, res) => {
     // 5. Notifier en temps réel
     io.to(`user_${userId}`).emit('rcoins_update', { new_balance: newTotal, added });
 
-    console.log(`✅ [Redeem] ${added} RCoins crédités à ${userId} (${player.username || userId}) — tx: ${tx.kofi_transaction_id} — total: ${newTotal}`);
+    console.log(`✅ [Redeem] ${added} RCoins crédités à ${userId} (${player.username || userId}) — ref: ${tx.kofi_ref || tx.kofi_transaction_id} — total: ${newTotal}`);
     return res.json({ success: true, added, new_balance: newTotal });
 
   } catch (err) {
