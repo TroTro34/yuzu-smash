@@ -769,12 +769,14 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
     const c = challenges[0];
     if (![c.challenger_id, c.challenged_id].includes(userId)) return res.redirect('/dashboard');
     if (!['accepted', 'reported'].includes(c.status)) return res.redirect('/dashboard');
-    const [challenger, challenged] = await Promise.all([
+    const [challenger, challenged, bannersArr] = await Promise.all([
       sbGet('players', `id=eq.${c.challenger_id}`),
       sbGet('players', `id=eq.${c.challenged_id}`),
+      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
     ]);
     if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
-    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0] });
+    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
+    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0], banners_map });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
