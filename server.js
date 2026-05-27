@@ -9,6 +9,7 @@ const crypto     = require('crypto');
 const fetch      = require('node-fetch');
 const path       = require('path');
 const rateLimit   = require('express-rate-limit');
+const helmet     = require('helmet');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,8 @@ const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
 
 // ── KO-FI CONFIG ──────────────────────────────────────────────────────────────
-const KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN || 'f76a8972-3395-41e8-aa51-827effffadeb';
+const KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN;
+if (!KOFI_VERIFICATION_TOKEN) { console.error('KOFI_VERIFICATION_TOKEN manquant'); process.exit(1); }
 
 // Mapping montant (en EUR) → RCoins à créditer
 // Pack 2€ (lien ko-fi.com/s/fc3ccb0369) → 500 RCoins
@@ -32,9 +34,9 @@ const RCOIN_PACKS = [
   { id: 'pack_2000', coins: 2000, price_euros: 5.00, label: '2000 RCoins', emoji: '⭐', kofi_url: 'https://ko-fi.com/s/63ab51d2f4' },
 ];
 
-const CLIENT_ID           = '1504467669712240861';
+const CLIENT_ID           = process.env.DISCORD_CLIENT_ID || '1504467669712240861';
 const CLIENT_SECRET       = process.env.DISCORD_CLIENT_SECRET || '';
-const GUILD_ID            = '1051577844318339172';
+const GUILD_ID            = process.env.DISCORD_GUILD_ID || '1051577844318339172';
 const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onrender.com/callback';
 const SUPABASE_URL        = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
@@ -65,10 +67,32 @@ const CHAT_RATE_LIMIT_WINDOW = 4000; // ms
 
 // ── APP ───────────────────────────────────────────────────────────────────────
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://yuzu-smash.onrender.com';
+
 const app    = express();
 app.set("trust proxy", 1); // Render est derrière un reverse proxy
+
+// Helmet — security headers (CSP, HSTS, X-Frame-Options…)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com"],
+      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc:     ["'self'", "https://fonts.gstatic.com"],
+      imgSrc:      ["'self'", "data:", "https://cdn.discordapp.com"],
+      connectSrc:  ["'self'", "wss:", "ws:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
 const server = http.createServer(app);
-const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
+const io     = new Server(server, {
+  cors: { origin: ALLOWED_ORIGIN, credentials: true },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
 
 // Sessions
 const sessionMiddleware = session({
@@ -193,7 +217,7 @@ app.get('/redeem', async (req, res) => {
 });
 
 // ── /api/redeem — réclamer une transaction Ko-fi via son ID unique ────────────
-app.post('/api/redeem', async (req, res) => {
+app.post('/api/redeem', authApiLimiter, async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
   const userId = req.session.user.id;
@@ -201,6 +225,10 @@ app.post('/api/redeem', async (req, res) => {
 
   if (!tx_id || typeof tx_id !== 'string' || tx_id.length > 200) {
     return res.status(400).json({ error: 'missing_tx', message: 'Lien invalide — utilise le lien reçu dans ton email Ko-fi.' });
+  }
+  // Validation stricte du format tx_id (alphanumérique + tirets)
+  if (!/^[a-zA-Z0-9\-_]+$/.test(tx_id)) {
+    return res.status(400).json({ error: 'missing_tx', message: 'Lien invalide.' });
   }
 
   try {
@@ -1630,7 +1658,10 @@ app.get('/api/whatsup', async (req, res) => {
 
 // ── WHAT'S UP — admin CRUD ────────────────────────────────────────────────────
 app.post('/admin/whatsup', requireAdmin, async (req, res) => {
-  const { text, image, bg_color, text_color, duration } = req.body;
+  const { text, bg_color, text_color, duration } = req.body;
+  // Valider l'image si fournie (même règles que les bannières statiques, max 2MB)
+  const image = validateBannerImg(req.body.image) || null;
+  if (req.body.image && !image) return res.status(400).json({ error: 'Image invalide ou trop lourde (max 2MB, PNG/JPEG/WebP)' });
   if (!text && !image) return res.status(400).json({ error: 'text or image required' });
   const id = `wu_${require('crypto').randomBytes(6).toString('hex')}`;
   // Get current max position
@@ -1651,7 +1682,13 @@ app.post('/admin/whatsup', requireAdmin, async (req, res) => {
 
 app.patch('/admin/whatsup/:post_id', requireAdmin, async (req, res) => {
   const { post_id } = req.params;
-  const { text, image, bg_color, text_color, duration, position } = req.body;
+  const { text, bg_color, text_color, duration, position } = req.body;
+  // Valider l'image si fournie
+  let image = undefined;
+  if (req.body.image !== undefined) {
+    image = req.body.image === null ? null : validateBannerImg(req.body.image);
+    if (req.body.image !== null && !image) return res.status(400).json({ error: 'Image invalide ou trop lourde (max 2MB, PNG/JPEG/WebP)' });
+  }
   const update = {};
   if (text     !== undefined) update.text      = text;
   if (image    !== undefined) update.image     = image;
