@@ -114,25 +114,47 @@
       position: absolute; left: 0; top: 0;
       width: 3px; height: 60px;
       background: linear-gradient(to bottom, var(--blue), transparent);
+      z-index: 2;
     }
     .fighter-side.blue-side::after {
       content: '';
       position: absolute; left: 0; top: 0;
       height: 3px; width: 60px;
       background: linear-gradient(to right, var(--blue), transparent);
+      z-index: 2;
     }
     .fighter-side.red-side::before {
       content: '';
       position: absolute; right: 0; bottom: 0;
       width: 3px; height: 60px;
       background: linear-gradient(to top, var(--accent), transparent);
+      z-index: 2;
     }
     .fighter-side.red-side::after {
       content: '';
       position: absolute; right: 0; bottom: 0;
       height: 3px; width: 60px;
       background: linear-gradient(to left, var(--accent), transparent);
+      z-index: 2;
     }
+
+    /* ── FIGHTER BANNER BACKGROUND ── */
+    .fighter-banner-bg {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    }
+    .fighter-banner-bg img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .fighter-banner-bg::after {
+      content: ''; position: absolute; inset: 0;
+    }
+    .blue-side .fighter-banner-bg::after {
+      background: linear-gradient(135deg, rgba(7,7,15,0.35) 0%, rgba(7,7,15,0.55) 100%);
+    }
+    .red-side .fighter-banner-bg::after {
+      background: linear-gradient(225deg, rgba(7,7,15,0.35) 0%, rgba(7,7,15,0.55) 100%);
+    }
+    .fighter-side > *:not(.fighter-banner-bg) { position: relative; z-index: 1; }
 
     .fighter-avatar {
       width: 80px; height: 80px; border-radius: 50%;
@@ -554,14 +576,12 @@
       {% set ch_banner = banners_map[challenger.banner_dash] if challenger.banner_dash and banners_map[challenger.banner_dash] else null %}
       {% if ch_banner %}
         {% set ch_banner_url = ch_banner.img_dash_gif if ch_banner.img_dash_gif else ch_banner.img_dash %}
-        <div style="position:relative;width:80px;height:80px;border-radius:50%;overflow:hidden;border:3px solid rgba(79,142,247,0.5);box-shadow:0 0 20px var(--blue-glow);">
-          <img src="{{ ch_banner_url }}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
-          {% if challenger.avatar %}
-            <img src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:{{ ((challenger.banner_opacity or {})[challenger.banner_dash] or 0.85) | float }};">
-          {% endif %}
-        </div>
-      {% elif challenger.avatar %}
-        <img class="fighter-avatar" src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png" alt="">
+        {% set ch_op = (challenger.banner_opacity[challenger.banner_dash] / 100) if challenger.banner_opacity and challenger.banner_dash and challenger.banner_opacity[challenger.banner_dash] else 0.4 %}
+        <div class="fighter-banner-bg"><img src="{{ ch_banner_url }}" alt="" style="opacity:{{ ch_op }}"></div>
+      {% endif %}
+      {% if challenger.avatar %}
+        <img class="fighter-avatar"
+          src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png" alt="">
       {% else %}
         <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
       {% endif %}
@@ -583,14 +603,12 @@
       {% set cd_banner = banners_map[challenged.banner_dash] if challenged.banner_dash and banners_map[challenged.banner_dash] else null %}
       {% if cd_banner %}
         {% set cd_banner_url = cd_banner.img_dash_gif if cd_banner.img_dash_gif else cd_banner.img_dash %}
-        <div style="position:relative;width:80px;height:80px;border-radius:50%;overflow:hidden;border:3px solid rgba(232,64,10,0.5);box-shadow:0 0 20px var(--red-glow);">
-          <img src="{{ cd_banner_url }}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
-          {% if challenged.avatar %}
-            <img src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:{{ ((challenged.banner_opacity or {})[challenged.banner_dash] or 0.85) | float }};">
-          {% endif %}
-        </div>
-      {% elif challenged.avatar %}
-        <img class="fighter-avatar" src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png" alt="">
+        {% set cd_op = (challenged.banner_opacity[challenged.banner_dash] / 100) if challenged.banner_opacity and challenged.banner_dash and challenged.banner_opacity[challenged.banner_dash] else 0.4 %}
+        <div class="fighter-banner-bg"><img src="{{ cd_banner_url }}" alt="" style="opacity:{{ cd_op }}"></div>
+      {% endif %}
+      {% if challenged.avatar %}
+        <img class="fighter-avatar"
+          src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png" alt="">
       {% else %}
         <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
       {% endif %}
