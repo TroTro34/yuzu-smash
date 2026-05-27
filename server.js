@@ -93,8 +93,12 @@ app.use(express.urlencoded({ extended: false }));
 io.engine.use(sessionMiddleware);
 
 // ── KO-FI WEBHOOK — stocke la transaction, le joueur réclame via /redeem ─────
+// Ko-fi envoie un POST form-urlencoded avec un champ "data" contenant du JSON.
+// On stocke la transaction dans la table kofi_transactions (status: 'pending').
+// Le joueur clique sur le lien /redeem dans le Thank You Message Ko-fi pour réclamer.
 app.post('/webhook/kofi', async (req, res) => {
   try {
+    // Ko-fi envoie les données dans un champ form "data" encodé en JSON
     let payload;
     if (req.body && req.body.data) {
       try { payload = JSON.parse(req.body.data); }
@@ -106,16 +110,19 @@ app.post('/webhook/kofi', async (req, res) => {
       return res.status(400).send('Missing data field');
     }
 
+    // 1. Vérifier le token
     if (payload.verification_token !== KOFI_VERIFICATION_TOKEN) {
       console.warn('[Ko-fi Webhook] Token invalide reçu:', payload.verification_token);
       return res.status(401).send('Invalid verification token');
     }
 
+    // 2. Ignorer les types non gérés
     if (payload.type !== 'Shop Order' && payload.type !== 'Donation') {
       console.log('[Ko-fi Webhook] Type ignoré:', payload.type);
       return res.status(200).send('OK');
     }
 
+    // 3. Identifier le pack selon le montant
     const amountRaw = parseFloat(payload.amount || '0');
     const currency  = (payload.currency || 'EUR').toUpperCase();
   
@@ -131,12 +138,14 @@ app.post('/webhook/kofi', async (req, res) => {
       return res.status(200).send('No transaction ID');
     }
 
+    // 4. Vérifier si cette transaction existe déjà (idempotence)
     const existing = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
     if (existing && existing.length) {
       console.log('[Ko-fi Webhook] Transaction déjà enregistrée:', txId);
       return res.status(200).send('Already recorded');
     }
 
+    // 5. Stocker la transaction en "pending" — le joueur réclamera via /redeem
     const ok = await sbPost('kofi_transactions', {
       kofi_transaction_id: txId,
       coins:               pack.coins,
@@ -162,9 +171,10 @@ app.post('/webhook/kofi', async (req, res) => {
   }
 });
 
-// ── /redeem ───────────────────────────────────────────────────────────────────
+// ── /redeem — page de réclamation RCoins après achat Ko-fi ───────────────────
 app.get('/redeem', async (req, res) => {
   const txId = req.query.tx || null;
+  // Si pas connecté, redirige vers login puis revient ici avec le tx intact
   if (!req.session.user) {
     req.session.returnTo = `/redeem${txId ? '?tx=' + encodeURIComponent(txId) : ''}`;
     return res.redirect('/login');
@@ -172,6 +182,7 @@ app.get('/redeem', async (req, res) => {
   try {
     const playerRows = await sbGet('players', `id=eq.${req.session.user.id}`);
     const player = playerRows[0] || null;
+    // Pré-vérifier la transaction pour afficher les infos du pack sur la page
     let txInfo = null;
     if (txId) {
       const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
@@ -181,7 +192,7 @@ app.get('/redeem', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
-// ── /api/redeem ───────────────────────────────────────────────────────────────
+// ── /api/redeem — réclamer une transaction Ko-fi via son ID unique ────────────
 app.post('/api/redeem', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
@@ -193,6 +204,7 @@ app.post('/api/redeem', async (req, res) => {
   }
 
   try {
+    // 1. Chercher cette transaction précise
     const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(tx_id)}`);
     if (!txRows || !txRows.length) {
       return res.status(404).json({ error: 'not_found', message: 'Transaction introuvable. Vérifie que tu utilises bien le lien reçu par Ko-fi.' });
@@ -200,10 +212,12 @@ app.post('/api/redeem', async (req, res) => {
 
     const tx = txRows[0];
 
+    // 2. Vérifier qu'elle n'est pas déjà réclamée
     if (tx.status === 'claimed') {
       return res.status(409).json({ error: 'already_claimed', message: 'Ces RCoins ont déjà été réclamés.' });
     }
 
+    // 3. Marquer comme "claimed" de façon atomique — uniquement si encore 'pending'
     const claimed = await sbPatchIf(
       'kofi_transactions',
       { kofi_transaction_id: tx.kofi_transaction_id, status: 'pending' },
@@ -214,8 +228,10 @@ app.post('/api/redeem', async (req, res) => {
       return res.status(409).json({ error: 'already_claimed', message: 'Ces RCoins ont déjà été réclamés.' });
     }
 
+    // 4. Créditer les RCoins
     const playerRows = await sbGet('players', `id=eq.${userId}`);
     if (!playerRows || !playerRows.length) {
+      // Rollback
       await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
       return res.status(404).json({ error: 'player_not_found', message: 'Ton compte joueur est introuvable.' });
     }
@@ -227,10 +243,12 @@ app.post('/api/redeem', async (req, res) => {
 
     const ok = await sbPatch('players', { id: userId }, { rcoins: newTotal });
     if (!ok) {
+      // Rollback
       await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
       return res.status(500).json({ error: 'db_error', message: 'Erreur DB lors du crédit — réessaie.' });
     }
 
+    // 5. Notifier en temps réel
     io.to(`user_${userId}`).emit('rcoins_update', { new_balance: newTotal, added });
 
     console.log(`✅ [Redeem] ${added} RCoins crédités à ${userId} (${player.username || userId}) — tx: ${tx.kofi_transaction_id} — total: ${newTotal}`);
@@ -283,15 +301,18 @@ env.addFilter('tojson', function(val) { return new nunjucks.runtime.SafeString(J
 env.addFilter('round', (val, digits) => parseFloat(Number(val).toFixed(digits ?? 0)));
 env.addFilter('int', (val) => parseInt(val, 10));
 env.addFilter('list', (val) => Array.isArray(val) ? val : Object.keys(val ?? {}));
+// selectattr : compatibilité Jinja2 → filtre un tableau sur un attribut
 env.addFilter('selectattr', function(arr, attr, op, val) {
   if (!Array.isArray(arr)) return [];
   if (op === 'equalto') return arr.filter(item => item[attr] === val);
   return arr;
 });
+// datefmt: converts ISO string "2024-01-15T18:30:00Z" → "2024-01-15 18:30"
 env.addFilter('datefmt', (val) => {
   if (!val) return '';
   return String(val).slice(0, 16).replace('T', ' ');
 });
+// format: formatte un nombre avec décimales (ex: {{ value | format('0.00') }})
 env.addFilter('format', function(val, pattern) {
   if (val === null || val === undefined) return '';
   const num = Number(val);
@@ -342,6 +363,8 @@ async function sbPatch(table, match, data) {
   } catch (e) { console.error('[sbPatch]', e); return false; }
 }
 
+// Patch conditionnel — n'affecte la ligne QUE si toutes les conditions sont remplies.
+// Retourne true si au moins 1 ligne a été modifiée (= on a "gagné la course").
 async function sbPatchIf(table, match, data) {
   try {
     const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
@@ -355,6 +378,7 @@ async function sbPatchIf(table, match, data) {
       method: 'PATCH', headers, body: JSON.stringify(data)
     });
     if (!r.ok) { console.error(`[sbPatchIf ERROR] ${table}: ${r.status} ${await r.text()}`); return false; }
+    // Supabase renvoie Content-Range: */N — N=0 si aucune ligne modifiée
     const cr = r.headers.get('content-range') || '';
     const count = parseInt(cr.split('/')[1] ?? '1', 10);
     return count > 0;
@@ -488,9 +512,13 @@ async function emitMatchUpdate(challengeId, override = {}) {
       score:       override.score       ?? report?.score       ?? null,
       elo_change:  override.elo_change  ?? c.elo_change        ?? null,
     };
+    // Envoi dans la room match ET directement à chaque joueur (comme les notifications)
+    // → garanti même si un joueur a perdu sa room après reconnexion
     io.to(`match_${challengeId}`).emit('match_update', payload);
     io.to(`user_${c.challenger_id}`).emit('match_update', payload);
     io.to(`user_${c.challenged_id}`).emit('match_update', payload);
+    // Si le match vient d'être complété, exclure ce challenge du dashboard_update
+    // pour éviter la race condition Supabase (le PATCH completed pas encore lisible)
     const excludeIds = (payload.status === 'completed' || payload.status === 'disputed')
       ? [challengeId]
       : [];
@@ -507,8 +535,10 @@ async function emitLeaderboardUpdate() {
 
 // ── SOCKET.IO EVENTS ──────────────────────────────────────────────────────────
 
+// In-memory chat history per match (max 50 messages)
 const chatHistory = new Map();
 const CHAT_MAX = 50;
+// Rate-limit chat : { uid -> { count, windowStart } }
 const chatRateMap = new Map();
 
 function isChatRateLimited(uid) {
@@ -530,6 +560,9 @@ io.on('connection', (socket) => {
     if (uid) {
       socket.join(`user_${uid}`);
       if (typeof cb === 'function') cb(true);
+      // Émettre immédiatement un dashboard_update propre avec les IDs exclus
+      // fournis par le client (matchs terminés qu'il connaît déjà)
+      // → résout la race condition quand J2 arrive sur /dashboard après confirmation
       const excludeIds = Array.isArray(data?.exclude) ? data.exclude.filter(v => validateId(String(v))) : [];
       try {
         const dashData = await dashboardData(uid, excludeIds);
@@ -545,6 +578,7 @@ io.on('connection', (socket) => {
     if (!validateId(cid)) return;
     const uid = req.session?.user?.id;
     if (!uid) return;
+    // Vérifier que l'utilisateur est bien un des deux joueurs du match
     const challenges = await sbGet('challenges', `id=eq.${cid}`);
     if (!challenges.length) return;
     const c = challenges[0];
@@ -559,9 +593,11 @@ io.on('connection', (socket) => {
     if (validateId(cid)) socket.leave(`match_${cid}`);
   });
 
+  // Relai des transitions de phase BO entre les deux joueurs
   socket.on('bo_phase_update', (data) => {
     const cid = data && data.challenge_id;
     if (!cid) return;
+    // Rediffuser à toute la room sauf l'émetteur
     socket.to(`match_${cid}`).emit('bo_phase_update', data);
   });
 
@@ -571,7 +607,7 @@ io.on('connection', (socket) => {
     const cid  = data?.challenge_id || '';
     const text = (data?.text || '').toString().slice(0, 200).trim();
     if (!uid || !validateId(cid) || !text) return;
-    if (isChatRateLimited(uid)) return;
+    if (isChatRateLimited(uid)) return; // silencieux côté serveur
     const payload = { uid, name, text, ts: new Date().toISOString() };
     if (!chatHistory.has(cid)) chatHistory.set(cid, []);
     const hist = chatHistory.get(cid);
@@ -603,6 +639,7 @@ async function requireAuth(req, res, next) {
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 
+// Index
 app.get('/', async (req, res) => {
   try {
     const now = new Date().toISOString();
@@ -618,6 +655,7 @@ app.get('/', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Rankings
 app.get('/ranking', publicApiLimiter, async (req, res) => {
   try {
     const players = await sbGet('players', 'order=points.desc');
@@ -625,12 +663,14 @@ app.get('/ranking', publicApiLimiter, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Login
 app.get('/login', loginLimiter, (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauth_state = state;
   res.redirect(DISCORD_AUTH_URL + `&state=${state}`);
 });
 
+// OAuth Callback
 app.get('/callback', async (req, res) => {
   const { code, state } = req.query;
   const expected = req.session.oauth_state;
@@ -669,6 +709,7 @@ app.get('/callback', async (req, res) => {
         points: 1000, wins: 0, losses: 0, matches_played: 0,
         main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0, rcoins: 0, owned_banners: [] });
     } else {
+      // Check ban before updating profile
       if (existing[0].is_banned) {
         req.session.destroy(() => {});
         return res.render('banned.html', {
@@ -682,6 +723,7 @@ app.get('/callback', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Auth error'); }
 });
 
+// Dashboard
 app.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.id;
@@ -696,6 +738,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Player profile
 app.get('/player/:player_id', async (req, res) => {
   const { player_id } = req.params;
   if (req.session.user?.id === player_id) return res.redirect('/dashboard');
@@ -709,11 +752,13 @@ app.get('/player/:player_id', async (req, res) => {
     if (!player) return res.redirect('/');
     const rank = players.findIndex(p => p.id === player_id) + 1;
     const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
+    // Get current logged-in user's rcoins for nav badge
     const currentUserPlayer = req.session.user ? players.find(p => p.id === req.session.user.id) : null;
     res.render('player_profile.html', { user: req.session.user || null, player, rank, my_matches: myMatches, banners_map, current_user_rcoins: currentUserPlayer?.rcoins || 0 });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Match page
 app.get('/match/:challenge_id', requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.redirect('/dashboard');
@@ -724,17 +769,16 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
     const c = challenges[0];
     if (![c.challenger_id, c.challenged_id].includes(userId)) return res.redirect('/dashboard');
     if (!['accepted', 'reported'].includes(c.status)) return res.redirect('/dashboard');
-    const [challenger, challenged, bannersArr] = await Promise.all([
+    const [challenger, challenged] = await Promise.all([
       sbGet('players', `id=eq.${c.challenger_id}`),
       sbGet('players', `id=eq.${c.challenged_id}`),
-      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
     ]);
     if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
-    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
-    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0], banners_map });
+    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0] });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Logout
 app.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
@@ -798,6 +842,7 @@ app.post('/challenge/:opponent_id', authApiLimiter, requireAuth, async (req, res
   const existing = await sbGet('challenges', `status=in.(pending,accepted)&or=(and(challenger_id.eq.${userId},challenged_id.eq.${opponent_id}),and(challenger_id.eq.${opponent_id},challenged_id.eq.${userId}))`);
   if (existing.length) return res.status(400).json({ error: 'A challenge is already pending between you' });
 
+  // Anti-spam : un seul challenge envoyé en pending à la fois
   const sentPending = await sbGet('challenges', `challenger_id=eq.${userId}&status=eq.pending`);
   if (sentPending.length >= MAX_PENDING_CHALLENGES_SENT)
     return res.status(429).json({ error: `You already have a pending challenge — cancel it first.` });
@@ -806,6 +851,7 @@ app.post('/challenge/:opponent_id', authApiLimiter, requireAuth, async (req, res
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
   await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: req.session.user.username,
     challenged_id: opponent_id, challenged_name: opponent[0].username, status: 'pending', format: fmt });
+  // Notify challenged player with dedicated event for popup
   io.to(`user_${opponent_id}`).emit('new_challenge', {
     challenger_name: req.session.user.username,
     format: fmt,
@@ -824,8 +870,9 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
   const c = challenges[0];
   if (c.challenged_id !== userId) return res.status(403).json({ error: 'Not your challenge' });
   if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-  res.json({ success: true });
+  res.json({ success: true }); // Réponse immédiate
   await sbPatch('challenges', { id: challenge_id }, { status: 'accepted', accepted_at: new Date().toISOString() });
+  // Supprimer les posts LFM des deux joueurs : un match a été trouvé
   await Promise.all([
     sbDelete('lfm_posts', { player_id: c.challenger_id }),
     sbDelete('lfm_posts', { player_id: c.challenged_id }),
@@ -863,6 +910,7 @@ app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
 
 // ── LFM ───────────────────────────────────────────────────────────────────────
 
+// In-memory set to prevent concurrent duplicate LFM post creation
 const lfmPostingInProgress = new Set();
 
 app.post('/lfm', requireAuth, async (req, res) => {
@@ -872,16 +920,19 @@ app.post('/lfm', requireAuth, async (req, res) => {
   if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
   if (!VALID_MODES.has(mode))  return res.status(400).json({ error: 'Invalid mode' });
 
+  // Anti-spam : empêche les requêtes concurrentes du même joueur (spam du bouton)
   if (lfmPostingInProgress.has(userId))
     return res.status(429).json({ error: 'Request already in progress — please wait.' });
   lfmPostingInProgress.add(userId);
 
   try {
+    // Anti-spam : pas de LFM si déjà dans un match actif ou en challenge pending/accepted
     const [activeC, existingPost] = await Promise.all([
       sbGet('challenges', `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${userId},challenged_id.eq.${userId})`),
       sbGet('lfm_posts', `player_id=eq.${userId}`),
     ]);
     if (activeC.length) return res.status(400).json({ error: 'You already have an active challenge or match — finish it first.' });
+    // Un seul post LFM à la fois : si un post existe déjà, on le remplace (upsert)
     if (existingPost.length) await sbDelete('lfm_posts', { player_id: userId });
 
     const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
@@ -896,7 +947,7 @@ app.post('/lfm', requireAuth, async (req, res) => {
       player_points: pts, main_char: main, format: fmt, mode, message,
       created_at: new Date().toISOString(), expires_at: expires });
     res.json({ success: true });
-    await emitLeaderboardUpdate();
+    await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
   } finally {
     lfmPostingInProgress.delete(userId);
   }
@@ -911,16 +962,21 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
   const post = posts[0];
   if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
+  // Créer le challenge EN BASE avant de répondre au client
+  // (évite la race condition : le client redirigeait vers /match/cid avant que le challenge existe)
   await sbPost('challenges', { id: cid, challenger_id: userId,
     challenger_name: req.session.user.username, challenged_id: post.player_id,
     challenged_name: post.player_name, status: 'accepted', format: post.format,
     accepted_at: new Date().toISOString() });
+  // Supprimer le post accepté ET tous les posts LFM des deux joueurs impliqués
   await Promise.all([
     sbDelete('lfm_posts', { id: post_id }),
     sbDelete('lfm_posts', { player_id: userId }),
     sbDelete('lfm_posts', { player_id: post.player_id }),
   ]);
+  // Répondre au client maintenant que tout est en base
   res.json({ success: true, challenge_id: cid });
+  // Rediriger les deux joueurs via Socket.IO
   io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
@@ -935,7 +991,7 @@ app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
   if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
   await sbDelete('lfm_posts', { id: post_id });
   res.json({ success: true });
-  await emitLeaderboardUpdate();
+  await emitLeaderboardUpdate(); // mise à jour temps réel pour tous
 });
 
 // ── REPORT (joueur) ───────────────────────────────────────────────────────────
@@ -956,14 +1012,17 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
   const title = sanitizeStr(req.body.title || '', 120) ||
     `${c.challenger_name} vs ${c.challenged_name}`;
 
+  // Valider screenshot optionnel (data URL base64, max ~4 Mo)
   let screenshot = null;
   const raw = req.body.screenshot;
   if (raw && typeof raw === 'string' && raw.startsWith('data:image/') && raw.length <= 5.5 * 1024 * 1024) {
     screenshot = raw;
   }
 
+  // Draw immédiat
   await sbPatch('challenges', { id: challenge_id }, { status: 'draw_reported' });
 
+  // Créer le signalement avec snapshot du chat
   await createReport({
     challenge_id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
     format: c.format, title,
@@ -973,6 +1032,7 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
   });
   chatHistory.delete(challenge_id);
 
+  // Notifier les deux joueurs
   const msg = { type: 'match_timeout', outcome: 'draw', challenge_id,
     message: '🚩 Match signalé — résultat en DRAW en attendant la décision admin.' };
   io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
@@ -994,6 +1054,8 @@ async function requireAdmin(req, res, next) {
 }
 
 // ── ADMIN — SCREENSHOT ────────────────────────────────────────────────────────
+// Sert le screenshot d'un report en tant qu'image binaire (évite de mettre
+// plusieurs Mo de base64 inline dans le HTML Nunjucks)
 app.get('/admin/report-screenshot/:report_id', requireAdmin, async (req, res) => {
   const { report_id } = req.params;
   if (!validateId(report_id)) return res.status(400).send('Invalid ID');
@@ -1001,6 +1063,7 @@ app.get('/admin/report-screenshot/:report_id', requireAdmin, async (req, res) =>
   if (!reports.length) return res.status(404).send('Not found');
   const screenshot = reports[0].screenshot;
   if (!screenshot || !screenshot.startsWith('data:image/')) return res.status(404).send('No screenshot');
+  // Extraire le type MIME et les données binaires
   const [header, b64] = screenshot.split(',');
   const mime = header.replace('data:', '').replace(';base64', '');
   const buf  = Buffer.from(b64, 'base64');
@@ -1018,13 +1081,15 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
       sbGet('players', 'order=points.desc'),
     ]);
     const playersMap = Object.fromEntries(allPlayers.map(p => [p.id, p]));
+    // Enrich each report with p1/p2 player snapshots and normalized status
     const enriched = openReports.map(r => {
       const p1 = playersMap[r.challenger_id] || { username: r.challenger_id, points: '?', wins: 0, losses: 0 };
       const p2 = playersMap[r.challenged_id] || { username: r.challenged_id, points: '?', wins: 0, losses: 0 };
       const normalizedStatus = r.status === 'resolved' ? 'resolved' : 'open';
       const winnerUsername = r.winner_id ? (playersMap[r.winner_id] || {}).username || r.winner_id : null;
+      // Ne pas envoyer la data URL brute au template (trop lourde) — juste un flag
       const has_screenshot = !!(r.screenshot && r.screenshot.startsWith('data:image/'));
-      const { screenshot: _drop, ...rClean } = r;
+      const { screenshot: _drop, ...rClean } = r; // retirer le champ screenshot
       return { ...rClean, p1, p2, status: normalizedStatus, winner_username: winnerUsername, has_screenshot };
     });
     res.render('admin_reports.html', {
@@ -1048,6 +1113,7 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
 
   const { winner_id } = req.body;
   if (!winner_id) {
+    // Clôturer sans vainqueur (draw confirmé)
     await sbPatch('reports', { id: report_id }, {
       status: 'resolved', resolved_by: req.session.user.id,
       resolved_at: new Date().toISOString(), resolution: 'draw'
@@ -1094,6 +1160,7 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
 
   await emitLeaderboardUpdate();
   await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
+  // Notifier les joueurs de la décision admin
   const notify = (uid, won) => io.to(`user_${uid}`).emit('admin_decision', {
     challenge_id: report.challenge_id,
     message: won
@@ -1106,6 +1173,7 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
 
   res.json({ success: true, resolution: 'winner', elo_change: eloGain });
 });
+
 
 // ── ADMIN — BAN / UNBAN ───────────────────────────────────────────────────────
 
@@ -1151,6 +1219,10 @@ app.post("/admin/unban", requireAdmin, async (req, res) => {
 
 // ── RESULT SUBMISSION ─────────────────────────────────────────────────────────
 
+
+// ── Sauvegarde de la progression en cours (STOCKS) ──────────────────────────
+// Appelé après chaque game confirmé pour persistre games_history
+// Permet de restaurer l'état si le joueur quitte et revient
 app.post('/api/save_progress/:challenge_id', requireAuth, async (req, res) => {
   const { challenge_id } = req.params;
   if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
@@ -1160,7 +1232,7 @@ app.post('/api/save_progress/:challenge_id', requireAuth, async (req, res) => {
   const c = challenges[0];
   if (![c.challenger_id, c.challenged_id].includes(userId))
     return res.status(403).json({ error: 'Not part of this match' });
-  if (c.status !== 'accepted') return res.json({ success: true });
+  if (c.status !== 'accepted') return res.json({ success: true }); // ignoré si déjà soumis
   const { games_history } = req.body;
   if (!Array.isArray(games_history)) return res.status(400).json({ error: 'Invalid data' });
   const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
@@ -1182,6 +1254,8 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
   const { winner_id, score: rawScore } = req.body;
   const isStocks = c.format === 'STOCKS';
 
+  // En mode STOCKS : le front envoie les TOTAUX CUMULÉS sur l'ensemble des matchs.
+  // On calcule le delta = total saisi - total précédemment enregistré.
   let wStRaw = parseInt(req.body.winner_stocks_taken ?? 0, 10);
   let lStRaw = parseInt(req.body.loser_stocks_taken  ?? 0, 10);
   if (isNaN(wStRaw) || isNaN(lStRaw) || wStRaw < 0 || lStRaw < 0) {
@@ -1195,9 +1269,9 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
     const prev = (typeof c.report === 'object' && c.report) ? c.report : {};
     const prevW = prev.winner_stocks_total || 0;
     const prevL = prev.loser_stocks_total  || 0;
-    wSt = Math.max(0, wStRaw - prevW);
+    wSt = Math.max(0, wStRaw - prevW); // delta pour ce match
     lSt = Math.max(0, lStRaw - prevL);
-    scoreStr = sanitizeStr(rawScore || '', 20) || `${wStRaw}-${lStRaw}`;
+    scoreStr = sanitizeStr(rawScore || '', 20) || `${wStRaw}-${lStRaw}`; // score P1-P2 from front
   } else {
     const v1 = validateStocks(wStRaw), v2 = validateStocks(lStRaw);
     if (v1 === null || v2 === null) return res.status(400).json({ error: `Stocks must be 0–${MAX_STOCKS}` });
@@ -1209,6 +1283,8 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
   const loser_id = isDraw ? null : (winner_id === c.challenger_id ? c.challenged_id : c.challenger_id);
 
   if (c.status === 'accepted') {
+    // Patch conditionnel : n'applique le changement QUE si le status est encore 'accepted'.
+    // Si les deux joueurs soumettent en même temps, un seul "gagne la course".
     const won = await sbPatchIf('challenges', { id: challenge_id, status: 'accepted' }, {
       status: 'reported', reported_by: userId, reported_at: new Date().toISOString(),
       report: {
@@ -1221,16 +1297,22 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
     });
 
     if (won) {
+      // On est le premier à soumettre — l'adversaire devra confirmer
       await emitMatchUpdate(challenge_id);
       return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
     }
 
+    // On a perdu la course — l'adversaire a soumis en même temps.
+    // Re-fetch pour récupérer son rapport et traiter ça comme une confirmation.
     const fresh = await sbGet('challenges', `id=eq.${challenge_id}`);
     if (!fresh.length) return res.status(404).json({ error: 'Not found' });
     const cf = fresh[0];
     if (cf.status !== 'reported' || cf.reported_by === userId) {
+      // Cas inattendu — on répond comme si on était le premier
       return res.json({ success: true, message: 'Result submitted! Waiting for opponent confirmation.' });
     }
+    // Traiter comme une confirmation — fall through vers le bloc 'reported' ci-dessous
+    // en remplaçant c par cf
     Object.assign(c, cf);
   }
 
@@ -1240,6 +1322,7 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
     const submittedWinnerId = isDraw ? null : winner_id;
     if (String(submittedWinnerId) === String(reportedWinnerId)) {
       if (isDraw) {
+        // Draw confirmé par les deux joueurs — clôture sans ELO
         await Promise.all([
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
           sbPost('matches', { challenge_id, winner_id: null, winner_name: 'DRAW',
@@ -1296,6 +1379,9 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
 });
 
 // ── DEAD MATCH CLEANUP ────────────────────────────────────────────────────────
+// Tournant en arrière-plan, résout les matchs abandonnés :
+//   • status=accepted  depuis > 2h  → DRAW + signalement admin
+//   • status=reported  depuis > 30min → DRAW + signalement admin (plus de forfait auto)
 
 async function createReport({ challenge_id, challenger_id, challenged_id, format, title, reason, chat_history_snapshot, screenshot }) {
   const rid = `rep_${crypto.randomBytes(8).toString('hex')}`;
@@ -1307,6 +1393,7 @@ async function createReport({ challenge_id, challenger_id, challenged_id, format
     status: 'open',
     created_at: new Date().toISOString(),
   };
+  // Stocker le screenshot base64 (data URL) directement dans Supabase
   if (screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/')) {
     payload.screenshot = screenshot;
   }
@@ -1318,6 +1405,7 @@ async function resolveDeadMatches() {
   try {
     const now = new Date();
 
+    // ── 1. Matchs accepted expirés → DRAW + signalement ───────────────────────
     const acceptedExpiry = new Date(now - MATCH_ACCEPTED_TIMEOUT_MS).toISOString();
     const deadAccepted = await sbGet('challenges',
       `status=eq.accepted&accepted_at=lt.${acceptedExpiry}`);
@@ -1340,6 +1428,7 @@ async function resolveDeadMatches() {
       await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
     }
 
+    // ── 2. Matchs reported expirés → DRAW + signalement ──────────────────────
     const reportedExpiry = new Date(now - MATCH_REPORTED_TIMEOUT_MS).toISOString();
     const deadReported = await sbGet('challenges',
       `status=eq.reported&reported_at=lt.${reportedExpiry}`);
@@ -1367,22 +1456,25 @@ async function resolveDeadMatches() {
   }
 }
 
+
 // ── BANNER SHOP ───────────────────────────────────────────────────────────────
 
 const VALID_RARITIES = new Set(['common', 'rare', 'epic', 'legendary']);
 const RARITY_PRICES = { common: 100, rare: 500, epic: 1500, legendary: 2000 };
-const MAX_BANNER_IMG_BYTES     = 2 * 1024 * 1024;
-const MAX_BANNER_GIF_BYTES     = 5 * 1024 * 1024;
+const MAX_BANNER_IMG_BYTES     = 2 * 1024 * 1024; // 2 MB (static)
+const MAX_BANNER_GIF_BYTES     = 5 * 1024 * 1024; // 5 MB (animated GIF)
 const VALID_BANNER_MIME_STATIC = new Set(['data:image/png;', 'data:image/jpeg;', 'data:image/webp;']);
 
 function validateBannerImg(raw) {
   if (!raw || typeof raw !== 'string') return null;
   if (!raw.startsWith('data:image/')) return null;
+  // GIFs must use validateBannerGif — reject here if GIF
   if (raw.startsWith('data:image/gif;')) return null;
   if (raw.length > Math.ceil(MAX_BANNER_IMG_BYTES * 1.4)) return null;
   return raw;
 }
 
+// Valide un GIF animé (data URL) — limite 5 MB
 function validateBannerGif(raw) {
   if (!raw || typeof raw !== 'string') return null;
   if (!raw.startsWith('data:image/gif;')) return null;
@@ -1390,6 +1482,7 @@ function validateBannerGif(raw) {
   return raw;
 }
 
+// Wallet — buy RCoins
 app.get('/wallet', async (req, res) => {
   try {
     let player = null;
@@ -1401,6 +1494,7 @@ app.get('/wallet', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Shop — page publique
 app.get('/shop', async (req, res) => {
   try {
     const banners = await sbGet('banners', 'order=created_at.desc');
@@ -1413,6 +1507,7 @@ app.get('/shop', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Shop — équiper une bannière
 app.post('/shop/equip', requireAuth, async (req, res) => {
   const { banner_id, slot } = req.body;
   if (!slot || !['dash', 'lb'].includes(slot))
@@ -1426,6 +1521,7 @@ app.post('/shop/equip', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Shop — déséquiper une bannière
 app.post('/shop/unequip', requireAuth, async (req, res) => {
   const { slot } = req.body;
   if (!slot || !['dash', 'lb'].includes(slot))
@@ -1435,6 +1531,7 @@ app.post('/shop/unequip', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// Shop — mettre à jour l'opacité d'une bannière possédée
 app.post('/shop/banner-opacity', authApiLimiter, requireAuth, async (req, res) => {
   const { banner_id, opacity } = req.body;
   if (!banner_id || !validateId(String(banner_id)))
@@ -1443,6 +1540,7 @@ app.post('/shop/banner-opacity', authApiLimiter, requireAuth, async (req, res) =
   if (isNaN(opVal) || opVal < 10 || opVal > 100)
     return res.status(400).json({ error: 'Opacity must be between 10 and 100' });
 
+  // Vérifier que le joueur possède bien cette bannière
   const playerRows = await sbGet('players', `id=eq.${req.session.user.id}`);
   if (!playerRows.length) return res.status(404).json({ error: 'Player not found' });
   const player = playerRows[0];
@@ -1450,12 +1548,14 @@ app.post('/shop/banner-opacity', authApiLimiter, requireAuth, async (req, res) =
   if (!owned.includes(banner_id))
     return res.status(403).json({ error: 'You do not own this banner' });
 
+  // Merge dans le JSON existant banner_opacity: { [banner_id]: opacity }
   const currentOpacity = (typeof player.banner_opacity === 'object' && player.banner_opacity) ? player.banner_opacity : {};
   const newOpacity = { ...currentOpacity, [banner_id]: opVal };
   await sbPatch('players', { id: req.session.user.id }, { banner_opacity: newOpacity });
   res.json({ success: true });
 });
 
+// Shop — acheter une bannière avec des RCoins
 app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   const { banner_id } = req.body;
   if (!banner_id || !validateId(String(banner_id)))
@@ -1473,10 +1573,12 @@ app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   const price  = RARITY_PRICES[banner.rarity];
   if (!price) return res.status(400).json({ error: 'Unknown rarity' });
 
+  // Vérifier si déjà possédé
   const owned = Array.isArray(player.owned_banners) ? player.owned_banners : [];
   if (owned.includes(banner_id))
     return res.status(400).json({ error: 'You already own this banner' });
 
+  // Vérifier solde
   const rcoins = player.rcoins || 0;
   if (rcoins < price)
     return res.status(400).json({ error: `Not enough RCoins (need ${price}, have ${rcoins})` });
@@ -1484,6 +1586,8 @@ app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   const newBalance = rcoins - price;
   const newOwned   = [...owned, banner_id];
 
+  // Patch conditionnel : ne débite que si le solde est encore >= price
+  // Evite la race condition si deux requêtes simultanées arrivent
   const won = await sbPatchIf("players",
     { id: req.session.user.id, rcoins: `gte.${price}` },
     { rcoins: newBalance, owned_banners: newOwned }
@@ -1498,10 +1602,14 @@ app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
   res.json({ success: true, new_balance: newBalance });
 });
 
+// Shop — obtenir le lien Ko-fi pour acheter des RCoins
 app.post('/shop/buy-coins', authApiLimiter, requireAuth, async (req, res) => {
   const { pack_id } = req.body;
   const pack = RCOIN_PACKS.find(p => p.id === pack_id);
   if (!pack) return res.status(400).json({ error: 'Pack invalide' });
+
+  // On retourne l'URL Ko-fi directement — le joueur y paie
+  // Il DOIT mettre son Discord ID dans le champ "message" Ko-fi pour recevoir ses coins
   res.json({
     url:       pack.kofi_url,
     discord_id: req.session.user.id,
@@ -1510,7 +1618,7 @@ app.post('/shop/buy-coins', authApiLimiter, requireAuth, async (req, res) => {
   });
 });
 
-// ── WHAT'S UP ─────────────────────────────────────────────────────────────────
+// ── WHAT'S UP — public read ───────────────────────────────────────────────────
 app.get('/api/whatsup', async (req, res) => {
   try {
     const posts = await sbGet('whatsup_posts', 'order=position.asc,created_at.asc');
@@ -1518,22 +1626,24 @@ app.get('/api/whatsup', async (req, res) => {
   } catch(e) { res.json({ posts: [] }); }
 });
 
+// ── WHAT'S UP — admin CRUD ────────────────────────────────────────────────────
 app.post('/admin/whatsup', requireAdmin, async (req, res) => {
   const { text, image, bg_color, text_color, duration } = req.body;
   if (!text && !image) return res.status(400).json({ error: 'text or image required' });
   const id = `wu_${require('crypto').randomBytes(6).toString('hex')}`;
+  // Get current max position
   const existing = await sbGet('whatsup_posts', 'order=position.desc&limit=1');
   const position = existing && existing.length ? (existing[0].position || 0) + 1 : 0;
   await sbPost('whatsup_posts', {
     id, text: text || null,
-    image: image || null,
+    image: image || null,          // base64 data URL
     bg_color: bg_color || null,
     text_color: text_color || null,
     duration: parseInt(duration) || 5,
     position,
     created_at: new Date().toISOString()
   });
-  io.emit('whatsup_update');
+  io.emit('whatsup_update'); // notify all connected clients
   res.json({ success: true, id });
 });
 
@@ -1559,8 +1669,9 @@ app.delete('/admin/whatsup/:post_id', requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Reorder — receive array of { id, position }
 app.post('/admin/whatsup/reorder', requireAdmin, async (req, res) => {
-  const { order } = req.body;
+  const { order } = req.body; // [{ id, position }, ...]
   if (!Array.isArray(order)) return res.status(400).json({ error: 'invalid' });
   await Promise.all(order.map(({ id, position }) =>
     sbPatch('whatsup_posts', { id }, { position: parseInt(position) })
@@ -1568,7 +1679,6 @@ app.post('/admin/whatsup/reorder', requireAdmin, async (req, res) => {
   io.emit('whatsup_update');
   res.json({ success: true });
 });
-
 app.get('/admin/shop', requireAdmin, async (req, res) => {
   try {
     const banners = await sbGet('banners', 'order=created_at.desc');
@@ -1583,6 +1693,7 @@ app.get('/admin/shop', requireAdmin, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// Admin — créer une bannière
 app.post('/admin/shop/banner', requireAdmin, async (req, res) => {
   const name   = sanitizeStr(req.body.name || '', 60);
   const rarity = req.body.rarity || 'common';
@@ -1607,11 +1718,13 @@ app.post('/admin/shop/banner', requireAdmin, async (req, res) => {
   res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb, img_dash_gif, img_lb_gif } });
 });
 
+// Admin — supprimer une bannière
 app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
   const { banner_id } = req.params;
   if (!validateId(banner_id)) return res.status(400).json({ error: 'Invalid ID' });
   const banners = await sbGet('banners', `id=eq.${banner_id}`);
   if (!banners.length) return res.status(404).json({ error: 'Banner not found' });
+  // Déséquiper tous les joueurs qui ont cette bannière
   await Promise.all([
     sbPatch('players', { banner_dash: banner_id }, { banner_dash: null }),
     sbPatch('players', { banner_lb:   banner_id }, { banner_lb:   null }),
@@ -1625,6 +1738,7 @@ app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`⚔ Smash YUZU running on port ${PORT}`);
+  // Lancer le nettoyeur de matchs morts au démarrage puis toutes les 5 min
   resolveDeadMatches();
   setInterval(resolveDeadMatches, DEAD_MATCH_CHECK_INTERVAL);
 });
