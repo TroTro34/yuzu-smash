@@ -86,73 +86,60 @@
     /* ── VS ARENA ── */
     .vs-arena {
       display: grid; grid-template-columns: 1fr auto 1fr;
-      gap: 0; align-items: center;
+      gap: 0; align-items: stretch;
       width: 100%; max-width: 860px;
       margin-bottom: 2.5rem; position: relative;
     }
 
     .fighter-side {
-      display: flex; flex-direction: column; align-items: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 1rem; padding: 2rem 1.5rem;
-      position: relative;
+      position: relative; overflow: hidden;
+      min-height: 200px;
     }
 
     .fighter-side.blue-side {
-      background: linear-gradient(135deg, rgba(79,142,247,0.08) 0%, transparent 70%);
+      background: rgba(79,142,247,0.04);
       border: 1px solid rgba(79,142,247,0.2); border-right: none;
       border-radius: 12px 0 0 12px;
     }
     .fighter-side.red-side {
-      background: linear-gradient(225deg, rgba(232,64,10,0.08) 0%, transparent 70%);
+      background: rgba(232,64,10,0.04);
       border: 1px solid rgba(232,64,10,0.2); border-left: none;
       border-radius: 0 12px 12px 0;
     }
 
-    /* Corner accent lines like the image */
+    /* Corner accent lines */
     .fighter-side.blue-side::before {
-      content: '';
-      position: absolute; left: 0; top: 0;
-      width: 3px; height: 60px;
+      content: ''; position: absolute; left: 0; top: 0;
+      width: 3px; height: 60px; z-index: 2;
       background: linear-gradient(to bottom, var(--blue), transparent);
-      z-index: 2;
     }
     .fighter-side.blue-side::after {
-      content: '';
-      position: absolute; left: 0; top: 0;
-      height: 3px; width: 60px;
+      content: ''; position: absolute; left: 0; top: 0;
+      height: 3px; width: 60px; z-index: 2;
       background: linear-gradient(to right, var(--blue), transparent);
-      z-index: 2;
     }
     .fighter-side.red-side::before {
-      content: '';
-      position: absolute; right: 0; bottom: 0;
-      width: 3px; height: 60px;
+      content: ''; position: absolute; right: 0; bottom: 0;
+      width: 3px; height: 60px; z-index: 2;
       background: linear-gradient(to top, var(--accent), transparent);
-      z-index: 2;
     }
     .fighter-side.red-side::after {
-      content: '';
-      position: absolute; right: 0; bottom: 0;
-      height: 3px; width: 60px;
+      content: ''; position: absolute; right: 0; bottom: 0;
+      height: 3px; width: 60px; z-index: 2;
       background: linear-gradient(to left, var(--accent), transparent);
-      z-index: 2;
     }
 
-    /* ── FIGHTER BANNER BACKGROUND ── */
-    .fighter-banner-bg {
-      position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    }
-    .fighter-banner-bg img {
-      width: 100%; height: 100%; object-fit: cover; display: block;
-    }
-    .fighter-banner-bg::after {
-      content: ''; position: absolute; inset: 0;
-    }
+    /* ── FIGHTER BANNER BACKGROUND — même principe que dashboard ── */
+    .fighter-banner-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+    .fighter-banner-bg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .fighter-banner-bg::after { content: ''; position: absolute; inset: 0; }
     .blue-side .fighter-banner-bg::after {
-      background: linear-gradient(135deg, rgba(7,7,15,0.35) 0%, rgba(7,7,15,0.55) 100%);
+      background: linear-gradient(90deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.5) 100%);
     }
     .red-side .fighter-banner-bg::after {
-      background: linear-gradient(225deg, rgba(7,7,15,0.35) 0%, rgba(7,7,15,0.55) 100%);
+      background: linear-gradient(270deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.5) 100%);
     }
     .fighter-side > *:not(.fighter-banner-bg) { position: relative; z-index: 1; }
 
@@ -575,9 +562,8 @@
     <div class="fighter-side blue-side">
       {% set ch_banner = banners_map[challenger.banner_dash] if challenger.banner_dash and banners_map[challenger.banner_dash] else null %}
       {% if ch_banner %}
-        {% set ch_banner_url = ch_banner.img_dash_gif if ch_banner.img_dash_gif else ch_banner.img_dash %}
         {% set ch_op = (challenger.banner_opacity[challenger.banner_dash] / 100) if challenger.banner_opacity and challenger.banner_dash and challenger.banner_opacity[challenger.banner_dash] else 0.4 %}
-        <div class="fighter-banner-bg"><img src="{{ ch_banner_url }}" alt="" style="opacity:{{ ch_op }}"></div>
+        <div class="fighter-banner-bg"><img src="{{ ch_banner.img_dash_gif or ch_banner.img_dash }}" alt="" style="opacity:{{ ch_op }}"></div>
       {% endif %}
       {% if challenger.avatar %}
         <img class="fighter-avatar"
@@ -602,9 +588,8 @@
     <div class="fighter-side red-side">
       {% set cd_banner = banners_map[challenged.banner_dash] if challenged.banner_dash and banners_map[challenged.banner_dash] else null %}
       {% if cd_banner %}
-        {% set cd_banner_url = cd_banner.img_dash_gif if cd_banner.img_dash_gif else cd_banner.img_dash %}
         {% set cd_op = (challenged.banner_opacity[challenged.banner_dash] / 100) if challenged.banner_opacity and challenged.banner_dash and challenged.banner_opacity[challenged.banner_dash] else 0.4 %}
-        <div class="fighter-banner-bg"><img src="{{ cd_banner_url }}" alt="" style="opacity:{{ cd_op }}"></div>
+        <div class="fighter-banner-bg"><img src="{{ cd_banner.img_dash_gif or cd_banner.img_dash }}" alt="" style="opacity:{{ cd_op }}"></div>
       {% endif %}
       {% if challenged.avatar %}
         <img class="fighter-avatar"
