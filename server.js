@@ -65,6 +65,33 @@ const MAX_PENDING_CHALLENGES_SENT = 1;
 const CHAT_RATE_LIMIT_COUNT  = 5;
 const CHAT_RATE_LIMIT_WINDOW = 4000; // ms
 
+// ── RATE LIMITERS ─────────────────────────────────────────────────────────────
+
+// API publiques (leaderboard, search, lfm) : 60 req/min par IP
+const publicApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Actions authentifiées (challenges, résultats, shop) : 30 req/min par IP
+const authApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Login : 10 tentatives/5min par IP (anti-flood OAuth)
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many login attempts, try again later." },
+});
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://yuzu-smash.onrender.com';
@@ -288,32 +315,6 @@ app.post('/api/redeem', authApiLimiter, async (req, res) => {
   }
 });
 
-// ── RATE LIMITERS ─────────────────────────────────────────────────────────────
-
-// API publiques (leaderboard, search, lfm) : 60 req/min par IP
-const publicApiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please slow down." },
-});
-
-// Actions authentifiées (challenges, résultats, shop) : 30 req/min par IP
-const authApiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please slow down." },
-});
-
-// Login : 10 tentatives/5min par IP (anti-flood OAuth)
-const loginLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 10,
-  message: { error: "Too many login attempts, try again later." },
-});
 // Static files
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
