@@ -774,9 +774,7 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
       sbGet('players', `id=eq.${c.challenged_id}`),
     ]);
     if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
-    const bannersArr = await sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif');
-    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
-    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0], banners_map });
+    res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0] });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
