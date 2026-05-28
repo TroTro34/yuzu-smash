@@ -8,7 +8,8 @@ const nunjucks   = require('nunjucks');
 const crypto     = require('crypto');
 const fetch      = require('node-fetch');
 const path       = require('path');
-const rateLimit   = require('express-rate-limit');
+const rateLimit  = require('express-rate-limit');
+const helmet     = require('helmet');
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,8 @@ const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
 
 // ── KO-FI CONFIG ──────────────────────────────────────────────────────────────
-const KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN || 'f76a8972-3395-41e8-aa51-827effffadeb';
+const KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN;
+if (!KOFI_VERIFICATION_TOKEN) { console.error('KOFI_VERIFICATION_TOKEN manquant'); process.exit(1); }
 
 // Mapping montant (en EUR) → RCoins à créditer
 // Pack 2€ (lien ko-fi.com/s/fc3ccb0369) → 500 RCoins
@@ -33,7 +35,8 @@ const RCOIN_PACKS = [
 ];
 
 const CLIENT_ID           = '1504467669712240861';
-const CLIENT_SECRET       = process.env.DISCORD_CLIENT_SECRET || '';
+const CLIENT_SECRET       = process.env.DISCORD_CLIENT_SECRET;
+if (!CLIENT_SECRET) { console.error('DISCORD_CLIENT_SECRET manquant'); process.exit(1); }
 const GUILD_ID            = '1051577844318339172';
 const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onrender.com/callback';
 const SUPABASE_URL        = process.env.SUPABASE_URL || '';
@@ -63,12 +66,60 @@ const MAX_PENDING_CHALLENGES_SENT = 1;
 const CHAT_RATE_LIMIT_COUNT  = 5;
 const CHAT_RATE_LIMIT_WINDOW = 4000; // ms
 
-// ── APP ───────────────────────────────────────────────────────────────────────
+// ── CACHE EN MÉMOIRE ──────────────────────────────────────────────────────────
+// Évite de refaire les mêmes requêtes Supabase à chaque chargement de page.
+// TTL court (3-5s) : les données restent fraîches, mais 10 visiteurs simultanés
+// ne génèrent qu'1 requête au lieu de 10.
+
+const _cache = new Map(); // key → { value, expiresAt }
+
+function cacheGet(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
+  return entry.value;
+}
+
+function cacheSet(key, value, ttlMs) {
+  _cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+function cacheInvalidate(...keys) {
+  for (const k of keys) _cache.delete(k);
+}
+
+// TTL par type de donnée
+const TTL_PLAYERS  = 4000;  // 4s  — classement, profils
+const TTL_BANNERS  = 30000; // 30s — change rarement
+const TTL_MATCHES  = 5000;  // 5s  — historique récent
+const TTL_LFM      = 4000;  // 4s  — looking for match
+
+// Wrappers cachés pour les lectures fréquentes
+async function cachedPlayers() {
+  const k = 'players:all';
+  return cacheGet(k) ?? cacheSet(k, await sbGet('players', 'order=points.desc'), TTL_PLAYERS) ?? cacheGet(k);
+}
+async function cachedBanners() {
+  const k = 'banners:light';
+  return cacheGet(k) ?? cacheSet(k, await sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'), TTL_BANNERS) ?? cacheGet(k);
+}
+async function cachedRecentMatches() {
+  const k = 'matches:recent';
+  return cacheGet(k) ?? cacheSet(k, await sbGet('matches', 'order=date.desc&limit=10'), TTL_MATCHES) ?? cacheGet(k);
+}
+// Invalidations à appeler après chaque écriture qui modifie ces données
+function invalidatePlayers()      { cacheInvalidate('players:all'); }
+function invalidateMatches()      { cacheInvalidate('matches:recent'); }
+function invalidateBanners()      { cacheInvalidate('banners:light'); }
+
+
 
 const app    = express();
 app.set("trust proxy", 1); // Render est derrière un reverse proxy
+app.use(helmet({ contentSecurityPolicy: false })); // Headers sécurité HTTP (XFrame, nosniff, HSTS…)
 const server = http.createServer(app);
-const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
+const ORIGIN = process.env.SITE_ORIGIN || 'https://yuzu-smash.onrender.com';
+const io     = new Server(server, { cors: { origin: ORIGIN }, pingTimeout: 60000, pingInterval: 25000 });
 
 // Sessions
 const sessionMiddleware = session({
@@ -193,7 +244,7 @@ app.get('/redeem', async (req, res) => {
 });
 
 // ── /api/redeem — réclamer une transaction Ko-fi via son ID unique ────────────
-app.post('/api/redeem', async (req, res) => {
+app.post('/api/redeem', authApiLimiter, async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
 
   const userId = req.session.user.id;
@@ -443,7 +494,7 @@ function validateStocks(v) {
 
 async function dashboardData(userId, excludeChallengeIds = []) {
   const [players, allChallenges, myMatches] = await Promise.all([
-    sbGet('players', 'order=points.desc'),
+    cachedPlayers(),
     sbGet('challenges', 'status=in.(pending,accepted,reported)'),
     getPlayerMatches(userId, 10),
   ]);
@@ -479,10 +530,10 @@ async function dashboardData(userId, excludeChallengeIds = []) {
 async function leaderboardData() {
   const now = new Date().toISOString();
   const [players, recentMatches, lfmPosts, bannersArr] = await Promise.all([
-    sbGet('players', 'order=points.desc'),
-    sbGet('matches', 'order=date.desc&limit=10'),
+    cachedPlayers(),
+    cachedRecentMatches(),
     sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`),
-    sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
+    cachedBanners(),
   ]);
   const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
   return { players, recent_matches: recentMatches, lfm_posts: lfmPosts, banners_map };
@@ -645,10 +696,10 @@ app.get('/', async (req, res) => {
     const now = new Date().toISOString();
     await sbDelete('lfm_posts', { expires_at: `lt.${now}` });
     const [players, matches, lfm, bannersArr] = await Promise.all([
-      sbGet('players', 'order=points.desc'),
-      sbGet('matches', 'order=date.desc&limit=10'),
+      cachedPlayers(),
+      cachedRecentMatches(),
       sbGet('lfm_posts', 'order=created_at.desc'),
-      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
+      cachedBanners(),
     ]);
     const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
     res.render('index.html', { user: req.session.user || null, players, recent_matches: matches, lfm_posts: lfm, banners_map });
@@ -658,7 +709,7 @@ app.get('/', async (req, res) => {
 // Rankings
 app.get('/ranking', publicApiLimiter, async (req, res) => {
   try {
-    const players = await sbGet('players', 'order=points.desc');
+    const players = await cachedPlayers();
     res.render('ranking.html', { user: req.session.user || null, players });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
@@ -730,7 +781,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     const [data, playerRow, banners] = await Promise.all([
       dashboardData(userId),
       sbGet('players', `id=eq.${userId}`),
-      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
+      cachedBanners(),
     ]);
     const is_admin = playerRow.length && playerRow[0].is_admin ? true : false;
     const banners_map = Object.fromEntries(banners.map(b => [b.id, b]));
@@ -744,9 +795,9 @@ app.get('/player/:player_id', async (req, res) => {
   if (req.session.user?.id === player_id) return res.redirect('/dashboard');
   try {
     const [players, myMatches, bannersArr] = await Promise.all([
-      sbGet('players', 'order=points.desc'),
+      cachedPlayers(),
       getPlayerMatches(player_id, 10),
-      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
+      cachedBanners(),
     ]);
     const player = players.find(p => p.id === player_id);
     if (!player) return res.redirect('/');
@@ -772,7 +823,7 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
     const [challenger, challenged, bannersArr] = await Promise.all([
       sbGet('players', `id=eq.${c.challenger_id}`),
       sbGet('players', `id=eq.${c.challenged_id}`),
-      sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
+      cachedBanners(),
     ]);
     if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
     const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
@@ -1159,6 +1210,7 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
       winner_id, elo_change: eloGain,
     }),
   ]);
+  invalidatePlayers(); invalidateMatches();
 
   await emitLeaderboardUpdate();
   await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
@@ -1193,6 +1245,7 @@ app.post("/admin/ban", requireAdmin, async (req, res) => {
     is_banned: true, ban_reason: banReason,
     banned_at: new Date().toISOString(), banned_by: req.session.user.id,
   });
+  invalidatePlayers();
   const activeChallenges = await sbGet("challenges",
     `status=in.(pending,accepted,reported)&or=(challenger_id.eq.${player_id},challenged_id.eq.${player_id})`);
   for (const c of activeChallenges) {
@@ -1361,6 +1414,7 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
+        invalidatePlayers(); invalidateMatches();
         await new Promise(r => setTimeout(r, 300));
         await emitMatchUpdate(challenge_id, {
           status: 'completed', winner_id, score: report.score || scoreStr, elo_change: eloGain,
@@ -1717,6 +1771,7 @@ app.post('/admin/shop/banner', requireAdmin, async (req, res) => {
     created_by: req.session.user.id,
     created_at: new Date().toISOString(),
   });
+  invalidateBanners();
   res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb, img_dash_gif, img_lb_gif } });
 });
 
@@ -1732,6 +1787,7 @@ app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
     sbPatch('players', { banner_lb:   banner_id }, { banner_lb:   null }),
   ]);
   await sbDelete('banners', { id: banner_id });
+  invalidateBanners();
   res.json({ success: true });
 });
 
