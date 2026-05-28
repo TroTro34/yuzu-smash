@@ -91,11 +91,13 @@
       margin-bottom: 2.5rem; position: relative;
     }
 
+    /* ── FIGHTER SIDE — proportion verticale type bannière dashboard ── */
     .fighter-side {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 1rem; padding: 2rem 1.5rem;
+      gap: 0.9rem; padding: 2rem 1.5rem;
       position: relative; overflow: hidden;
-      min-height: 200px;
+      aspect-ratio: 3 / 4;
+      min-height: 260px;
     }
 
     .fighter-side.blue-side {
@@ -109,57 +111,65 @@
       border-radius: 0 12px 12px 0;
     }
 
-    /* Corner accent lines */
+    /* Barre verticale latérale — identique dashboard (left/right full height) */
     .fighter-side.blue-side::before {
-      content: ''; position: absolute; left: 0; top: 0;
-      width: 3px; height: 60px; z-index: 2;
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 4px; z-index: 2;
       background: linear-gradient(to bottom, var(--blue), transparent);
     }
+    .fighter-side.red-side::before {
+      content: ''; position: absolute; right: 0; top: 0; bottom: 0;
+      width: 4px; z-index: 2;
+      background: linear-gradient(to bottom, var(--accent), transparent);
+    }
+    /* Barre horizontale top */
     .fighter-side.blue-side::after {
-      content: ''; position: absolute; left: 0; top: 0;
-      height: 3px; width: 60px; z-index: 2;
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; z-index: 2;
       background: linear-gradient(to right, var(--blue), transparent);
     }
-    .fighter-side.red-side::before {
-      content: ''; position: absolute; right: 0; bottom: 0;
-      width: 3px; height: 60px; z-index: 2;
-      background: linear-gradient(to top, var(--accent), transparent);
-    }
     .fighter-side.red-side::after {
-      content: ''; position: absolute; right: 0; bottom: 0;
-      height: 3px; width: 60px; z-index: 2;
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; z-index: 2;
       background: linear-gradient(to left, var(--accent), transparent);
     }
 
-    /* ── FIGHTER BANNER BACKGROUND — même principe que dashboard ── */
+    /* ── FIGHTER BANNER BACKGROUND — identique .profile-banner-bg du dashboard ── */
     .fighter-banner-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-    .fighter-banner-bg img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .fighter-banner-bg::after { content: ''; position: absolute; inset: 0; }
-    .blue-side .fighter-banner-bg::after {
-      background: linear-gradient(90deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.5) 100%);
+    .fighter-banner-bg img {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center;
+      display: block;
     }
-    .red-side .fighter-banner-bg::after {
-      background: linear-gradient(270deg, rgba(7,7,15,0.5) 0%, rgba(7,7,15,0.2) 60%, rgba(7,7,15,0.5) 100%);
+    /* Overlay vertical doux (prioritise le bas pour lisibilité du score/nom) */
+    .fighter-banner-bg::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(180deg,
+        rgba(7,7,15,0.20) 0%,
+        rgba(7,7,15,0.08) 35%,
+        rgba(7,7,15,0.55) 100%);
     }
     .fighter-side > *:not(.fighter-banner-bg) { position: relative; z-index: 1; }
 
     .fighter-avatar {
-      width: 80px; height: 80px; border-radius: 50%;
-      border: 3px solid rgba(79,142,247,0.5);
-      box-shadow: 0 0 20px var(--blue-glow);
+      width: 82px; height: 82px; border-radius: 50%;
+      border: 3px solid rgba(79,142,247,0.6);
+      box-shadow: 0 0 20px var(--blue-glow), 0 4px 12px rgba(0,0,0,0.5);
     }
     .red-side .fighter-avatar {
-      border-color: rgba(232,64,10,0.5);
-      box-shadow: 0 0 20px var(--red-glow);
+      border-color: rgba(232,64,10,0.6);
+      box-shadow: 0 0 20px var(--red-glow), 0 4px 12px rgba(0,0,0,0.5);
     }
 
     .fighter-name {
       font-family: 'Bebas Neue', sans-serif;
       font-size: 1.8rem; letter-spacing: 3px; text-align: center;
-      color: #fff;
+      color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.7);
     }
     .fighter-elo {
       font-size: 0.85rem; color: var(--muted); letter-spacing: 1px;
+      background: rgba(0,0,0,0.4); padding: 0.15rem 0.6rem;
+      border-radius: 4px;
     }
     .fighter-char img {
       width: 52px; height: 52px; object-fit: contain;
@@ -170,11 +180,11 @@
       font-family: 'Bebas Neue', sans-serif;
       font-size: 4rem; line-height: 1;
       color: var(--blue);
-      text-shadow: 0 0 30px var(--blue-glow);
+      text-shadow: 0 0 30px var(--blue-glow), 0 2px 8px rgba(0,0,0,0.6);
     }
     .red-side .fighter-score {
       color: var(--accent);
-      text-shadow: 0 0 30px var(--red-glow);
+      text-shadow: 0 0 30px var(--red-glow), 0 2px 8px rgba(0,0,0,0.6);
     }
 
     /* ── VS CENTER ── */
@@ -527,6 +537,7 @@
     @media (max-width: 640px) {
       .vs-arena { grid-template-columns: 1fr; }
       .vs-center { border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; }
+      .fighter-side { aspect-ratio: 16 / 7; min-height: 160px; }
       .fighter-side.blue-side, .fighter-side.red-side { border-radius: 12px; border: 1px solid rgba(79,142,247,0.2); }
       .red-side { border-color: rgba(232,64,10,0.2) !important; }
       .fighter-score { font-size: 3rem; }
