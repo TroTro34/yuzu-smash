@@ -116,7 +116,12 @@ function invalidateBanners()      { cacheInvalidate('banners:light'); }
 
 const app    = express();
 app.set("trust proxy", 1); // Render est derrière un reverse proxy
-app.use(helmet({ contentSecurityPolicy: false })); // Headers sécurité HTTP (XFrame, nosniff, HSTS…)
+app.use(helmet({
+  contentSecurityPolicy:     false, // les templates Nunjucks ont des scripts inline
+  crossOriginEmbedderPolicy: false, // évite de bloquer les fetch() internes
+  crossOriginResourcePolicy: false, // évite de bloquer les ressources cross-origin
+  crossOriginOpenerPolicy:   false, // pas besoin pour cette app
+})); // Headers sécurité HTTP (XFrame, nosniff, HSTS…)
 const server = http.createServer(app);
 const ORIGIN = process.env.SITE_ORIGIN || 'https://yuzu-smash.onrender.com';
 const io     = new Server(server, { cors: { origin: ORIGIN }, pingTimeout: 60000, pingInterval: 25000 });
