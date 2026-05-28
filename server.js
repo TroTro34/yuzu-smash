@@ -243,6 +243,33 @@ app.get('/redeem', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// ── RATE LIMITERS ─────────────────────────────────────────────────────────────
+
+// API publiques (leaderboard, search, lfm) : 60 req/min par IP
+const publicApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Actions authentifiées (challenges, résultats, shop) : 30 req/min par IP
+const authApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Login : 10 tentatives/5min par IP (anti-flood OAuth)
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many login attempts, try again later." },
+});
+
 // ── /api/redeem — réclamer une transaction Ko-fi via son ID unique ────────────
 app.post('/api/redeem', authApiLimiter, async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
@@ -311,32 +338,6 @@ app.post('/api/redeem', authApiLimiter, async (req, res) => {
   }
 });
 
-// ── RATE LIMITERS ─────────────────────────────────────────────────────────────
-
-// API publiques (leaderboard, search, lfm) : 60 req/min par IP
-const publicApiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please slow down." },
-});
-
-// Actions authentifiées (challenges, résultats, shop) : 30 req/min par IP
-const authApiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please slow down." },
-});
-
-// Login : 10 tentatives/5min par IP (anti-flood OAuth)
-const loginLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 10,
-  message: { error: "Too many login attempts, try again later." },
-});
 // Static files
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
