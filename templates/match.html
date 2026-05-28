@@ -587,7 +587,8 @@
       <div class="fighter-left">
         {% if challenger.avatar %}
           <img class="fighter-avatar"
-            src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png" alt="">
+            src="https://cdn.discordapp.com/avatars/{{ challenger.id }}/{{ challenger.avatar }}.png?size=128"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
         {% else %}
           <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
         {% endif %}
@@ -620,7 +621,8 @@
       <div class="fighter-left">
         {% if challenged.avatar %}
           <img class="fighter-avatar"
-            src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png" alt="">
+            src="https://cdn.discordapp.com/avatars/{{ challenged.id }}/{{ challenged.avatar }}.png?size=128"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
         {% else %}
           <div class="fighter-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:2rem;">👤</div>
         {% endif %}
