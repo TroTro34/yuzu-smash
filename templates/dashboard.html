@@ -1213,6 +1213,85 @@ function showMatchFound(p1, p2) {
 }
 </script>
 
+<!-- ── SUGGESTION BUTTON ── -->
+<button onclick="document.getElementById('suggestion-modal').style.display='flex'"
+  title="Envoyer une suggestion"
+  style="position:fixed;bottom:2rem;left:2rem;z-index:300;
+    width:48px;height:48px;border-radius:50%;
+    background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);
+    color:#c084fc;font-size:1.3rem;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all 0.2s;box-shadow:0 4px 20px rgba(168,85,247,0.2);"
+  onmouseover="this.style.background='rgba(168,85,247,0.3)';this.style.transform='scale(1.1)'"
+  onmouseout="this.style.background='rgba(168,85,247,0.15)';this.style.transform='scale(1)'">
+  💡
+</button>
+
+<!-- ── SUGGESTION MODAL ── -->
+<div id="suggestion-modal" style="display:none;position:fixed;inset:0;z-index:800;
+  background:rgba(0,0,0,0.85);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid rgba(168,85,247,0.35);border-radius:16px;
+    padding:2rem 2rem 1.5rem;max-width:440px;width:90%;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:3px;
+      background:linear-gradient(90deg,#7e22ce,#a855f7);border-radius:16px 16px 0 0;"></div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;
+      color:#c084fc;margin-bottom:0.3rem;">💡 SUGGESTION</div>
+    <div style="color:var(--muted);font-size:0.85rem;margin-bottom:1.2rem;">
+      Envoie une idée ou un retour aux admins. Ton nom sera visible par eux.
+    </div>
+    <textarea id="suggestion-text" maxlength="600" placeholder="Ton idée, retour, bug…"
+      style="width:100%;min-height:120px;background:var(--surface2);border:1px solid var(--border);
+        border-radius:8px;padding:0.8rem 1rem;color:var(--text);font-family:'Rajdhani',sans-serif;
+        font-size:0.95rem;outline:none;resize:vertical;transition:border-color 0.15s;"
+      onfocus="this.style.borderColor='rgba(168,85,247,0.6)'"
+      onblur="this.style.borderColor='var(--border)'"></textarea>
+    <div style="font-size:0.7rem;color:var(--muted);text-align:right;margin-top:0.2rem;margin-bottom:1rem;">
+      max 600 caractères
+    </div>
+    <div style="display:flex;gap:0.7rem;">
+      <button onclick="submitSuggestion()"
+        style="flex:1;padding:0.9rem;border-radius:8px;
+          border:2px solid #7e22ce;background:rgba(126,34,206,0.15);color:#c084fc;
+          font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;"
+        onmouseover="this.style.background='rgba(126,34,206,0.35)'"
+        onmouseout="this.style.background='rgba(126,34,206,0.15)'">
+        ENVOYER →
+      </button>
+      <button onclick="document.getElementById('suggestion-modal').style.display='none'"
+        style="padding:0.9rem 1.2rem;border-radius:8px;border:1px solid var(--border);
+          background:transparent;color:var(--muted);font-family:'Rajdhani',sans-serif;
+          font-weight:700;cursor:pointer;transition:all 0.2s;"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        Annuler
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function submitSuggestion() {
+  const text = document.getElementById('suggestion-text').value.trim();
+  if (!text) return;
+  try {
+    const r = await fetch('/api/suggestions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('suggestion-modal').style.display = 'none';
+      document.getElementById('suggestion-text').value = '';
+      const toast = document.getElementById('toast');
+      if (toast) { toast.textContent = '💡 Suggestion envoyée !'; toast.className = 'toast show success'; setTimeout(() => toast.classList.remove('show'), 3000); }
+    } else {
+      alert('Erreur : ' + (d.error || 'unknown'));
+    }
+  } catch(e) { alert('Erreur réseau.'); }
+}
+</script>
+
 <script src="/static/notifications.js"></script>
 </body>
 </html>
