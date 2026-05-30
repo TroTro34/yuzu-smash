@@ -891,9 +891,32 @@ function init() {
     initStocksMode();
   } else {
     document.getElementById('bo-section').style.display = 'block';
+    // Restore boState from sessionStorage if available (survives refresh)
+    const saved = sessionStorage.getItem('boState_' + CHALLENGE_ID);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        boState = parsed;
+        // Recalculate scores from games history
+        p1Score = boState.games.filter(g => g.winner === 'p1').length;
+        p2Score = boState.games.filter(g => g.winner === 'p2').length;
+        const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
+        totalGames = maxWins * 2 - 1;
+        updateScoreDisplay();
+        updateDots(boState.games.map(g => g.winner));
+        updateArenaChars();
+        renderBOPhase();
+        return;
+      } catch(e) { /* fallback to fresh init */ }
+    }
     initBOMode();
   }
   updateScoreDisplay();
+}
+
+// Save boState to sessionStorage after every mutation
+function saveBoState() {
+  try { sessionStorage.setItem('boState_' + CHALLENGE_ID, JSON.stringify(boState)); } catch(e) {}
 }
 
 // ─────────────────────────────────────────────
@@ -1048,7 +1071,8 @@ function initBOMode() {
   const maxWins = FORMAT === 'BO1' ? 1 : FORMAT === 'BO3' ? 2 : 3;
   totalGames = maxWins * 2 - 1;
   boState = { maxWins, games: [], currentGame: 1, phase: 'p1_char',
-    p1Char: null, p2Char: null, bannedStages: [], selectedStage: null, prevWinner: null };
+    p1Char: null, p2Char: null, bannedStages: [], selectedStage: null, prevWinner: null,
+    p1LastChar: null, p2LastChar: null };
   updateDots([]);
   renderBOPhase();
 }
@@ -1071,15 +1095,27 @@ function updateArenaChars() {
   const p2div = document.getElementById('p2-game-char');
   if (!p1div || !p2div) return;
 
-  if (boState.p1Char) {
+  // Show P1 char to P1 always; to P2 only after both have picked
+  const bothPicked = boState.p1Char && boState.p2Char;
+  const p1Phase = boState.phase === 'p1_char';
+  const p2Phase = boState.phase === 'p2_char';
+
+  // P1 char: visible to P1 always; to P2 only when both picked OR past char select
+  const showP1ToMe = MY_ID === P1_ID ? !!boState.p1Char : (bothPicked || (!p1Phase && !p2Phase));
+
+  if (showP1ToMe && boState.p1Char) {
     p1div.innerHTML = `
       <img src="${CHAR_ICONS[boState.p1Char]||''}" onerror="this.style.display='none'"
         style="width:52px;height:52px;object-fit:contain;">
       <div style="font-size:0.7rem;color:var(--blue);letter-spacing:1px;text-transform:capitalize;text-align:center;">
         ${boState.p1Char.replace(/_/g,' ')}
       </div>`;
-  } else {
+  } else if (p1Phase && MY_ID !== P1_ID) {
     p1div.innerHTML = `<div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">— picking —</div>`;
+  } else if (!boState.p1Char) {
+    p1div.innerHTML = `<div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">— picking —</div>`;
+  } else {
+    p1div.innerHTML = `<div style="font-size:1.5rem;">🔒</div><div style="font-size:0.65rem;color:var(--muted);letter-spacing:1px;">hidden</div>`;
   }
 
   if (boState.p2Char) {
@@ -1172,19 +1208,33 @@ function renderCharPick(player) {
 
 function buildCharGridSingle(player, filter) {
   const selected = player === 'p1' ? boState.p1Char : boState.p2Char;
+  const lastChar = player === 'p1' ? boState.p1LastChar : boState.p2LastChar;
   const colorVar = player === 'p1' ? 'var(--blue)' : 'var(--accent)';
   const bgColor  = player === 'p1' ? 'rgba(79,142,247,0.2)' : 'rgba(232,64,10,0.2)';
-  return SSBU_CHARACTERS
+  const lastBg   = player === 'p1' ? 'rgba(79,142,247,0.08)' : 'rgba(232,64,10,0.08)';
+
+  // Sort: last char first if it exists
+  const chars = [...SSBU_CHARACTERS];
+  if (lastChar && chars.includes(lastChar)) {
+    chars.splice(chars.indexOf(lastChar), 1);
+    chars.unshift(lastChar);
+  }
+
+  return chars
     .filter(c => !filter || c.replace(/_/g,' ').includes(filter.toLowerCase()))
     .map(c => {
-      const isSel = selected === c;
+      const isSel  = selected === c;
+      const isLast = lastChar === c;
+      const border = isSel ? `2px solid ${colorVar}` : isLast ? `2px solid rgba(255,128,0,0.6)` : '2px solid transparent';
+      const bg     = isSel ? bgColor : isLast ? lastBg : 'transparent';
+      const badge  = isLast && !isSel ? `<div style="position:absolute;top:1px;right:1px;background:var(--accent2);border-radius:2px;font-size:0.5rem;padding:0 3px;color:#000;font-weight:700;letter-spacing:0.5px;">LAST</div>` : '';
       return `<div onclick="selectCharSingle('${player}','${c}')"
         title="${c.replace(/_/g,' ')}"
-        style="cursor:pointer;border-radius:5px;padding:3px;transition:all 0.12s;
-          border:2px solid ${isSel ? colorVar : 'transparent'};
-          background:${isSel ? bgColor : 'transparent'};">
+        style="cursor:pointer;border-radius:5px;padding:3px;transition:all 0.12s;position:relative;
+          border:${border};background:${bg};">
         <img src="${CHAR_ICONS[c]||''}" onerror="this.parentNode.style.display='none'"
           style="width:100%;aspect-ratio:1;object-fit:contain;display:block;">
+        ${badge}
       </div>`;
     }).join('');
 }
@@ -1218,6 +1268,7 @@ function selectCharSingle(player, charId) {
 
 // ── Sync de phase : envoie l'état courant à l'adversaire ──────────────────
 function emitPhase(extraFields) {
+  saveBoState();
   if (!matchSocket || !matchSocket.connected) return;
   matchSocket.emit('bo_phase_update', {
     challenge_id: CHALLENGE_ID,
@@ -1229,6 +1280,8 @@ function emitPhase(extraFields) {
     currentGame:  boState.currentGame,
     prevWinner:   boState.prevWinner,
     games:        boState.games,
+    p1LastChar:   boState.p1LastChar,
+    p2LastChar:   boState.p2LastChar,
     ...(extraFields || {})
   });
 }
@@ -1251,48 +1304,43 @@ function confirmCharPick(player) {
 }
 
 // ── Stage bans : sélection puis confirmation en une fois ─────────────────────
-// p1_ban  : J1 sélectionne 2 bans puis confirme
-// p2_ban  : J2 sélectionne 4 bans puis confirme
-// p1_pick : le loser du jeu précédent (ou J1 au game 1) choisit le stage final
+// Game 1 : J1 ban 3 (p1_ban) → J2 ban 4 (p2_ban) → J2 pick (p1_pick phase, but J2 picks)
+// Game 2+ : winner ban 3 (p1_ban) → loser pick (p1_pick phase)
 
 function renderStageBans() {
   const phase     = boState.phase;
   const isP1Ban   = phase === 'p1_ban';
+  const isGame1   = boState.currentGame === 1;
 
-  // Alternance : au game 1 P1 ban 2, P2 ban 4. Au game 2 P2 ban 2, P1 ban 4. Etc.
-  // bannerSmall = celui qui fait 2 bans (et qui pickera ensuite)
-  // bannerBig   = celui qui fait 4 bans (et qui ne peut PAS picker)
-  const gameIsOdd = (boState.currentGame % 2 === 1); // game 1,3,5... = impair
-  // impair → P1 ban 2 (p1_ban), P2 ban 4 (p2_ban)
-  // pair   → P2 ban 2 (p1_ban), P1 ban 4 (p2_ban)
-  const [bannerSmallID, bannerSmallName] = gameIsOdd
-    ? [P1_ID, P1_NAME] : [P2_ID, P2_NAME];
-  const [bannerBigID, bannerBigName] = gameIsOdd
-    ? [P2_ID, P2_NAME] : [P1_ID, P1_NAME];
+  // Game 1: p1_ban = J1 bans 3; p2_ban = J2 bans 4
+  // Game 2+: p1_ban = winner bans 3 (no p2_ban phase)
+  let bannerID, bannerName, limit;
+  if (isGame1) {
+    if (isP1Ban) {
+      bannerID   = P1_ID;   bannerName = P1_NAME;   limit = 3;
+    } else {
+      bannerID   = P2_ID;   bannerName = P2_NAME;   limit = 4;
+    }
+  } else {
+    // After game 1: winner bans 3
+    const winnerIsP1 = boState.prevWinner === 'p1';
+    bannerID   = winnerIsP1 ? P1_ID   : P2_ID;
+    bannerName = winnerIsP1 ? P1_NAME : P2_NAME;
+    limit = 3;
+  }
 
-  const bannerID   = isP1Ban ? bannerSmallID : bannerBigID;
-  const bannerName = isP1Ban ? bannerSmallName : bannerBigName;
-  const colorVar   = isP1Ban
-    ? (gameIsOdd ? 'var(--blue)' : 'var(--accent)')
-    : (gameIsOdd ? 'var(--accent)' : 'var(--blue)');
-  const bgColor    = isP1Ban
-    ? (gameIsOdd ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)')
-    : (gameIsOdd ? 'rgba(232,64,10,0.1)' : 'rgba(79,142,247,0.1)');
-  const limit     = isP1Ban ? 2 : 4;
-  const amIBanner = MY_ID === bannerID;
+  const colorVar   = bannerID === P1_ID ? 'var(--blue)' : 'var(--accent)';
+  const bgColor    = bannerID === P1_ID ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
+  const amIBanner  = MY_ID === bannerID;
 
-  // Pending bans = stages cliqués mais pas encore confirmés
   const pendingKey = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
   if (!boState[pendingKey]) boState[pendingKey] = [];
-  const pendingBans = boState[pendingKey];
-
-  // Stages déjà bannis par la phase précédente (J1 a banni → maintenant affiché pour J2)
-  const alreadyBanned = boState.bannedStages; // confirmés
+  const pendingBans   = boState[pendingKey];
+  const alreadyBanned = boState.bannedStages;
   const totalPending  = pendingBans.length;
   const bansLeft      = limit - totalPending;
 
   if (!amIBanner) {
-    // ── Waiting screen : montre les bans déjà effectués + indicateur ──
     document.getElementById('score-options').innerHTML = `
       <div style="width:100%;text-align:center;padding:1.5rem 1rem;">
         <div class="section-title">GAME ${boState.currentGame} — STAGE BANS</div>
@@ -1311,7 +1359,6 @@ function renderStageBans() {
     return;
   }
 
-  // ── Banner actif ──
   document.getElementById('score-options').innerHTML = `
     <div style="width:100%;">
       <div class="section-title">GAME ${boState.currentGame} — BAN ${limit} STAGE${limit>1?'S':''}</div>
@@ -1401,27 +1448,45 @@ function togglePendingBan(stageId, pendingKey) {
 function confirmBans(pendingKey) {
   const phase   = boState.phase;
   const isP1Ban = phase === 'p1_ban';
+  const isGame1 = boState.currentGame === 1;
   const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
-  if (!boState[key] || boState[key].length < (isP1Ban ? 2 : 4)) return;
+  const required = isP1Ban
+    ? (isGame1 ? 3 : 3)       // game 1: J1 bans 3; game 2+: winner bans 3
+    : 4;                       // game 1 only: J2 bans 4
+  if (!boState[key] || boState[key].length < required) return;
 
-  resetMatchTimer(); // reset timer à chaque action
-
+  resetMatchTimer();
   boState.bannedStages = [...boState.bannedStages, ...boState[key]];
   boState[key] = [];
 
-  boState.phase = isP1Ban ? 'p2_ban' : 'p1_pick';
+  // Game 1: p1_ban → p2_ban → p1_pick (J2 picks)
+  // Game 2+: p1_ban → p1_pick (loser picks)
+  if (isP1Ban && isGame1) {
+    boState.phase = 'p2_ban';
+  } else {
+    boState.phase = 'p1_pick';
+  }
   emitPhase();
   renderBOPhase();
 }
 
-// ── Stage pick : le loser choisit (ou J1 au premier game) ──────────────────
+// ── Stage pick ──────────────────────────────────────────────────────────────
+// Game 1 : J2 (P2) picks after both ban phases
+// Game 2+ : loser of previous game picks
 function renderStagePick() {
-  // Au game 1, c'est J1 qui pick ; sinon le loser du game précédent
-  const pickerIsP1 = boState.currentGame === 1 || boState.prevWinner === 'p2';
-  const pickerID   = pickerIsP1 ? P1_ID : P2_ID;
-  const pickerName = pickerIsP1 ? P1_NAME : P2_NAME;
-  const colorVar   = pickerIsP1 ? 'var(--blue)' : 'var(--accent)';
-  const bgColor    = pickerIsP1 ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
+  let pickerID, pickerName;
+  if (boState.currentGame === 1) {
+    // Game 1: J2 picks
+    pickerID   = P2_ID;
+    pickerName = P2_NAME;
+  } else {
+    // Subsequent: loser picks
+    const loserIsP1 = boState.prevWinner === 'p2';
+    pickerID   = loserIsP1 ? P1_ID   : P2_ID;
+    pickerName = loserIsP1 ? P1_NAME : P2_NAME;
+  }
+  const colorVar   = pickerID === P1_ID ? 'var(--blue)' : 'var(--accent)';
+  const bgColor    = pickerID === P1_ID ? 'rgba(79,142,247,0.1)' : 'rgba(232,64,10,0.1)';
   const amIPicker  = MY_ID === pickerID;
   const remaining  = ALL_STAGES.filter(s => !boState.bannedStages.includes(s.id));
 
@@ -1699,6 +1764,10 @@ function applyGameResult(winner) {
   boState.games.push({ p1char: boState.p1Char, p2char: boState.p2Char,
     stage: boState.selectedStage, winner });
 
+  // Track last played chars
+  if (boState.p1Char) boState.p1LastChar = boState.p1Char;
+  if (boState.p2Char) boState.p2LastChar = boState.p2Char;
+
   if (winner === 'p1') p1Score++; else p2Score++;
   updateScoreDisplay();
   updateDots(boState.games.map(g => g.winner));
@@ -1741,6 +1810,7 @@ function applyGameResult(winner) {
   boState.p1PendingBans = [];
   boState.p2PendingBans = [];
   boState.selectedStage = null;
+  // Note: for game 2+, flow is: p1_char → p2_char → p1_ban (winner bans 3) → p1_pick (loser picks)
   emitPhase();
   updateArenaChars();
   renderBOPhase();
@@ -2422,6 +2492,9 @@ function initMatchSocket() {
     boState.currentGame   = d.currentGame   ?? boState.currentGame;
     boState.prevWinner    = d.prevWinner    ?? boState.prevWinner;
     boState.games         = d.games         ?? boState.games;
+    boState.p1LastChar    = d.p1LastChar    ?? boState.p1LastChar;
+    boState.p2LastChar    = d.p2LastChar    ?? boState.p2LastChar;
+    saveBoState();
     // Recalcul des scores depuis l'historique des games
     p1Score = boState.games.filter(g => g.winner === 'p1').length;
     p2Score = boState.games.filter(g => g.winner === 'p2').length;
@@ -2674,6 +2747,7 @@ function showToast(msg, success = true) {
 }
 
 function showWinner(winnerId, score, eloChange) {
+  sessionStorage.removeItem('boState_' + CHALLENGE_ID);
   const isDraw = !winnerId;
   const name = isDraw ? 'DRAW' : (winnerId === P1_ID ? P1_NAME : P2_NAME);
   const iWon = !isDraw && winnerId === MY_ID;
