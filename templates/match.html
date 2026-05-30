@@ -1304,7 +1304,7 @@ function confirmCharPick(player) {
 }
 
 // ── Stage bans : sélection puis confirmation en une fois ─────────────────────
-// Game 1 : J1 ban 3 (p1_ban) → J2 ban 4 (p2_ban) → J2 pick (p1_pick phase, but J2 picks)
+// Game 1 : J1 ban 3 (p1_ban) → J2 ban 4 (p2_ban) → J1 pick (p1_pick phase)
 // Game 2+ : winner ban 3 (p1_ban) → loser pick (p1_pick phase)
 
 function renderStageBans() {
@@ -1461,7 +1461,7 @@ function confirmBans(pendingKey) {
   boState.bannedStages = [...boState.bannedStages, ...boState[key]];
   boState[key] = [];
 
-  // Game 1: p1_ban → p2_ban → p1_pick (J2 picks)
+  // Game 1: p1_ban → p2_ban → p1_pick (J1 picks)
   // Game 2+: p1_ban → p1_pick (loser picks)
   if (isP1Ban && isGame1) {
     boState.phase = 'p2_ban';
@@ -1473,14 +1473,14 @@ function confirmBans(pendingKey) {
 }
 
 // ── Stage pick ──────────────────────────────────────────────────────────────
-// Game 1 : J2 (P2) picks after both ban phases
+// Game 1 : J1 (P1) picks after both ban phases
 // Game 2+ : loser of previous game picks
 function renderStagePick() {
   let pickerID, pickerName;
   if (boState.currentGame === 1) {
-    // Game 1: J2 picks
-    pickerID   = P2_ID;
-    pickerName = P2_NAME;
+    // Game 1: J1 (P1) picks
+    pickerID   = P1_ID;
+    pickerName = P1_NAME;
   } else {
     // Subsequent: loser picks
     const loserIsP1 = boState.prevWinner === 'p2';
