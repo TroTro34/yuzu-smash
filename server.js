@@ -597,7 +597,9 @@ app.get('/', async (req, res) => {
 
 app.get('/ranking', publicApiLimiter, async (req, res) => {
   try {
-    const players = await sbGet('players', 'order=points.desc');
+    const allPlayers = await sbGet('players', 'order=points.desc');
+    // Only show players who have played at least one game
+    const players = allPlayers.filter(p => (p.matches_played || 0) > 0);
     res.render('ranking.html', { user: req.session.user || null, players });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
@@ -1004,12 +1006,15 @@ app.get('/admin/reports', requireAdmin, async (req, res) => {
       const { screenshot: _drop, ...rClean } = r; 
       return { ...rClean, p1, p2, status: normalizedStatus, winner_username: winnerUsername, has_screenshot };
     });
+    const suggestions = await sbGet('suggestions', 'order=created_at.desc').catch(() => []);
     res.render('admin_reports.html', {
       user: req.session.user,
       is_admin: true,
       reports: enriched,
       players_map: playersMap,
       players: allPlayers,
+      suggestions: suggestions || [],
+      _tab: 'reports',
     });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
@@ -1487,6 +1492,46 @@ app.post('/shop/buy-coins', authApiLimiter, requireAuth, async (req, res) => {
     pack_id:    pack.id,
     coins:      pack.coins,
   });
+});
+
+// ── SUGGESTIONS ──────────────────────────────────────────────────────────────
+// Players can submit suggestions (visible to admins with author info)
+
+app.post('/api/suggestions', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  const text = (req.body.text || '').trim().slice(0, 600);
+  if (!text) return res.status(400).json({ error: 'Empty suggestion' });
+  try {
+    const playerRows = await sbGet('players', `id=eq.${userId}`);
+    const username = playerRows[0]?.username || req.session.user.username || userId;
+    const id = `sug_${crypto.randomBytes(8).toString('hex')}`;
+    await sbPost('suggestions', {
+      id, player_id: userId, username,
+      text, created_at: new Date().toISOString(),
+    });
+    res.json({ success: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'DB error' }); }
+});
+
+app.get('/admin/suggestions', requireAdmin, async (req, res) => {
+  try {
+    const suggestions = await sbGet('suggestions', 'order=created_at.desc');
+    res.render('admin_reports.html', {
+      user: req.session.user,
+      is_admin: true,
+      suggestions: suggestions || [],
+      _tab: 'suggestions',
+    });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+app.delete('/admin/suggestions/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (!validateId(id)) return res.status(400).json({ error: 'Invalid ID' });
+  try {
+    await sbDelete('suggestions', { id });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: 'DB error' }); }
 });
 
 app.get('/api/whatsup', async (req, res) => {
