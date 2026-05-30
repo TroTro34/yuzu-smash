@@ -328,6 +328,7 @@
     <button class="section-tab" onclick="switchSection('bans', this)">🔨 BAN PLAYERS</button>
     <a href="/admin/shop" class="section-tab" style="text-decoration:none;">🖼 BANNER SHOP</a>
     <button class="section-tab" onclick="switchSection('whatsup', this)">📣 WHAT'S UP</button>
+    <button class="section-tab" onclick="switchSection('suggestions', this)">💡 SUGGESTIONS</button>
   </div>
 
   <!-- ── REPORTS SECTION ──────────────────────────────────────────────── -->
@@ -657,6 +658,39 @@
     </div>
   </div>
 
+  <!-- ── SUGGESTIONS SECTION ─────────────────────────────────────────────── -->
+  <div class="section-panel" id="panel-suggestions">
+    <div class="page-title">💡 SUGGESTIONS</div>
+    <div class="page-sub">Player suggestions — author visible only to admins</div>
+
+    {% if suggestions and suggestions | length > 0 %}
+    <div style="display:flex;flex-direction:column;gap:0.8rem;">
+      {% for s in suggestions %}
+      <div class="report-card open" id="sug-card-{{ s.id }}" style="border-left-color:var(--purple);">
+        <div style="padding:1.2rem 1.5rem;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.8rem;">
+            <div style="display:flex;align-items:center;gap:0.8rem;">
+              <span style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;color:var(--purple);">💡</span>
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--text);">{{ s.username }}</div>
+                <div style="font-size:0.72rem;color:var(--muted);letter-spacing:1px;">ID: {{ s.player_id }} · {{ s.created_at[:16] | replace('T', ' ') }}</div>
+              </div>
+            </div>
+            <button onclick="deleteSuggestion('{{ s.id }}')" class="btn btn-danger" style="font-size:0.8rem;padding:0.3rem 0.8rem;">🗑 Delete</button>
+          </div>
+          <div style="background:var(--surface2);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:1rem 1.2rem;color:var(--text);font-size:0.95rem;line-height:1.6;white-space:pre-wrap;">{{ s.text }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:4rem 1rem;color:var(--muted);">
+      <div style="font-size:3rem;margin-bottom:1rem;">💡</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:3px;">NO SUGGESTIONS YET</div>
+    </div>
+    {% endif %}
+  </div>
+
 <script>
 let pendingDrawReportId = null;
 let pendingBanPlayerId  = null;
@@ -981,6 +1015,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Load when switching to the whatsup section
 const _origSwitchSection = typeof switchSection === 'function' ? switchSection : null;
+
+// ── Suggestions ──────────────────────────────────────────────────────────────
+async function deleteSuggestion(id) {
+  if (!confirm('Delete this suggestion?')) return;
+  try {
+    const r = await fetch(`/admin/suggestions/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.success) {
+      const card = document.getElementById('sug-card-' + id);
+      if (card) { card.style.opacity = '0'; card.style.transition = 'opacity 0.3s'; setTimeout(() => card.remove(), 300); }
+      showToast('Suggestion deleted.', true);
+    } else { showToast('Error: ' + (d.error || 'unknown'), false); }
+  } catch(e) { showToast('Network error', false); }
+}
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
