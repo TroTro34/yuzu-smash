@@ -1001,6 +1001,13 @@ async function wuDrop(e, targetId) {
 
 // Drag & drop on the image drop zone
 document.addEventListener('DOMContentLoaded', () => {
+  // Auto-activate the correct tab based on server-injected _tab value
+  const initialTab = {{ _tab | default('reports') | tojson }};
+  if (initialTab && initialTab !== 'reports') {
+    const tabBtn = document.querySelector(`.section-tab[onclick*="'${initialTab}'"]`);
+    if (tabBtn) switchSection(initialTab, tabBtn);
+  }
+
   const drop = document.getElementById('wu-img-drop');
   if (!drop) return;
   drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('drag-over'); });
