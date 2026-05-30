@@ -789,18 +789,18 @@
       background:linear-gradient(90deg,var(--red),var(--accent));border-radius:16px 16px 0 0;"></div>
     <div style="font-size:2.5rem;margin-bottom:0.8rem;">🚩</div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;
-      color:var(--red);margin-bottom:0.5rem;">SIGNALER CE MATCH</div>
+      color:var(--red);margin-bottom:0.5rem;">REPORT THIS MATCH</div>
     <div style="color:var(--muted);font-size:0.9rem;line-height:1.5;margin-bottom:1.8rem;">
-      Le match sera immédiatement mis en <strong style="color:var(--text);">DRAW</strong>.<br>
-      Un admin recevra le signalement avec l'historique du chat<br>
-      et pourra attribuer la victoire.
+      The match will immediately be set to <strong style="color:var(--text);">DRAW</strong>.<br>
+      An admin will receive the report along with the chat history<br>
+      and will be able to award the win.
     </div>
     <div style="text-align:left;margin-bottom:1rem;">
       <label style="font-size:0.78rem;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:0.4rem;">
-        TITRE DU SIGNALEMENT (optionnel)
+        REPORT TITLE (optional)
       </label>
       <input id="report-title-input" type="text" maxlength="120"
-        placeholder="Ex: adversaire AFK, résultat contesté…"
+        placeholder="e.g. opponent AFK, contested result…"
         style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
           padding:0.6rem 0.9rem;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.95rem;
           outline:none;transition:border-color 0.15s;"
@@ -809,7 +809,7 @@
     </div>
     <div style="text-align:left;margin-bottom:1.5rem;">
       <label style="font-size:0.78rem;color:var(--muted);letter-spacing:1px;display:block;margin-bottom:0.4rem;">
-        CAPTURE D'ÉCRAN (optionnel · PNG/JPG · max 4 Mo)
+        SCREENSHOT (optional · PNG/JPG · max 4 MB)
       </label>
       <label id="report-img-label" style="
         display:flex;align-items:center;gap:0.7rem;
@@ -819,7 +819,7 @@
         onmouseover="this.style.borderColor='var(--red)'"
         onmouseout="this.style.borderColor='var(--border)'">
         <span style="font-size:1.2rem;">📎</span>
-        <span id="report-img-label-text">Choisir une image…</span>
+        <span id="report-img-label-text">Choose an image…</span>
         <input id="report-img-input" type="file" accept="image/png,image/jpeg,image/webp"
           style="display:none;" onchange="handleReportImage(this)">
       </label>
@@ -843,7 +843,7 @@
         cursor:pointer; transition:all 0.2s;"
         onmouseover="this.style.background='var(--red)';this.style.color='#fff'"
         onmouseout="this.style.background='rgba(255,85,85,0.15)';this.style.color='var(--red)'">
-        🚩 CONFIRMER LE SIGNALEMENT
+        🚩 CONFIRM REPORT
       </button>
       <button onclick="document.getElementById('report-overlay').style.display='none'" style="
         padding:0.75rem; border-radius:8px; border:1px solid var(--border);
@@ -852,7 +852,7 @@
         cursor:pointer; transition:all 0.2s; letter-spacing:1px;"
         onmouseover="this.style.borderColor='var(--border)';this.style.color='var(--text)'"
         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-        ← Annuler
+        ← Cancel
       </button>
     </div>
   </div>
@@ -1431,7 +1431,9 @@ function buildStageBanGrid(interactive, alreadyBanned, pendingBans, limit, color
 function togglePendingBan(stageId, pendingKey) {
   const phase   = boState.phase;
   const isP1Ban = phase === 'p1_ban';
-  const limit   = isP1Ban ? 2 : 4;
+  const isGame1 = boState.currentGame === 1;
+  // Game 1: P1 bans 3, P2 bans 4. Game 2+: winner bans 3.
+  const limit   = isP1Ban ? 3 : 4;
   const key     = isP1Ban ? 'p1PendingBans' : 'p2PendingBans';
   if (!boState[key]) boState[key] = [];
 
@@ -2441,9 +2443,9 @@ function handleTimerExpired() {
   let autoTitle = '';
   if (pendingResult && pendingResult.winner_id) {
     const reporterName = pendingResult.winner_id === P1_ID ? P1_NAME : P2_NAME;
-    autoTitle = `[TIMEOUT] ${P1_NAME} vs ${P2_NAME} — résultat soumis par ${reporterName}, adversaire absent`;
+    autoTitle = `[TIMEOUT] ${P1_NAME} vs ${P2_NAME} — result submitted by ${reporterName}, opponent absent`;
   } else {
-    autoTitle = `[TIMEOUT] ${P1_NAME} vs ${P2_NAME} — aucune activité`;
+    autoTitle = `[TIMEOUT] ${P1_NAME} vs ${P2_NAME} — no activity`;
   }
 
   // Appel API report → draw immédiat + signalement admin
@@ -2453,7 +2455,7 @@ function handleTimerExpired() {
     body: JSON.stringify({ title: autoTitle }),
   }).catch(() => {});
 
-  showToast('⏱ Temps écoulé — match en DRAW. Un admin va trancher.', false);
+  showToast('⏱ Time\'s up — match set to DRAW. An admin will decide.', false);
   setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3500);
 }
 
@@ -2591,9 +2593,9 @@ function initMatchSocket() {
     document.getElementById('stocks-recap').classList.remove('show');
     if (d.outcome === 'forfeit') {
       showWinner(d.winner_id, 'W-L (forfait)', d.elo_change);
-      showToast(d.message || '⏱ Résultat validé automatiquement.', true);
+      showToast(d.message || '⏱ Result validated automatically.', true);
     } else {
-      showToast(d.message || '⏱ Match annulé — aucune activité (DRAW).', false);
+      showToast(d.message || '⏱ Match cancelled — no activity (DRAW).', false);
     }
     setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
   });
@@ -2798,7 +2800,7 @@ function handleReportImage(input) {
   const file = input.files[0];
   if (!file) return;
   if (file.size > 4 * 1024 * 1024) {
-    showToast('Image trop lourde (max 4 Mo).', false);
+    showToast('Image too large (max 4 MB).', false);
     input.value = '';
     return;
   }
@@ -2816,7 +2818,7 @@ function clearReportImage() {
   reportImageBase64 = null;
   document.getElementById('report-img-input').value = '';
   document.getElementById('report-img-preview-wrap').style.display = 'none';
-  document.getElementById('report-img-label-text').textContent = 'Choisir une image…';
+  document.getElementById('report-img-label-text').textContent = 'Choose an image…';
 }
 
 // ─────────────────────────────────────────────
@@ -2836,13 +2838,13 @@ async function submitReport() {
       matchFinished = true;
       stopTimer();
       document.getElementById('stocks-recap').classList.remove('show');
-      showToast('🚩 Match signalé — DRAW en attendant la décision admin.', false);
+      showToast('🚩 Match reported — DRAW pending admin decision.', false);
       setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
     } else {
-      showToast(data.error || 'Erreur lors du signalement.', false);
+      showToast(data.error || 'Error submitting report.', false);
     }
   } catch (e) {
-    showToast('Erreur réseau — réessaie sans image ou avec une image plus petite.', false);
+    showToast('Network error — try again without an image or with a smaller one.', false);
   }
 }
 
