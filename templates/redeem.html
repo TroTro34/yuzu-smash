@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" href="/static/favicon.png">
   <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Réclamer mes RCoins — Smash YUZU</title>
+  <title>Redeem my RCoins — Smash YUZU</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -153,24 +153,24 @@
 
 <div class="card">
   <span class="card-icon">🎁</span>
-  <div class="card-title">Réclamer mes RCoins</div>
-  <p class="card-sub">Tu viens d'acheter des RCoins sur Ko-fi ?<br>Clique ci-dessous pour les créditer sur ton compte.</p>
+  <div class="card-title">Redeem my RCoins</div>
+  <p class="card-sub">You just bought RCoins on Ko-fi?<br>Click below to credit them to your account.</p>
 
   {% if not tx_id %}
-  <!-- Pas de ?tx= dans l'URL -->
+  <!-- No ?tx= in URL -->
   <div class="no-tx-box">
-    ⚠ Lien incomplet.<br>
-    Utilise le lien reçu dans ton <strong>email de confirmation Ko-fi</strong>,<br>
-    il ressemble à : <code style="font-size:0.8rem;color:var(--muted);">yuzu-smash.onrender.com/redeem?tx=…</code>
+    ⚠ Incomplete link.<br>
+    Use the link received in your <strong>Ko-fi confirmation email</strong>,<br>
+    it looks like: <code style="font-size:0.8rem;color:var(--muted);">yuzu-smash.onrender.com/redeem?tx=…</code>
   </div>
-  <a href="/wallet" class="btn" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text);width:100%;display:block;text-align:center;border-radius:10px;padding:0.9rem;">← Retour au Wallet</a>
+  <a href="/wallet" class="btn" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text);width:100%;display:block;text-align:center;border-radius:10px;padding:0.9rem;">← Back to Wallet</a>
 
   {% elif tx_info and tx_info.status == 'claimed' %}
-  <!-- Déjà réclamée -->
+  <!-- Already claimed -->
   <div class="status-box error" style="display:block;">
-    ⚠ Ces RCoins ont déjà été réclamés.
+    ⚠ These RCoins have already been claimed.
   </div>
-  <a href="/wallet" class="btn-wallet">← Retour au Wallet</a>
+  <a href="/wallet" class="btn-wallet">← Back to Wallet</a>
 
   {% elif user %}
 
@@ -198,30 +198,30 @@
 
   <!-- Status boxes -->
   <div class="status-box success" id="box-success">
-    ✅ RCoins crédités avec succès !<br>
+    ✅ RCoins credited successfully!<br>
     <span class="coins-added"><span>+R</span><span id="coins-num">0</span></span>
-    Nouveau solde : <strong id="new-balance-text">—</strong>
+    New balance: <strong id="new-balance-text">—</strong>
   </div>
   <div class="status-box error" id="box-error">
-    <span id="error-text">Une erreur est survenue.</span>
+    <span id="error-text">An error occurred.</span>
   </div>
 
-  <button id="btn-claim" onclick="claimCoins()">🎁 Réclamer mes RCoins</button>
-  <a href="/wallet" class="btn-wallet">← Retour au Wallet</a>
+  <button id="btn-claim" onclick="claimCoins()">🎁 Redeem my RCoins</button>
+  <a href="/wallet" class="btn-wallet">← Back to Wallet</a>
 
   {% else %}
-  <!-- Pas connecté mais tx valide — login puis retour ici -->
+  <!-- Not logged in but valid tx — login then return here -->
   <a href="/login" class="btn" style="background:linear-gradient(135deg,#7e22ce,#6d28d9);color:white;padding:0.9rem 2rem;font-size:1.1rem;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;width:100%;display:block;text-align:center;border-radius:10px;">
-    Se connecter avec Discord →
+    Sign in with Discord →
   </a>
   {% endif %}
 
   <div class="how">
-    <div class="how-title">💡 COMMENT ÇA MARCHE</div>
-    <div class="how-step"><span class="num">1</span><span>Tu achètes un pack sur <strong>Ko-fi</strong> via PayPal.</span></div>
-    <div class="how-step"><span class="num">2</span><span>Ko-fi t'envoie un email avec un <strong>lien unique</strong> vers cette page.</span></div>
-    <div class="how-step"><span class="num">3</span><span>Tu arrives ici <strong>connecté via Discord</strong> et tu cliques "Réclamer".</span></div>
-    <div class="how-step"><span class="num">4</span><span>Les RCoins sont <strong>crédités instantanément</strong> sur ton compte.</span></div>
+    <div class="how-title">💡 HOW IT WORKS</div>
+    <div class="how-step"><span class="num">1</span><span>You buy a pack on <strong>Ko-fi</strong> via PayPal.</span></div>
+    <div class="how-step"><span class="num">2</span><span>Ko-fi sends you an email with a <strong>unique link</strong> to this page.</span></div>
+    <div class="how-step"><span class="num">3</span><span>You arrive here <strong>signed in via Discord</strong> and click "Redeem".</span></div>
+    <div class="how-step"><span class="num">4</span><span>RCoins are <strong>instantly credited</strong> to your account.</span></div>
   </div>
 </div>
 
@@ -236,7 +236,7 @@
     if (claimed) return;
     const btn = document.getElementById('btn-claim');
     btn.disabled = true;
-    btn.textContent = '⏳ Vérification…';
+    btn.textContent = '⏳ Verifying…';
 
     try {
       const r = await fetch('/api/redeem', {
@@ -254,28 +254,28 @@
         document.getElementById('box-success').style.display = 'block';
         document.getElementById('box-error').style.display = 'none';
         btn.style.display = 'none';
-        showToast('🎉 RCoins crédités !', 'green');
+        showToast('🎉 RCoins credited!', 'green');
       } else {
         const msgs = {
-          not_found:       'Transaction introuvable. Vérifie ton lien Ko-fi.',
-          already_claimed: 'Ces RCoins ont déjà été réclamés.',
-          player_not_found:'Compte joueur introuvable.',
-          db_error:        'Erreur DB — réessaie dans un instant.',
-          missing_tx:      'Lien invalide.',
+          not_found:       'Transaction not found. Check your Ko-fi link.',
+          already_claimed: 'These RCoins have already been claimed.',
+          player_not_found:'Player account not found.',
+          db_error:        'DB error — try again in a moment.',
+          missing_tx:      'Invalid link.',
         };
-        const msg = msgs[data.error] || data.message || 'Une erreur est survenue.';
+        const msg = msgs[data.error] || data.message || 'An error occurred.';
         document.getElementById('error-text').innerHTML = '⚠ ' + msg;
         document.getElementById('box-error').style.display = 'block';
         btn.disabled = false;
-        btn.textContent = '🎁 Réclamer mes RCoins';
+        btn.textContent = '🎁 Redeem my RCoins';
         showToast('Erreur : ' + msg, 'red');
       }
     } catch (e) {
-      document.getElementById('error-text').textContent = '⚠ Erreur réseau — vérifie ta connexion.';
+      document.getElementById('error-text').textContent = '⚠ Network error — check your connection.';
       document.getElementById('box-error').style.display = 'block';
       btn.disabled = false;
-      btn.textContent = '🎁 Réclamer mes RCoins';
-      showToast('Erreur réseau', 'red');
+      btn.textContent = '🎁 Redeem my RCoins';
+      showToast('Network error', 'red');
     }
   }
 
