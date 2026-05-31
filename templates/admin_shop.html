@@ -397,8 +397,17 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  // ── FILE PREVIEW ──
+  // ── FILE PREVIEW + BASE64 CACHE ──
   const b64Cache = {};
+
+  function fileToB64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   function previewFile(slot) {
     const inputId = slot === 'dash_gif' ? 'file-dash-gif' : slot === 'lb_gif' ? 'file-lb-gif' : `file-${slot}`;
@@ -411,19 +420,25 @@
       input.value = '';
       return;
     }
-    const url = URL.createObjectURL(file);
-    const imgEl = document.getElementById(`preview-${slot}-img`);
-    const boxEl = document.getElementById(`preview-${slot}`);
-    if (imgEl) imgEl.src = url;
-    if (boxEl) boxEl.classList.add('show');
+    fileToB64(file).then(b64 => {
+      b64Cache[slot] = b64;
+      const imgEl = document.getElementById(`preview-${slot}-img`);
+      const boxEl = document.getElementById(`preview-${slot}`);
+      if (imgEl) imgEl.src = b64;
+      if (boxEl) {
+        boxEl.classList.add('show');
+        if (file.type === 'image/gif') boxEl.classList.add('is-gif');
+        else boxEl.classList.remove('is-gif');
+      }
+    });
   }
 
   // Drag & drop visual feedback
   ['dash','lb','dash_gif','lb_gif'].forEach(slot => {
-    const zoneId = slot === 'dash_gif' ? 'zone-dash-gif' : slot === 'lb_gif' ? 'zone-lb-gif' : `zone-${slot}`;
+    const zoneId  = slot === 'dash_gif' ? 'zone-dash-gif' : slot === 'lb_gif' ? 'zone-lb-gif' : `zone-${slot}`;
     const inputId = slot === 'dash_gif' ? 'file-dash-gif' : slot === 'lb_gif' ? 'file-lb-gif' : `file-${slot}`;
     const zone = document.getElementById(zoneId);
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
     zone.addEventListener('drop', e => {
       e.preventDefault();
@@ -431,7 +446,6 @@
       const files = e.dataTransfer.files;
       if (!files.length) return;
       const input = document.getElementById(inputId);
-      // Assign dropped file to the hidden input then trigger preview
       const dt = new DataTransfer();
       dt.items.add(files[0]);
       input.files = dt.files;
@@ -448,36 +462,33 @@
     errEl.classList.remove('show');
 
     if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
-
-    const fileDash    = document.getElementById('file-dash').files[0];
-    const fileLb      = document.getElementById('file-lb').files[0];
-    const fileDashGif = document.getElementById('file-dash-gif').files[0];
-    const fileLbGif   = document.getElementById('file-lb-gif').files[0];
-
-    if (!fileDash && !fileLb && !fileDashGif && !fileLbGif) {
+    if (!b64Cache.dash && !b64Cache.lb && !b64Cache.dash_gif && !b64Cache.lb_gif) {
       errEl.textContent = 'Upload at least one banner image.';
       errEl.classList.add('show'); return;
     }
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('rarity', rarity);
-    if (fileDash)    formData.append('img_dash',     fileDash);
-    if (fileLb)      formData.append('img_lb',       fileLb);
-    if (fileDashGif) formData.append('img_dash_gif', fileDashGif);
-    if (fileLbGif)   formData.append('img_lb_gif',   fileLbGif);
-
     const btn = document.getElementById('submit-btn');
-    btn.textContent = 'Uploading…';
+    btn.textContent = 'Creating…';
     btn.disabled = true;
 
     try {
-      const r = await fetch('/admin/shop/banner', { method: 'POST', body: formData });
+      const r = await fetch('/admin/shop/banner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, rarity,
+          img_dash:     b64Cache.dash     || null,
+          img_lb:       b64Cache.lb       || null,
+          img_dash_gif: b64Cache.dash_gif || null,
+          img_lb_gif:   b64Cache.lb_gif   || null,
+        })
+      });
       const data = await r.json();
       if (data.success) {
         showToast('✅ Banner created!', true);
         addRowToTable(data.banner);
         document.getElementById('create-form').reset();
+        b64Cache.dash = null; b64Cache.lb = null; b64Cache.dash_gif = null; b64Cache.lb_gif = null;
         ['dash','lb','dash_gif','lb_gif'].forEach(s => {
           document.getElementById(`preview-${s}`)?.classList.remove('show');
           const img = document.getElementById(`preview-${s}-img`);
