@@ -485,7 +485,7 @@ async function dashboardData(userId, excludeChallengeIds = []) {
       awaitingConf[c.id] = c;
   }
 
-  return { player, players, rank,
+  return { player, rank,
     challenges_received: challengesReceived,
     challenges_sent: challengesSent,
     active_matches: activeMatches,
@@ -540,10 +540,8 @@ async function emitMatchUpdate(challengeId, override = {}) {
 }
 
 async function emitLeaderboardUpdate() {
-  try {
-    const data = await leaderboardData();
-    io.emit('leaderboard_update', data);
-  } catch (e) { console.error('[emitLeaderboardUpdate]', e); }
+  // Signal léger — le client fetch les données lui-même via /api/leaderboard
+  io.emit('leaderboard_changed');
 }
 
 const chatHistory = new Map();
@@ -1797,7 +1795,58 @@ app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// MIGRATION TEMPORAIRE — À SUPPRIMER APRÈS USAGE
+app.get('/admin/run-migration', requireAdmin, async (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.write('Starting migration...\n\n');
 
+  let migrated = 0, skipped = 0, errors = 0;
+
+  function isBase64(v) { return v && typeof v === 'string' && v.startsWith('data:image/'); }
+  function isUrl(v)    { return v && typeof v === 'string' && v.startsWith('http'); }
+
+  async function migrateField(table, id, field, folder, prefix) {
+    const rows = await sbGet(table, `id=eq.${id}&select=id,${field}`);
+    const val = rows[0]?.[field];
+    if (!val || isUrl(val)) { skipped++; return; }
+    if (!isBase64(val)) return;
+    try {
+      const [header, b64] = val.split(',');
+      const mime = header.replace('data:', '').replace(';base64', '');
+      const buffer = Buffer.from(b64, 'base64');
+      const ext = mime === 'image/gif' ? 'gif' : mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+      const url = await uploadToStorage(buffer, mime, folder, `${prefix}_${field}.${ext}`);
+      await sbPatch(table, { id }, { [field]: url });
+      res.write(`✅ ${table} [${id}] ${field}\n`);
+      migrated++;
+    } catch(e) {
+      res.write(`❌ ${table} [${id}] ${field}: ${e.message}\n`);
+      errors++;
+    }
+  }
+
+  // Banners
+  res.write('--- BANNERS ---\n');
+  const banners = await sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif');
+  for (const b of banners)
+    for (const f of ['img_dash','img_lb','img_dash_gif','img_lb_gif'])
+      await migrateField('banners', b.id, f, 'banners', b.id);
+
+  // Reports
+  res.write('\n--- REPORTS ---\n');
+  const reports = await sbGet('reports', 'select=id,screenshot');
+  for (const r of reports.filter(r => isBase64(r.screenshot)))
+    await migrateField('reports', r.id, 'screenshot', 'reports', r.id);
+
+  // Whatsup
+  res.write('\n--- WHATSUP ---\n');
+  const posts = await sbGet('whatsup_posts', 'select=id,image');
+  for (const p of posts.filter(p => isBase64(p.image)))
+    await migrateField('whatsup_posts', p.id, 'image', 'whatsup', p.id);
+
+  res.write(`\n✅ Migrated: ${migrated}\n⏭ Skipped: ${skipped}\n❌ Errors: ${errors}\n`);
+  res.end();
+});
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
