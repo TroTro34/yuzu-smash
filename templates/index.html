@@ -640,6 +640,18 @@
 
   const currentUserName = {{ (user.username if user else '') | tojson }};
 
+  function refreshLeaderboardData() {
+    fetch('/api/leaderboard')
+      .then(r => r.json())
+      .then(d => {
+        if (!d) return;
+        if (d.lfm_posts !== undefined)      renderLFM(d.lfm_posts, d.banners_map || {});
+        if (d.players !== undefined)        renderLeaderboard(d.players, d.banners_map || {});
+        if (d.recent_matches !== undefined) renderRecentMatches(d.recent_matches);
+      })
+      .catch(() => {});
+  }
+
   function postLFM() {
     const val = document.getElementById('lfm-format').value;
     const message = document.getElementById('lfm-msg').value;
@@ -648,7 +660,10 @@
     fetch('/lfm', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({format, mode, message}) })
       .then(r => r.json()).then(d => {
-        if (d.success) { showToast('Challenge posted! Expires in 30 min.'); }
+        if (d.success) {
+          showToast('Challenge posted! Expires in 30 min.');
+          refreshLeaderboardData(); // rafraîchit la grille immédiatement
+        }
         else alert(d.error);
       });
   }
@@ -700,7 +715,7 @@
   function cancelLFM(postId) {
     fetch('/lfm/' + postId + '/cancel', { method: 'POST' })
       .then(r => r.json()).then(d => {
-        if (d.success) showToast('Post removed.');
+        if (d.success) { showToast('Post removed.'); refreshLeaderboardData(); }
         else alert(d.error);
       });
   }
@@ -858,7 +873,81 @@
 
   loadWhatsUp();
 
-  // Connecte le socket et écoute leaderboard_update pour rafraîchir la grille LFM.
+  // ── RENDU DYNAMIQUE LEADERBOARD ─────────────────────────────────────────────
+  function renderLeaderboard(players, bannersMap) {
+    const el = document.querySelector('#panel-leaderboard .leaderboard');
+    if (!el) return;
+    const top10 = players.filter(p => (p.matches_played || 0) >= 0).slice(0, 10);
+    if (!top10.length) { el.innerHTML = '<div class="empty">No players yet. Be the first to sign in!</div>'; return; }
+    const medals = ['🥇','🥈','🥉'];
+    const rankClass = (i) => i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+    el.innerHTML = top10.map((p, i) => {
+      const wr = p.matches_played > 0 ? Math.round(p.wins / p.matches_played * 100) : 0;
+      const bMap = bannersMap[p.banner_lb] || bannersMap[p.banner_dash];
+      let lbImg = null;
+      if (p.banner_lb && bannersMap[p.banner_lb]) {
+        const b = bannersMap[p.banner_lb];
+        lbImg = b.img_lb_gif || b.img_lb || b.img_dash_gif || b.img_dash;
+      } else if (p.banner_dash && bannersMap[p.banner_dash]) {
+        const b = bannersMap[p.banner_dash];
+        lbImg = b.img_dash_gif || b.img_dash;
+      }
+      const slot = p.banner_lb || p.banner_dash;
+      const op = (p.banner_opacity && slot && p.banner_opacity[slot]) ? p.banner_opacity[slot] / 100 : 0.13;
+      const bannerEl = lbImg ? `<div class="player-row-banner"><img src="${escHtml(lbImg)}" alt="" style="opacity:${op}"></div>` : '';
+      const avatarEl = p.avatar
+        ? `<img class="player-avatar" src="https://cdn.discordapp.com/avatars/${escHtml(p.id)}/${escHtml(p.avatar)}.png" alt="">`
+        : `<div class="player-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;">👤</div>`;
+      const charEl = p.main_char ? `<img class="char-icon" data-char="${escHtml(p.main_char)}" src="" alt="" style="display:none;">` : '';
+      const charTxt = p.main_char ? `<div class="player-char">Main: ${escHtml(p.main_char)}${p.secondary_char ? ' · 2nd: '+escHtml(p.secondary_char) : ''}</div>` : '';
+      const clickable = currentUserId ? `onclick="window.location='/player/${escHtml(p.id)}'"` : '';
+      return `<div class="player-row ${rankClass(i)}" ${clickable}>
+        ${bannerEl}
+        <div class="rank-num">${medals[i] || (i+1)}</div>
+        <div class="player-avatar-wrap">${avatarEl}${charEl}</div>
+        <div class="player-info">
+          <div class="player-name">${escHtml(p.username)}</div>
+          <div class="player-record">${p.wins}W — ${p.losses}L — ${p.matches_played} sets</div>
+          ${charTxt}
+        </div>
+        <div class="wr-bar-wrap">
+          <div class="wr-label">${wr}% WR</div>
+          <div class="wr-bar"><div class="wr-fill" style="width:${wr}%"></div></div>
+        </div>
+        <div class="player-pts">${p.points} <span>ELO</span></div>
+      </div>`;
+    }).join('');
+    // Réappliquer les icônes de personnages
+    el.querySelectorAll('[data-char]').forEach(img => {
+      const src = CHAR_ICONS[img.dataset.char];
+      if (src) { img.src = src; img.style.display = ''; }
+    });
+    // Mettre à jour le compteur hero
+    const heroLfm = document.querySelector('.hero-stat .n');
+    if (heroLfm && heroLfm.closest('.hero-stat')?.querySelector('.l')?.textContent === 'Players') {
+      heroLfm.textContent = players.length;
+    }
+  }
+
+  // ── RENDU DYNAMIQUE RECENT MATCHES ──────────────────────────────────────────
+  function renderRecentMatches(matches) {
+    const el = document.querySelector('#panel-matches');
+    if (!el) return;
+    if (!matches || !matches.length) {
+      el.innerHTML = '<div class="matches-list"><div class="empty">No matches played yet.</div></div>';
+      return;
+    }
+    el.innerHTML = '<div class="matches-list">' + matches.map(m => `
+      <div class="match-row">
+        <span class="match-winner">🏆 ${escHtml(m.winner_name || 'DRAW')}</span>
+        <span class="match-score">${escHtml(m.score || 'VS')}</span>
+        <span class="match-loser">${escHtml(m.loser_name || '')}</span>
+        <span class="match-format">${escHtml(m.format || '')}</span>
+        ${m.elo_change ? `<span class="elo-change">+${m.elo_change} ELO</span>` : ''}
+      </div>`).join('') + '</div>';
+  }
+
+  // Connecte le socket et écoute leaderboard_changed pour rafraîchir toutes les sections.
   // notifications.js (chargé après) peut partager ce socket via window.socket.
   document.addEventListener('DOMContentLoaded', () => {
     if (typeof io === 'undefined') return; // socket.io pas chargé
@@ -882,9 +971,10 @@
       fetch('/api/leaderboard')
         .then(r => r.json())
         .then(d => {
-          if (d && d.lfm_posts !== undefined) {
-            renderLFM(d.lfm_posts, d.banners_map || {});
-          }
+          if (!d) return;
+          if (d.lfm_posts !== undefined)    renderLFM(d.lfm_posts, d.banners_map || {});
+          if (d.players !== undefined)      renderLeaderboard(d.players, d.banners_map || {});
+          if (d.recent_matches !== undefined) renderRecentMatches(d.recent_matches);
         })
         .catch(() => {});
     });
