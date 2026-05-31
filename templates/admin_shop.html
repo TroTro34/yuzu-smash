@@ -401,21 +401,21 @@
   const b64Cache = {};
 
   function previewFile(slot) {
-    const input = document.getElementById(`file-${slot}`);
-    const file  = input.files[0];
+    const inputId = slot === 'dash_gif' ? 'file-dash-gif' : slot === 'lb_gif' ? 'file-lb-gif' : `file-${slot}`;
+    const input = document.getElementById(inputId);
+    const file  = input?.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('File too large (max 2 MB)', false);
+    const MAX = slot.includes('gif') ? 5 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (file.size > MAX) {
+      showToast(`File too large (max ${slot.includes('gif') ? '5' : '2'} MB)`, false);
       input.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = e => {
-      b64Cache[slot] = e.target.result;
-      document.getElementById(`preview-${slot}-img`).src = e.target.result;
-      document.getElementById(`preview-${slot}`).classList.add('show');
-    };
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    const imgEl = document.getElementById(`preview-${slot}-img`);
+    const boxEl = document.getElementById(`preview-${slot}`);
+    if (imgEl) imgEl.src = url;
+    if (boxEl) boxEl.classList.add('show');
   }
 
   // Drag & drop visual feedback
@@ -444,6 +444,58 @@
     e.preventDefault();
     const name   = document.getElementById('f-name').value.trim();
     const rarity = document.querySelector('input[name="rarity"]:checked')?.value || 'common';
+    const errEl  = document.getElementById('form-error');
+    errEl.classList.remove('show');
+
+    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
+
+    const fileDash    = document.getElementById('file-dash').files[0];
+    const fileLb      = document.getElementById('file-lb').files[0];
+    const fileDashGif = document.getElementById('file-dash-gif').files[0];
+    const fileLbGif   = document.getElementById('file-lb-gif').files[0];
+
+    if (!fileDash && !fileLb && !fileDashGif && !fileLbGif) {
+      errEl.textContent = 'Upload at least one banner image.';
+      errEl.classList.add('show'); return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('rarity', rarity);
+    if (fileDash)    formData.append('img_dash',     fileDash);
+    if (fileLb)      formData.append('img_lb',       fileLb);
+    if (fileDashGif) formData.append('img_dash_gif', fileDashGif);
+    if (fileLbGif)   formData.append('img_lb_gif',   fileLbGif);
+
+    const btn = document.getElementById('submit-btn');
+    btn.textContent = 'Uploading…';
+    btn.disabled = true;
+
+    try {
+      const r = await fetch('/admin/shop/banner', { method: 'POST', body: formData });
+      const data = await r.json();
+      if (data.success) {
+        showToast('✅ Banner created!', true);
+        addRowToTable(data.banner);
+        document.getElementById('create-form').reset();
+        ['dash','lb','dash_gif','lb_gif'].forEach(s => {
+          document.getElementById(`preview-${s}`)?.classList.remove('show');
+          const img = document.getElementById(`preview-${s}-img`);
+          if (img) img.src = '';
+        });
+        document.getElementById('banners-empty')?.remove();
+      } else {
+        errEl.textContent = data.error || 'Error creating banner.';
+        errEl.classList.add('show');
+      }
+    } catch (err) {
+      errEl.textContent = 'Network error.';
+      errEl.classList.add('show');
+    } finally {
+      btn.textContent = '➕ Create Banner';
+      btn.disabled = false;
+    }
+  }
     const errEl  = document.getElementById('form-error');
     errEl.classList.remove('show');
 
