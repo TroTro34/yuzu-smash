@@ -478,10 +478,9 @@ async function emitMatchUpdate(challengeId, override = {}) {
 }
 
 async function emitLeaderboardUpdate() {
-  try {
-    const data = await leaderboardData();
-    io.emit('leaderboard_update', data);
-  } catch (e) { console.error('[emitLeaderboardUpdate]', e); }
+  // Signal léger sans payload — les clients re-fetchent /api/leaderboard eux-mêmes.
+  // Évite d'envoyer tout le dataset (joueurs + matches + banners) en broadcast à chaque action.
+  io.emit('leaderboard_changed');
 }
 
 const chatHistory = new Map();
