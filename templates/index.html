@@ -878,10 +878,15 @@
         window.location.href = cid ? '/match/' + cid : '/dashboard';
       }, 2500);
     });
-    sock.on('leaderboard_update', (d) => {
-      if (d && d.lfm_posts !== undefined) {
-        renderLFM(d.lfm_posts, d.banners_map || {});
-      }
+    sock.on('leaderboard_changed', () => {
+      fetch('/api/leaderboard')
+        .then(r => r.json())
+        .then(d => {
+          if (d && d.lfm_posts !== undefined) {
+            renderLFM(d.lfm_posts, d.banners_map || {});
+          }
+        })
+        .catch(() => {});
     });
   });
 </script>
