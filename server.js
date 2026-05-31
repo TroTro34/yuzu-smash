@@ -9,6 +9,7 @@ const crypto     = require('crypto');
 const fetch      = require('node-fetch');
 const path       = require('path');
 const rateLimit   = require('express-rate-limit');
+const multer      = require('multer');
 
 const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
@@ -33,6 +34,67 @@ const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onre
 const SUPABASE_URL        = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
 const ADMIN_DISCORD_ID    = process.env.ADMIN_DISCORD_ID || '';
+
+// ── MULTER (memory storage — files never touch disk) ──────────────────────────
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 }, // 6 MB max (GIFs can be 5 MB)
+});
+
+// ── SUPABASE STORAGE HELPERS ──────────────────────────────────────────────────
+const STORAGE_BUCKET = 'yuzu-assets';
+
+async function uploadToStorage(buffer, mimeType, folder, filename) {
+  try {
+    const path = `${folder}/${filename}`;
+    const r = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey':        SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type':  mimeType,
+          'x-upsert':      'true',
+        },
+        body: buffer,
+      }
+    );
+    if (!r.ok) {
+      const err = await r.text();
+      console.error('[Storage upload error]', r.status, err);
+      return null;
+    }
+    // Return the public URL
+    return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
+  } catch (e) {
+    console.error('[Storage upload exception]', e);
+    return null;
+  }
+}
+
+async function deleteFromStorage(url) {
+  try {
+    if (!url || !url.includes(STORAGE_BUCKET)) return;
+    // Extract path after bucket name
+    const marker = `/object/public/${STORAGE_BUCKET}/`;
+    const idx = url.indexOf(marker);
+    if (idx === -1) return;
+    const filePath = url.slice(idx + marker.length);
+    await fetch(
+      `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${filePath}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'apikey':        SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+        },
+      }
+    );
+  } catch (e) {
+    console.error('[Storage delete exception]', e);
+  }
+}
 
 const DISCORD_AUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
 
@@ -937,10 +999,20 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
   const title = sanitizeStr(req.body.title || '', 120) ||
     `${c.challenger_name} vs ${c.challenged_name}`;
 
-  let screenshot = null;
+  // Handle screenshot: upload to Storage if provided
+  let screenshotUrl = null;
   const raw = req.body.screenshot;
   if (raw && typeof raw === 'string' && raw.startsWith('data:image/') && raw.length <= 5.5 * 1024 * 1024) {
-    screenshot = raw;
+    try {
+      const [header, b64] = raw.split(',');
+      const mime = header.replace('data:', '').replace(';base64', '');
+      const buffer = Buffer.from(b64, 'base64');
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/gif' ? 'gif' : mime === 'image/webp' ? 'webp' : 'jpg';
+      const filename = `rep_${challenge_id}_${Date.now()}.${ext}`;
+      screenshotUrl = await uploadToStorage(buffer, mime, 'reports', filename);
+    } catch (e) {
+      console.error('[report screenshot upload]', e);
+    }
   }
 
   await sbPatch('challenges', { id: challenge_id }, { status: 'draw_reported' });
@@ -950,7 +1022,7 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
     format: c.format, title,
     reason: 'player_report',
     chat_history_snapshot: chatHistory.get(challenge_id) || [],
-    screenshot,
+    screenshot: screenshotUrl,
   });
   chatHistory.delete(challenge_id);
 
@@ -978,14 +1050,19 @@ app.get('/admin/report-screenshot/:report_id', requireAdmin, async (req, res) =>
   const reports = await sbGet('reports', `id=eq.${report_id}`);
   if (!reports.length) return res.status(404).send('Not found');
   const screenshot = reports[0].screenshot;
-  if (!screenshot || !screenshot.startsWith('data:image/')) return res.status(404).send('No screenshot');
-
-  const [header, b64] = screenshot.split(',');
-  const mime = header.replace('data:', '').replace(';base64', '');
-  const buf  = Buffer.from(b64, 'base64');
-  res.set('Content-Type', mime);
-  res.set('Cache-Control', 'private, max-age=3600');
-  res.send(buf);
+  if (!screenshot) return res.status(404).send('No screenshot');
+  // If it's a URL (new Storage-based), redirect to it
+  if (screenshot.startsWith('http')) return res.redirect(screenshot);
+  // Legacy base64 fallback
+  if (screenshot.startsWith('data:image/')) {
+    const [header, b64] = screenshot.split(',');
+    const mime = header.replace('data:', '').replace(';base64', '');
+    const buf  = Buffer.from(b64, 'base64');
+    res.set('Content-Type', mime);
+    res.set('Cache-Control', 'private, max-age=3600');
+    return res.send(buf);
+  }
+  return res.status(404).send('No screenshot');
 });
 
 app.get('/admin/reports', requireAdmin, async (req, res) => {
@@ -1291,7 +1368,8 @@ async function createReport({ challenge_id, challenger_id, challenged_id, format
     created_at: new Date().toISOString(),
   };
 
-  if (screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/')) {
+  // screenshot can be a Storage URL (new) or legacy base64
+  if (screenshot) {
     payload.screenshot = screenshot;
   }
   await sbPost('reports', payload);
@@ -1541,25 +1619,47 @@ app.get('/api/whatsup', async (req, res) => {
   } catch(e) { res.json({ posts: [] }); }
 });
 
-app.post('/admin/whatsup', requireAdmin, async (req, res) => {
-  const { text, image, bg_color, text_color, duration } = req.body;
-  if (!text && !image) return res.status(400).json({ error: 'text or image required' });
-  const id = `wu_${require('crypto').randomBytes(6).toString('hex')}`;
+app.post('/admin/whatsup',
+  requireAdmin,
+  upload.single('image_file'),
+  async (req, res) => {
+    const { text, bg_color, text_color, duration } = req.body;
+    let imageUrl = null;
 
-  const existing = await sbGet('whatsup_posts', 'order=position.desc&limit=1');
-  const position = existing && existing.length ? (existing[0].position || 0) + 1 : 0;
-  await sbPost('whatsup_posts', {
-    id, text: text || null,
-    image: image || null,          
-    bg_color: bg_color || null,
-    text_color: text_color || null,
-    duration: parseInt(duration) || 5,
-    position,
-    created_at: new Date().toISOString()
-  });
-  io.emit('whatsup_update'); 
-  res.json({ success: true, id });
-});
+    // New: file upload via multipart
+    if (req.file) {
+      const ALLOWED = new Set(['image/png','image/jpeg','image/webp','image/gif']);
+      if (!ALLOWED.has(req.file.mimetype))
+        return res.status(400).json({ error: 'Only PNG/JPG/WebP/GIF allowed' });
+      const ext = req.file.mimetype === 'image/gif' ? 'gif'
+                : req.file.mimetype === 'image/png'  ? 'png'
+                : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+      const filename = `wu_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+      imageUrl = await uploadToStorage(req.file.buffer, req.file.mimetype, 'whatsup', filename);
+      if (!imageUrl) return res.status(500).json({ error: 'Image upload failed' });
+    } else if (req.body.image) {
+      // Legacy base64 path — keep for backwards compat
+      imageUrl = req.body.image;
+    }
+
+    if (!text && !imageUrl) return res.status(400).json({ error: 'text or image required' });
+    const id = `wu_${require('crypto').randomBytes(6).toString('hex')}`;
+
+    const existing = await sbGet('whatsup_posts', 'order=position.desc&limit=1');
+    const position = existing && existing.length ? (existing[0].position || 0) + 1 : 0;
+    await sbPost('whatsup_posts', {
+      id, text: text || null,
+      image: imageUrl || null,
+      bg_color: bg_color || null,
+      text_color: text_color || null,
+      duration: parseInt(duration) || 5,
+      position,
+      created_at: new Date().toISOString()
+    });
+    io.emit('whatsup_update');
+    res.json({ success: true, id });
+  }
+);
 
 app.patch('/admin/whatsup/:post_id', requireAdmin, async (req, res) => {
   const { post_id } = req.params;
@@ -1606,42 +1706,148 @@ app.get('/admin/shop', requireAdmin, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
-app.post('/admin/shop/banner', requireAdmin, async (req, res) => {
-  const name   = sanitizeStr(req.body.name || '', 60);
-  const rarity = req.body.rarity || 'common';
-  if (!name)                       return res.status(400).json({ error: 'Name is required' });
-  if (!VALID_RARITIES.has(rarity)) return res.status(400).json({ error: 'Invalid rarity' });
-  const img_dash     = validateBannerImg(req.body.img_dash);
-  const img_lb       = validateBannerImg(req.body.img_lb);
-  const img_dash_gif = validateBannerGif(req.body.img_dash_gif);
-  const img_lb_gif   = validateBannerGif(req.body.img_lb_gif);
-  if (!img_dash && !img_lb && !img_dash_gif && !img_lb_gif)
-    return res.status(400).json({ error: 'At least one image is required' });
-  const bid = `ban_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('banners', {
-    id: bid, name, rarity,
-    img_dash:     img_dash     || null,
-    img_lb:       img_lb       || null,
-    img_dash_gif: img_dash_gif || null,
-    img_lb_gif:   img_lb_gif   || null,
-    created_by: req.session.user.id,
-    created_at: new Date().toISOString(),
-  });
-  res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb, img_dash_gif, img_lb_gif } });
-});
+app.post('/admin/shop/banner',
+  requireAdmin,
+  upload.fields([
+    { name: 'img_dash',     maxCount: 1 },
+    { name: 'img_lb',       maxCount: 1 },
+    { name: 'img_dash_gif', maxCount: 1 },
+    { name: 'img_lb_gif',   maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const name   = sanitizeStr(req.body.name || '', 60);
+    const rarity = req.body.rarity || 'common';
+    if (!name)                       return res.status(400).json({ error: 'Name is required' });
+    if (!VALID_RARITIES.has(rarity)) return res.status(400).json({ error: 'Invalid rarity' });
+
+    const files = req.files || {};
+    if (!files.img_dash && !files.img_lb && !files.img_dash_gif && !files.img_lb_gif)
+      return res.status(400).json({ error: 'At least one image is required' });
+
+    const bid = `ban_${crypto.randomBytes(8).toString('hex')}`;
+
+    // Validate mime types
+    const STATIC_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    for (const slot of ['img_dash', 'img_lb']) {
+      const f = files[slot]?.[0];
+      if (f && !STATIC_MIMES.has(f.mimetype))
+        return res.status(400).json({ error: `${slot}: only PNG/JPG/WebP allowed` });
+    }
+    for (const slot of ['img_dash_gif', 'img_lb_gif']) {
+      const f = files[slot]?.[0];
+      if (f && f.mimetype !== 'image/gif')
+        return res.status(400).json({ error: `${slot}: only GIF allowed` });
+    }
+
+    // Upload all provided files to Supabase Storage
+    const uploadSlot = async (slot, subfolder) => {
+      const f = files[slot]?.[0];
+      if (!f) return null;
+      const ext = f.mimetype === 'image/gif' ? 'gif'
+                : f.mimetype === 'image/png'  ? 'png'
+                : f.mimetype === 'image/webp' ? 'webp' : 'jpg';
+      const filename = `${bid}_${slot}.${ext}`;
+      return uploadToStorage(f.buffer, f.mimetype, subfolder, filename);
+    };
+
+    const [img_dash, img_lb, img_dash_gif, img_lb_gif] = await Promise.all([
+      uploadSlot('img_dash',     'banners'),
+      uploadSlot('img_lb',       'banners'),
+      uploadSlot('img_dash_gif', 'banners'),
+      uploadSlot('img_lb_gif',   'banners'),
+    ]);
+
+    if (!img_dash && !img_lb && !img_dash_gif && !img_lb_gif)
+      return res.status(500).json({ error: 'Upload to storage failed — check Supabase Storage config' });
+
+    await sbPost('banners', {
+      id: bid, name, rarity,
+      img_dash:     img_dash     || null,
+      img_lb:       img_lb       || null,
+      img_dash_gif: img_dash_gif || null,
+      img_lb_gif:   img_lb_gif   || null,
+      created_by: req.session.user.id,
+      created_at: new Date().toISOString(),
+    });
+    res.json({ success: true, banner: { id: bid, name, rarity, img_dash, img_lb, img_dash_gif, img_lb_gif } });
+  }
+);
 
 app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
   const { banner_id } = req.params;
   if (!validateId(banner_id)) return res.status(400).json({ error: 'Invalid ID' });
   const banners = await sbGet('banners', `id=eq.${banner_id}`);
   if (!banners.length) return res.status(404).json({ error: 'Banner not found' });
+  const banner = banners[0];
 
   await Promise.all([
     sbPatch('players', { banner_dash: banner_id }, { banner_dash: null }),
     sbPatch('players', { banner_lb:   banner_id }, { banner_lb:   null }),
   ]);
   await sbDelete('banners', { id: banner_id });
+
+  // Clean up Storage files (fire and forget)
+  Promise.all([
+    deleteFromStorage(banner.img_dash),
+    deleteFromStorage(banner.img_lb),
+    deleteFromStorage(banner.img_dash_gif),
+    deleteFromStorage(banner.img_lb_gif),
+  ]).catch(e => console.error('[banner delete storage cleanup]', e));
+
   res.json({ success: true });
+});
+
+// MIGRATION TEMPORAIRE — À SUPPRIMER APRÈS USAGE
+app.get('/admin/run-migration', requireAdmin, async (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.write('Starting migration...\n\n');
+
+  let migrated = 0, skipped = 0, errors = 0;
+
+  function isBase64(v) { return v && typeof v === 'string' && v.startsWith('data:image/'); }
+  function isUrl(v)    { return v && typeof v === 'string' && v.startsWith('http'); }
+
+  async function migrateField(table, id, field, folder, prefix) {
+    const rows = await sbGet(table, `id=eq.${id}&select=id,${field}`);
+    const val = rows[0]?.[field];
+    if (!val || isUrl(val)) { skipped++; return; }
+    if (!isBase64(val)) return;
+    try {
+      const [header, b64] = val.split(',');
+      const mime = header.replace('data:', '').replace(';base64', '');
+      const buffer = Buffer.from(b64, 'base64');
+      const ext = mime === 'image/gif' ? 'gif' : mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+      const url = await uploadToStorage(buffer, mime, folder, `${prefix}_${field}.${ext}`);
+      await sbPatch(table, { id }, { [field]: url });
+      res.write(`✅ ${table} [${id}] ${field}\n`);
+      migrated++;
+    } catch(e) {
+      res.write(`❌ ${table} [${id}] ${field}: ${e.message}\n`);
+      errors++;
+    }
+  }
+
+  // Banners
+  res.write('--- BANNERS ---\n');
+  const banners = await sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif');
+  for (const b of banners)
+    for (const f of ['img_dash','img_lb','img_dash_gif','img_lb_gif'])
+      await migrateField('banners', b.id, f, 'banners', b.id);
+
+  // Reports
+  res.write('\n--- REPORTS ---\n');
+  const reports = await sbGet('reports', 'select=id,screenshot');
+  for (const r of reports.filter(r => isBase64(r.screenshot)))
+    await migrateField('reports', r.id, 'screenshot', 'reports', r.id);
+
+  // Whatsup
+  res.write('\n--- WHATSUP ---\n');
+  const posts = await sbGet('whatsup_posts', 'select=id,image');
+  for (const p of posts.filter(p => isBase64(p.image)))
+    await migrateField('whatsup_posts', p.id, 'image', 'whatsup', p.id);
+
+  res.write(`\n✅ Migrated: ${migrated}\n⏭ Skipped: ${skipped}\n❌ Errors: ${errors}\n`);
+  res.end();
 });
 
 const PORT = process.env.PORT || 10000;
