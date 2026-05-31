@@ -496,59 +496,6 @@
       btn.disabled = false;
     }
   }
-    const errEl  = document.getElementById('form-error');
-    errEl.classList.remove('show');
-
-    if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.add('show'); return; }
-    // Si un GIF a été uploadé dans une zone statique, le rediriger vers le champ gif
-    if (b64Cache.dash && b64Cache.dash.startsWith('data:image/gif;')) {
-      b64Cache.dash_gif = b64Cache.dash_gif || b64Cache.dash;
-      b64Cache.dash = null;
-    }
-    if (b64Cache.lb && b64Cache.lb.startsWith('data:image/gif;')) {
-      b64Cache.lb_gif = b64Cache.lb_gif || b64Cache.lb;
-      b64Cache.lb = null;
-    }
-    if (!b64Cache.dash && !b64Cache.lb && !b64Cache.dash_gif && !b64Cache.lb_gif) {
-      errEl.textContent = 'Upload at least one banner image.';
-      errEl.classList.add('show'); return;
-    }
-
-    const btn = document.getElementById('submit-btn');
-    btn.textContent = 'Creating…';
-    btn.disabled = true;
-
-    try {
-      const r = await fetch('/admin/shop/banner', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, rarity, img_dash: b64Cache.dash || null, img_lb: b64Cache.lb || null, img_dash_gif: b64Cache.dash_gif || null, img_lb_gif: b64Cache.lb_gif || null })
-      });
-      const data = await r.json();
-      if (data.success) {
-        showToast('✅ Banner created!', true);
-        // Inject row into table
-        addRowToTable(data.banner);
-        // Reset form
-        document.getElementById('create-form').reset();
-        b64Cache.dash = null; b64Cache.lb = null; b64Cache.dash_gif = null; b64Cache.lb_gif = null;
-        ['dash','lb','dash_gif','lb_gif'].forEach(s => {
-          document.getElementById(`preview-${s}`).classList.remove('show');
-          document.getElementById(`preview-${s}-img`).src = '';
-        });
-        document.getElementById('banners-empty')?.remove();
-      } else {
-        errEl.textContent = data.error || 'Error creating banner.';
-        errEl.classList.add('show');
-      }
-    } catch (err) {
-      errEl.textContent = 'Network error.';
-      errEl.classList.add('show');
-    } finally {
-      btn.textContent = '➕ Create Banner';
-      btn.disabled = false;
-    }
-  }
 
   function addRowToTable(b) {
     let tbody = document.getElementById('banners-tbody');
