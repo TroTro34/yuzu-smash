@@ -485,7 +485,7 @@ async function dashboardData(userId, excludeChallengeIds = []) {
       awaitingConf[c.id] = c;
   }
 
-  return { player, rank,
+  return { player, rank, players,
     challenges_received: challengesReceived,
     challenges_sent: challengesSent,
     active_matches: activeMatches,
