@@ -1215,7 +1215,7 @@ function showMatchFound(p1, p2) {
 
 <!-- ── SUGGESTION BUTTON ── -->
 <button onclick="document.getElementById('suggestion-modal').style.display='flex'"
-  title="Envoyer une suggestion"
+  title="Send a suggestion"
   style="position:fixed;bottom:2rem;left:2rem;z-index:300;
     width:48px;height:48px;border-radius:50%;
     background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);
@@ -1237,16 +1237,16 @@ function showMatchFound(p1, p2) {
     <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:4px;
       color:#c084fc;margin-bottom:0.3rem;">💡 SUGGESTION</div>
     <div style="color:var(--muted);font-size:0.85rem;margin-bottom:1.2rem;">
-      Envoie une idée ou un retour aux admins. Ton nom sera visible par eux.
+      Send an idea or feedback to the admins. Your name will be visible to them.
     </div>
-    <textarea id="suggestion-text" maxlength="600" placeholder="Ton idée, retour, bug…"
+    <textarea id="suggestion-text" maxlength="600" placeholder="Your idea, feedback, bug…"
       style="width:100%;min-height:120px;background:var(--surface2);border:1px solid var(--border);
         border-radius:8px;padding:0.8rem 1rem;color:var(--text);font-family:'Rajdhani',sans-serif;
         font-size:0.95rem;outline:none;resize:vertical;transition:border-color 0.15s;"
       onfocus="this.style.borderColor='rgba(168,85,247,0.6)'"
       onblur="this.style.borderColor='var(--border)'"></textarea>
     <div style="font-size:0.7rem;color:var(--muted);text-align:right;margin-top:0.2rem;margin-bottom:1rem;">
-      max 600 caractères
+      max 600 characters
     </div>
     <div style="display:flex;gap:0.7rem;">
       <button onclick="submitSuggestion()"
@@ -1255,7 +1255,7 @@ function showMatchFound(p1, p2) {
           font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:3px;cursor:pointer;transition:all 0.2s;"
         onmouseover="this.style.background='rgba(126,34,206,0.35)'"
         onmouseout="this.style.background='rgba(126,34,206,0.15)'">
-        ENVOYER →
+        SEND →
       </button>
       <button onclick="document.getElementById('suggestion-modal').style.display='none'"
         style="padding:0.9rem 1.2rem;border-radius:8px;border:1px solid var(--border);
@@ -1263,7 +1263,7 @@ function showMatchFound(p1, p2) {
           font-weight:700;cursor:pointer;transition:all 0.2s;"
         onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-        Annuler
+        Cancel
       </button>
     </div>
   </div>
@@ -1284,11 +1284,11 @@ async function submitSuggestion() {
       document.getElementById('suggestion-modal').style.display = 'none';
       document.getElementById('suggestion-text').value = '';
       const toast = document.getElementById('toast');
-      if (toast) { toast.textContent = '💡 Suggestion envoyée !'; toast.className = 'toast show success'; setTimeout(() => toast.classList.remove('show'), 3000); }
+      if (toast) { toast.textContent = '💡 Suggestion sent!'; toast.className = 'toast show success'; setTimeout(() => toast.classList.remove('show'), 3000); }
     } else {
-      alert('Erreur : ' + (d.error || 'unknown'));
+      alert('Error: ' + (d.error || 'unknown'));
     }
-  } catch(e) { alert('Erreur réseau.'); }
+  } catch(e) { alert('Network error.'); }
 }
 </script>
 
