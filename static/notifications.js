@@ -82,15 +82,17 @@
   }
 
   /* ── Logique principale ─────────────────────────────────────────── */
-  function handleMatchFound(data) {
-    const p1  = data && data.p1 ? data.p1 : '???';
-    const p2  = data && data.p2 ? data.p2 : '???';
-    const cid = data && data.challenge_id;
 
+  /* IDs des matches déjà notifiés — évite les doublons sur dashboard_update répétés */
+  const seenMatchNotifs = new Set();
+
+  function triggerMatchNotif(p1, p2, cid) {
     playSound();
 
-    requestPermission(function (ok) {
-      if (!ok) return;
+    /* Si la permission est déjà accordée on affiche immédiatement (synchrone),
+       sans passer par requestPermission qui est asynchrone et peut arriver trop tard
+       si la page redirige juste après. */
+    if (canNotify()) {
       showNotif(
         '⚔ MATCH FOUND',
         p1 + ' vs ' + p2,
@@ -100,7 +102,48 @@
           else     window.location.href = '/dashboard';
         }
       );
-    });
+    } else {
+      requestPermission(function (ok) {
+        if (!ok) return;
+        showNotif(
+          '⚔ MATCH FOUND',
+          p1 + ' vs ' + p2,
+          MATCH_NOTIF_ID,
+          function () {
+            if (cid) window.location.href = '/match/' + cid;
+            else     window.location.href = '/dashboard';
+          }
+        );
+      });
+    }
+  }
+
+  /* Ancien event (LFM) — conservé pour compatibilité */
+  function handleMatchFound(data) {
+    const p1  = data && data.p1 ? data.p1 : '???';
+    const p2  = data && data.p2 ? data.p2 : '???';
+    const cid = data && data.challenge_id;
+    triggerMatchNotif(p1, p2, cid);
+  }
+
+  /* dashboard_update — flux principal utilisé par les challenges normaux.
+     On détecte les nouveaux active_matches exactement comme dashboard.html le fait,
+     mais on déclenche la notif OS AVANT que la page ne redirige. */
+  function handleDashboardUpdateForMatch(data) {
+    if (!data || !data.active_matches) return;
+    for (const [cid, c] of Object.entries(data.active_matches)) {
+      if (!seenMatchNotifs.has(cid)) {
+        seenMatchNotifs.add(cid);
+        triggerMatchNotif(
+          c.challenger_name || '???',
+          c.challenged_name || '???',
+          cid
+        );
+        break; /* un seul nouveau match à la fois */
+      }
+    }
+    /* Marquer tous les matchs connus pour éviter les doublons futurs */
+    Object.keys(data.active_matches).forEach(cid => seenMatchNotifs.add(cid));
   }
 
   function handleDashboardUpdate(data) {
@@ -135,8 +178,12 @@
     /* match_redirect : émis quand un LFM est accepté (les deux joueurs sont redirigés) */
     sock.on('match_redirect', handleMatchFound);
 
-    /* dashboard_update : émis régulièrement — on filtre les nouveaux challenges_received */
-    sock.on('dashboard_update', handleDashboardUpdate);
+    /* dashboard_update : détecte les nouveaux active_matches (challenges normaux)
+       ET les nouveaux challenges_received */
+    sock.on('dashboard_update', function(data) {
+      handleDashboardUpdateForMatch(data);
+      handleDashboardUpdate(data);
+    });
   }
 
   /* Pré-charger le son dès que l'utilisateur interagit avec la page
