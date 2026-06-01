@@ -653,6 +653,7 @@
   }
 
   function postLFM() {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
     const val = document.getElementById('lfm-format').value;
     const message = document.getElementById('lfm-msg').value;
     const format = val;
@@ -669,6 +670,7 @@
   }
 
   function acceptLFM(postId, posterName) {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
     // J1 affiche l'overlay immédiatement comme J2
     showMatchFound(currentUserName || '???', posterName || '???');
     window._lfmAccepting = true; // signale au handler persistant de ne pas intervenir
