@@ -89,25 +89,47 @@
 
     playSound();
 
-    /* Si l'overlay plein-écran est déjà visible (l'utilisateur voit le VS),
-       la notif OS serait détruite par la redirection dans ~2.5s — inutile. */
-    const overlay = document.getElementById('match-found-overlay');
-    if (overlay && overlay.classList.contains('visible')) return;
+    /* Notif OS — fonctionne même si la page est en arrière-plan (alt+tab).
+       On n'appelle PAS requestPermission() ici car ce callback socket n'est
+       pas un geste utilisateur. La permission doit déjà être 'granted'
+       (demandée au premier clic via onFirstClick ci-dessous).
+       Si elle est 'default', on tente quand même — certains navigateurs
+       acceptent si la permission a été accordée dans une session précédente. */
+    console.log('[YUZU] match_redirect reçu, Notification.permission =', ('Notification' in window ? Notification.permission : 'N/A'));
 
-    /* La permission doit avoir été demandée au moment du clic (postLFM/acceptLFM).
-       On n'appelle plus requestPermission() ici : ce callback socket n'est pas
-       un geste utilisateur et le navigateur le refuserait silencieusement. */
-    if (!canNotify()) return;
+    if (!('Notification' in window)) return;
 
-    showNotif(
-      '⚔ MATCH FOUND',
-      p1 + ' vs ' + p2,
-      MATCH_NOTIF_ID,
-      function () {
-        if (cid) window.location.href = '/match/' + cid;
-        else     window.location.href = '/dashboard';
-      }
-    );
+    /* Si déjà granted : notif directe */
+    if (Notification.permission === 'granted') {
+      showNotif(
+        '⚔ MATCH FOUND',
+        p1 + ' vs ' + p2,
+        MATCH_NOTIF_ID,
+        function () {
+          if (cid) window.location.href = '/match/' + cid;
+          else     window.location.href = '/dashboard';
+        }
+      );
+      return;
+    }
+
+    /* Si default : tenter de demander (fonctionne uniquement si déclenché
+       depuis un contexte de confiance — sinon silencieux) */
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(function(p) {
+        if (p !== 'granted') return;
+        showNotif(
+          '⚔ MATCH FOUND',
+          p1 + ' vs ' + p2,
+          MATCH_NOTIF_ID,
+          function () {
+            if (cid) window.location.href = '/match/' + cid;
+            else     window.location.href = '/dashboard';
+          }
+        );
+      });
+    }
+    /* Si denied : silencieux */
   }
 
   function handleDashboardUpdate(data) {
@@ -146,11 +168,14 @@
     sock.on('dashboard_update', handleDashboardUpdate);
   }
 
-  /* Pré-charger le son dès que l'utilisateur interagit avec la page
-     (contourne la politique autoplay sans demander tout de suite) */
+  /* Pré-charger le son ET demander la permission de notif dès le premier clic.
+     Les deux doivent être déclenchés par un geste utilisateur direct — on en profite
+     pour les grouper ici plutôt que d'attendre l'arrivée de l'événement socket. */
   document.addEventListener('click', function onFirstClick() {
-    getAudio(); /* déclenche le préchargement */
-    document.removeEventListener('click', onFirstClick);
+    getAudio(); /* déclenche le préchargement audio */
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission(); /* pas besoin d'attendre la réponse ici */
+    }
   }, { once: true });
 
   /* Attente que window.socket soit disponible */
