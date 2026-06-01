@@ -89,18 +89,25 @@
 
     playSound();
 
-    requestPermission(function (ok) {
-      if (!ok) return;
-      showNotif(
-        '⚔ MATCH FOUND',
-        p1 + ' vs ' + p2,
-        MATCH_NOTIF_ID,
-        function () {
-          if (cid) window.location.href = '/match/' + cid;
-          else     window.location.href = '/dashboard';
-        }
-      );
-    });
+    /* Si l'overlay plein-écran est déjà visible (l'utilisateur voit le VS),
+       la notif OS serait détruite par la redirection dans ~2.5s — inutile. */
+    const overlay = document.getElementById('match-found-overlay');
+    if (overlay && overlay.classList.contains('visible')) return;
+
+    /* La permission doit avoir été demandée au moment du clic (postLFM/acceptLFM).
+       On n'appelle plus requestPermission() ici : ce callback socket n'est pas
+       un geste utilisateur et le navigateur le refuserait silencieusement. */
+    if (!canNotify()) return;
+
+    showNotif(
+      '⚔ MATCH FOUND',
+      p1 + ' vs ' + p2,
+      MATCH_NOTIF_ID,
+      function () {
+        if (cid) window.location.href = '/match/' + cid;
+        else     window.location.href = '/dashboard';
+      }
+    );
   }
 
   function handleDashboardUpdate(data) {
@@ -139,14 +146,11 @@
     sock.on('dashboard_update', handleDashboardUpdate);
   }
 
-  /* Pré-charger le son ET demander la permission de notif dès le premier clic.
-     Les deux doivent être déclenchés par un geste utilisateur direct — on en profite
-     pour les grouper ici plutôt que d'attendre l'arrivée de l'événement socket. */
+  /* Pré-charger le son dès que l'utilisateur interagit avec la page
+     (contourne la politique autoplay sans demander tout de suite) */
   document.addEventListener('click', function onFirstClick() {
-    getAudio(); /* déclenche le préchargement audio */
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission(); /* pas besoin d'attendre la réponse ici */
-    }
+    getAudio(); /* déclenche le préchargement */
+    document.removeEventListener('click', onFirstClick);
   }, { once: true });
 
   /* Attente que window.socket soit disponible */
