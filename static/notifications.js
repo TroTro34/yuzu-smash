@@ -139,11 +139,14 @@
     sock.on('dashboard_update', handleDashboardUpdate);
   }
 
-  /* Pré-charger le son dès que l'utilisateur interagit avec la page
-     (contourne la politique autoplay sans demander tout de suite) */
+  /* Pré-charger le son ET demander la permission de notif dès le premier clic.
+     Les deux doivent être déclenchés par un geste utilisateur direct — on en profite
+     pour les grouper ici plutôt que d'attendre l'arrivée de l'événement socket. */
   document.addEventListener('click', function onFirstClick() {
-    getAudio(); /* déclenche le préchargement */
-    document.removeEventListener('click', onFirstClick);
+    getAudio(); /* déclenche le préchargement audio */
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission(); /* pas besoin d'attendre la réponse ici */
+    }
   }, { once: true });
 
   /* Attente que window.socket soit disponible */
