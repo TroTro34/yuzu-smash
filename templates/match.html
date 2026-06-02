@@ -596,7 +596,9 @@
       </div>
       <!-- Right: name, elo, score -->
       <div class="fighter-right">
-        <div class="fighter-name">{{ challenger.yuzu_pseudo or challenger.username }}</div>
+        <div class="fighter-name">
+          {{ challenger.username }}{% if challenger.yuzu_pseudo %} <span style="color:var(--accent2);font-size:1.3rem;letter-spacing:1px;">({{ challenger.yuzu_pseudo }})</span>{% endif %}
+        </div>
         <div class="fighter-elo">{{ challenger.points }} ELO</div>
         <div class="fighter-score" id="score-p1">0</div>
       </div>
@@ -630,7 +632,9 @@
       </div>
       <!-- Right: name, elo, score -->
       <div class="fighter-right">
-        <div class="fighter-name">{{ challenged.yuzu_pseudo or challenged.username }}</div>
+        <div class="fighter-name">
+          {{ challenged.username }}{% if challenged.yuzu_pseudo %} <span style="color:var(--accent2);font-size:1.3rem;letter-spacing:1px;">({{ challenged.yuzu_pseudo }})</span>{% endif %}
+        </div>
         <div class="fighter-elo">{{ challenged.points }} ELO</div>
         <div class="fighter-score" id="score-p2">0</div>
       </div>
@@ -828,7 +832,7 @@
         <img id="report-img-preview" src="" alt="preview"
           style="width:100%;max-height:160px;object-fit:contain;border-radius:6px;
             border:1px solid rgba(255,85,85,0.3);background:var(--surface2);">
-        <button onclick="clearReportImage()" title="Supprimer" style="
+        <button onclick="clearReportImage()" title="Remove" style="
           position:absolute;top:4px;right:4px;
           background:rgba(0,0,0,0.7);border:1px solid var(--red);color:var(--red);
           border-radius:50%;width:22px;height:22px;font-size:0.75rem;line-height:1;
@@ -863,9 +867,9 @@
 const CHALLENGE_ID = {{ challenge.id           | tojson }};
 const FORMAT       = {{ challenge.format        | tojson }};
 const P1_ID        = {{ challenge.challenger_id | tojson }};
-const P1_NAME      = {{ (challenger.yuzu_pseudo or challenger.username) | tojson }};
+const P1_NAME      = {{ (challenger.username + (' (' + challenger.yuzu_pseudo + ')' if challenger.yuzu_pseudo else '')) | tojson }};
 const P2_ID        = {{ challenge.challenged_id | tojson }};
-const P2_NAME      = {{ (challenged.yuzu_pseudo or challenged.username) | tojson }};
+const P2_NAME      = {{ (challenged.username + (' (' + challenged.yuzu_pseudo + ')' if challenged.yuzu_pseudo else '')) | tojson }};
 const MY_ID        = {{ user.id                 | tojson }};
 
 // ── STATE ──
@@ -2592,7 +2596,7 @@ function initMatchSocket() {
     stopTimer();
     document.getElementById('stocks-recap').classList.remove('show');
     if (d.outcome === 'forfeit') {
-      showWinner(d.winner_id, 'W-L (forfait)', d.elo_change);
+      showWinner(d.winner_id, 'W-L (forfeit)', d.elo_change);
       showToast(d.message || '⏱ Result validated automatically.', true);
     } else {
       showToast(d.message || '⏱ Match cancelled — no activity (DRAW).', false);
