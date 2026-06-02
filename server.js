@@ -735,6 +735,13 @@ app.get('/api/lfm', publicApiLimiter, async (req, res) => {
   res.json(await sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`));
 });
 
+app.get('/api/active-matches', publicApiLimiter, async (req, res) => {
+  try {
+    const matches = await sbGet('challenges', 'status=eq.accepted&order=accepted_at.desc');
+    res.json(matches);
+  } catch (e) { res.status(500).json({ error: 'Server error' }); }
+});
+
 app.get('/api/players/search', publicApiLimiter, async (req, res) => {
   const q = (req.query.q || '').toLowerCase();
   let players = await sbGet('players', 'order=points.desc');
@@ -919,11 +926,12 @@ app.post('/lfm', requireAuth, async (req, res) => {
     const pts     = player[0]?.points || 1000;
     const main    = player[0]?.main_char || '';
     const avatar  = req.session.user.avatar || '';
-    const displayName = player[0]?.yuzu_pseudo || req.session.user.username;
+    const discordName = req.session.user.username;
+    const displayName = player[0]?.yuzu_pseudo || discordName;
     const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
     await sbPost('lfm_posts', { id: postId, player_id: userId,
-      player_name: displayName, player_avatar: avatar,
+      player_name: displayName, player_discord_name: discordName, player_avatar: avatar,
       player_points: pts, main_char: main, format: fmt, mode, message,
       created_at: new Date().toISOString(), expires_at: expires });
     res.json({ success: true });
