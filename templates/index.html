@@ -290,10 +290,9 @@
       display: flex; align-items: center; justify-content: space-between;
       gap: 0.5rem; margin-bottom: 0.8rem;
     }
-    .amc-player { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
-    .amc-avatar { width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--green); }
+    .amc-player { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+    .amc-avatar { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--green); }
     .amc-discord { font-weight: 700; font-size: 0.95rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
-    .amc-yuzu { font-size: 0.75rem; color: var(--accent2); text-align: center; }
     .amc-vs {
       font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; color: var(--accent);
       letter-spacing: 2px; flex-shrink: 0; padding: 0 0.3rem;
@@ -1003,14 +1002,6 @@
   }
 
   // ── ACTIVE MATCHES ───────────────────────────────────────────────────────────
-  function timeSince(isoStr) {
-    if (!isoStr) return '';
-    const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
-    if (diff < 60) return `${diff}s`;
-    if (diff < 3600) return `${Math.floor(diff/60)}m`;
-    return `${Math.floor(diff/3600)}h ${Math.floor((diff%3600)/60)}m`;
-  }
-
   function renderActiveMatches(matches) {
     const el = document.getElementById('active-matches-list');
     const countBadge = document.getElementById('active-match-count');
@@ -1032,24 +1023,21 @@
       const ch2Av = m.challenged_avatar
         ? `<img class="amc-avatar" src="https://cdn.discordapp.com/avatars/${escHtml(m.challenged_id)}/${escHtml(m.challenged_avatar)}.png" alt="">`
         : `<div class="amc-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>`;
-      // challenger_name / challenged_name are stored as yuzu_pseudo || discord_name
-      const elapsed = timeSince(m.accepted_at);
       return `<div class="active-match-card">
-        <div class="amc-label"><span class="amc-live-dot"></span>LIVE${elapsed ? ` · ${elapsed}` : ''}</div>
+        <div class="amc-label"><span class="amc-live-dot"></span>LIVE</div>
         <div class="amc-players">
           <div class="amc-player">
             ${ch1Av}
-            <div class="amc-discord">${escHtml(m.challenger_name || '???')}</div>
+            <div class="amc-discord">${escHtml(m.challenger_discord_name || m.challenger_name || '???')}</div>
           </div>
           <div class="amc-vs">VS</div>
           <div class="amc-player">
             ${ch2Av}
-            <div class="amc-discord">${escHtml(m.challenged_name || '???')}</div>
+            <div class="amc-discord">${escHtml(m.challenged_discord_name || m.challenged_name || '???')}</div>
           </div>
         </div>
         <div class="amc-meta">
           <span class="amc-tag format">${escHtml(m.format || 'BO3')}</span>
-          ${elapsed ? `<span class="amc-tag duration">⏱ ${elapsed}</span>` : ''}
         </div>
       </div>`;
     }).join('') + `</div>`;
