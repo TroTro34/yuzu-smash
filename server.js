@@ -432,16 +432,33 @@ async function dashboardData(userId, excludeChallengeIds = []) {
     my_matches: myMatches };
 }
 
+// ── LEADERBOARD CACHE ────────────────────────────────────────────────────────
+// Évite de re-fetch Supabase à chaque connexion cliente.
+// Le cache est invalidé immédiatement dès qu'un vrai changement se produit,
+// donc les mises à jour restent instantanées. Le TTL (30s) n'est qu'un filet
+// de sécurité contre le spam direct de /api/leaderboard.
+let _lbCache     = null;
+let _lbCacheTime = 0;
+const LB_CACHE_TTL = 30_000; // 30 secondes
+
 async function leaderboardData() {
-  const now = new Date().toISOString();
+  const now = Date.now();
+  if (_lbCache && (now - _lbCacheTime) < LB_CACHE_TTL) return _lbCache;
+  const nowIso = new Date().toISOString();
   const [players, recentMatches, lfmPosts, bannersArr] = await Promise.all([
     sbGet('players', 'order=points.desc'),
     sbGet('matches', 'order=date.desc&limit=10'),
-    sbGet('lfm_posts', `expires_at=gt.${now}&order=created_at.desc`),
+    sbGet('lfm_posts', `expires_at=gt.${nowIso}&order=created_at.desc`),
     sbGet('banners', 'select=id,img_dash,img_lb,img_dash_gif,img_lb_gif'),
   ]);
   const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
-  return { players, recent_matches: recentMatches, lfm_posts: lfmPosts, banners_map };
+  _lbCache     = { players, recent_matches: recentMatches, lfm_posts: lfmPosts, banners_map };
+  _lbCacheTime = Date.now();
+  return _lbCache;
+}
+
+function invalidateLeaderboardCache() {
+  _lbCache = null;
 }
 
 async function emitDashboardUpdate(userId, excludeChallengeIds = []) {
@@ -479,8 +496,9 @@ async function emitMatchUpdate(challengeId, override = {}) {
 }
 
 async function emitLeaderboardUpdate() {
-  // Signal léger sans payload — les clients re-fetchent /api/leaderboard eux-mêmes.
-  // Évite d'envoyer tout le dataset (joueurs + matches + banners) en broadcast à chaque action.
+  // Invalide le cache AVANT d'émettre — les clients re-fetchent /api/leaderboard
+  // et obtiennent des données fraîches de Supabase, pas le cache périmé.
+  invalidateLeaderboardCache();
   io.emit('leaderboard_changed');
 }
 
