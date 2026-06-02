@@ -33,6 +33,7 @@ const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onre
 const SUPABASE_URL        = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
 const ADMIN_DISCORD_ID    = process.env.ADMIN_DISCORD_ID || '';
+const DISCORD_LFM_WEBHOOK_URL = process.env.DISCORD_LFM_WEBHOOK_URL || '';
 
 const DISCORD_AUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
 
@@ -839,6 +840,47 @@ app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ── DISCORD WEBHOOK — LFM NOTIFICATION ───────────────────────────────────────
+// Sends a message to a Discord channel when a player posts a "Find a Match" ad.
+
+async function sendDiscordLfmNotification({ playerName, avatarId, playerId, format, mode, message, points }) {
+  if (!DISCORD_LFM_WEBHOOK_URL) return;
+  try {
+    const avatarUrl = avatarId
+      ? `https://cdn.discordapp.com/avatars/${playerId}/${avatarId}.png?size=64`
+      : null;
+
+    const formatLabel = { BO1: 'Best of 1', BO3: 'Best of 3', BO5: 'Best of 5', STOCKS: 'Stocks' }[format] || format;
+    const modeLabel   = mode === 'stocks' ? 'Stocks' : 'Sets';
+
+    const fields = [
+      { name: '🎮 Format', value: formatLabel, inline: true },
+      { name: '⚙️ Mode',   value: modeLabel,   inline: true },
+      { name: '📊 Points', value: String(points || 1000), inline: true },
+    ];
+    if (message) fields.push({ name: '💬 Message', value: message, inline: false });
+
+    const embed = {
+      color: 0xf04a00,
+      author: {
+        name: `${playerName} est en recherche de match !`,
+        icon_url: avatarUrl || undefined,
+      },
+      fields,
+      footer: { text: 'Smash YUZU • Find a Match' },
+      timestamp: new Date().toISOString(),
+    };
+
+    await fetch(DISCORD_LFM_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed] }),
+    });
+  } catch (e) {
+    console.error('[Discord LFM Webhook] Erreur:', e);
+  }
+}
+
 const lfmPostingInProgress = new Set();
 
 app.post('/lfm', requireAuth, async (req, res) => {
@@ -875,6 +917,15 @@ app.post('/lfm', requireAuth, async (req, res) => {
       created_at: new Date().toISOString(), expires_at: expires });
     res.json({ success: true });
     await emitLeaderboardUpdate(); 
+    sendDiscordLfmNotification({
+      playerName: req.session.user.username,
+      avatarId:   avatar,
+      playerId:   userId,
+      format:     fmt,
+      mode,
+      message,
+      points:     pts,
+    });
   } finally {
     lfmPostingInProgress.delete(userId);
   }
