@@ -852,6 +852,7 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
 
     const formatLabel = { BO1: 'Best of 1', BO3: 'Best of 3', BO5: 'Best of 5', STOCKS: 'Stocks' }[format] || format;
     const modeLabel   = mode === 'stocks' ? 'Stocks' : 'Sets';
+    const siteUrl     = REDIRECT_URI.replace('/callback', '');
 
     const fields = [
       { name: '🎮 Format', value: formatLabel, inline: true },
@@ -859,15 +860,17 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
       { name: '📊 Points', value: String(points || 1000), inline: true },
     ];
     if (message) fields.push({ name: '💬 Message', value: message, inline: false });
+    fields.push({ name: '🔗 Site', value: `[Accept on Smash YUZU](${siteUrl})`, inline: false });
 
     const embed = {
       color: 0xf04a00,
       author: {
-        name: `${playerName} est en recherche de match !`,
+        name: `⚔️ ${playerName} is looking for a match!`,
         icon_url: avatarUrl || undefined,
       },
+      description: '─────────────────────────',
       fields,
-      footer: { text: 'Smash YUZU • Find a Match' },
+      footer: { text: '─────────────────────────\nSmash YUZU • Find a Match' },
       timestamp: new Date().toISOString(),
     };
 
@@ -877,7 +880,7 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
       body: JSON.stringify({ embeds: [embed] }),
     });
   } catch (e) {
-    console.error('[Discord LFM Webhook] Erreur:', e);
+    console.error('[Discord LFM Webhook] Error:', e);
   }
 }
 
