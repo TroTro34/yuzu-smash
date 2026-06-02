@@ -596,7 +596,7 @@
       </div>
       <!-- Right: name, elo, score -->
       <div class="fighter-right">
-        <div class="fighter-name">{{ challenger.username }}</div>
+        <div class="fighter-name">{{ challenger.yuzu_pseudo or challenger.username }}</div>
         <div class="fighter-elo">{{ challenger.points }} ELO</div>
         <div class="fighter-score" id="score-p1">0</div>
       </div>
@@ -630,7 +630,7 @@
       </div>
       <!-- Right: name, elo, score -->
       <div class="fighter-right">
-        <div class="fighter-name">{{ challenged.username }}</div>
+        <div class="fighter-name">{{ challenged.yuzu_pseudo or challenged.username }}</div>
         <div class="fighter-elo">{{ challenged.points }} ELO</div>
         <div class="fighter-score" id="score-p2">0</div>
       </div>
@@ -863,9 +863,9 @@
 const CHALLENGE_ID = {{ challenge.id           | tojson }};
 const FORMAT       = {{ challenge.format        | tojson }};
 const P1_ID        = {{ challenge.challenger_id | tojson }};
-const P1_NAME      = {{ challenger.username     | tojson }};
+const P1_NAME      = {{ (challenger.yuzu_pseudo or challenger.username) | tojson }};
 const P2_ID        = {{ challenge.challenged_id | tojson }};
-const P2_NAME      = {{ challenged.username     | tojson }};
+const P2_NAME      = {{ (challenged.yuzu_pseudo or challenged.username) | tojson }};
 const MY_ID        = {{ user.id                 | tojson }};
 
 // ── STATE ──
