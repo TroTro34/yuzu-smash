@@ -738,7 +738,19 @@ app.get('/api/lfm', publicApiLimiter, async (req, res) => {
 app.get('/api/active-matches', publicApiLimiter, async (req, res) => {
   try {
     const matches = await sbGet('challenges', 'status=eq.accepted&order=accepted_at.desc');
-    res.json(matches);
+    if (!matches.length) return res.json([]);
+    // Collect all player IDs involved
+    const ids = [...new Set(matches.flatMap(m => [m.challenger_id, m.challenged_id]).filter(Boolean))];
+    const players = await sbGet('players', `id=in.(${ids.join(',')})`);
+    const pMap = Object.fromEntries(players.map(p => [p.id, p]));
+    const enriched = matches.map(m => ({
+      ...m,
+      challenger_discord_name: pMap[m.challenger_id]?.username || m.challenger_name,
+      challenger_avatar:       pMap[m.challenger_id]?.avatar   || null,
+      challenged_discord_name: pMap[m.challenged_id]?.username || m.challenged_name,
+      challenged_avatar:       pMap[m.challenged_id]?.avatar   || null,
+    }));
+    res.json(enriched);
   } catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
