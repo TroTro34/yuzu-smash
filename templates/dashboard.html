@@ -98,6 +98,11 @@
     .profile-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--muted); letter-spacing: 2px; }
     .profile-right { display: flex; flex-direction: column; gap: 1rem; }
     .profile-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 3px; line-height: 1; }
+    .yuzu-pseudo-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
+    .yuzu-pseudo-label { font-size: 0.65rem; letter-spacing: 3px; color: var(--muted); font-family: 'Bebas Neue', sans-serif; text-transform: uppercase; }
+    .yuzu-pseudo-val { font-size: 0.95rem; font-weight: 700; color: var(--accent2); letter-spacing: 1px; }
+    .yuzu-pseudo-edit-btn { background: none; border: none; cursor: pointer; font-size: 0.85rem; opacity: 0.5; transition: opacity 0.2s; padding: 0; line-height: 1; }
+    .yuzu-pseudo-edit-btn:hover { opacity: 1; }
     .profile-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
     .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1.2rem; text-align: center; min-width: 80px; }
     .stat-box .val { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; display: block; }
@@ -412,6 +417,16 @@
     </div>
     <div class="profile-right">
       <div class="profile-name">{{ user.username }}</div>
+      <div class="yuzu-pseudo-row" id="yuzu-pseudo-row">
+        {% if player.yuzu_pseudo %}
+          <span class="yuzu-pseudo-label">YUZU PSEUDO</span>
+          <span class="yuzu-pseudo-val" id="yuzu-pseudo-display">{{ player.yuzu_pseudo }}</span>
+        {% else %}
+          <span class="yuzu-pseudo-label">YUZU PSEUDO</span>
+          <span class="yuzu-pseudo-val" id="yuzu-pseudo-display" style="color:var(--muted);font-style:italic;">Non défini</span>
+        {% endif %}
+        <button class="yuzu-pseudo-edit-btn" onclick="openYuzuPseudoModal()" title="Modifier le pseudo Yuzu">✏️</button>
+      </div>
       <div class="profile-stats">
         <div class="stat-box pts"><span class="val" id="stat-points">{{ player.points }}</span><span class="lbl">ELO</span></div>
         <div class="stat-box wins"><span class="val" id="stat-wins">{{ player.wins }}</span><span class="lbl">Wins</span></div>
@@ -1289,6 +1304,71 @@ async function submitSuggestion() {
       alert('Error: ' + (d.error || 'unknown'));
     }
   } catch(e) { alert('Network error.'); }
+}
+</script>
+
+<!-- YUZU PSEUDO MODAL -->
+<div class="modal-overlay" id="yuzuPseudoModal" onclick="if(event.target===this)closeYuzuPseudoModal()">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-title">✏️ Yuzu Pseudo</div>
+    <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1.2rem;line-height:1.6;">
+      Ce pseudo est affiché à la place de ton pseudo Discord dans le dashboard, le matchmaking et les pages de match.<br>
+      <span style="color:var(--text);font-size:0.8rem;">Il n'apparaît pas dans le classement (ladder).</span>
+    </p>
+    <input id="yuzu-pseudo-input" type="text" maxlength="32" placeholder="Ton pseudo Yuzu…"
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+             padding:0.8rem 1rem;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:1rem;
+             margin-bottom:1rem;transition:border-color 0.2s;"
+      onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"
+      onkeydown="if(event.key==='Enter')saveYuzuPseudo()">
+    <div style="display:flex;gap:0.8rem;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveYuzuPseudo()">💾 Sauvegarder</button>
+      <button class="btn btn-ghost" onclick="closeYuzuPseudoModal()">Annuler</button>
+    </div>
+    <div id="yuzu-pseudo-status" style="display:none;margin-top:0.8rem;font-size:0.9rem;text-align:center;"></div>
+  </div>
+</div>
+
+<script>
+function openYuzuPseudoModal() {
+  const current = document.getElementById('yuzu-pseudo-display').textContent.trim();
+  document.getElementById('yuzu-pseudo-input').value = (current === 'Non défini') ? '' : current;
+  document.getElementById('yuzu-pseudo-status').style.display = 'none';
+  document.getElementById('yuzuPseudoModal').classList.add('open');
+  setTimeout(() => document.getElementById('yuzu-pseudo-input').focus(), 50);
+}
+function closeYuzuPseudoModal() {
+  document.getElementById('yuzuPseudoModal').classList.remove('open');
+}
+async function saveYuzuPseudo() {
+  const val = document.getElementById('yuzu-pseudo-input').value.trim();
+  const status = document.getElementById('yuzu-pseudo-status');
+  status.style.display = 'none';
+  try {
+    const r = await fetch('/api/update_profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yuzu_pseudo: val })
+    });
+    const data = await r.json();
+    if (data.success) {
+      const display = document.getElementById('yuzu-pseudo-display');
+      display.textContent = val || 'Non défini';
+      display.style.color = val ? 'var(--accent2)' : 'var(--muted)';
+      display.style.fontStyle = val ? 'normal' : 'italic';
+      status.textContent = '✅ Sauvegardé !';
+      status.style.color = 'var(--green)';
+      status.style.display = 'block';
+      setTimeout(closeYuzuPseudoModal, 900);
+    } else {
+      status.textContent = '⚠ Erreur lors de la sauvegarde.';
+      status.style.color = 'var(--red)';
+      status.style.display = 'block';
+    }
+  } catch(e) {
+    status.textContent = '⚠ Erreur réseau.';
+    status.style.color = 'var(--red)';
+    status.style.display = 'block';
+  }
 }
 </script>
 
