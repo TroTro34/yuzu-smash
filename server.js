@@ -760,6 +760,10 @@ app.post('/api/update_profile', requireAuth, async (req, res) => {
   const update = {};
   if (req.body.main_char      !== undefined) update.main_char      = sanitizeStr(req.body.main_char,      MAX_CHAR_NAME);
   if (req.body.secondary_char !== undefined) update.secondary_char = sanitizeStr(req.body.secondary_char, MAX_CHAR_NAME);
+  if (req.body.yuzu_pseudo    !== undefined) {
+    const pseudo = sanitizeStr(req.body.yuzu_pseudo, 32);
+    update.yuzu_pseudo = pseudo || null;
+  }
   if (!Object.keys(update).length) return res.json({ success: true });
   await sbPatch('players', { id: userId }, update);
   res.json({ success: true });
@@ -781,11 +785,14 @@ app.post('/challenge/:opponent_id', authApiLimiter, requireAuth, async (req, res
   const fmt = req.body.format || 'BO3';
   if (!VALID_FORMATS.has(fmt)) return res.status(400).json({ error: 'Invalid format' });
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
-  await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: req.session.user.username,
-    challenged_id: opponent_id, challenged_name: opponent[0].username, status: 'pending', format: fmt });
+  const myPlayer = await sbGet('players', `id=eq.${userId}`);
+  const myDisplayName = myPlayer[0]?.yuzu_pseudo || req.session.user.username;
+  const oppDisplayName = opponent[0].yuzu_pseudo || opponent[0].username;
+  await sbPost('challenges', { id: cid, challenger_id: userId, challenger_name: myDisplayName,
+    challenged_id: opponent_id, challenged_name: oppDisplayName, status: 'pending', format: fmt });
 
   io.to(`user_${opponent_id}`).emit('new_challenge', {
-    challenger_name: req.session.user.username,
+    challenger_name: myDisplayName,
     format: fmt,
     challenge_id: cid,
   });
@@ -912,16 +919,17 @@ app.post('/lfm', requireAuth, async (req, res) => {
     const pts     = player[0]?.points || 1000;
     const main    = player[0]?.main_char || '';
     const avatar  = req.session.user.avatar || '';
+    const displayName = player[0]?.yuzu_pseudo || req.session.user.username;
     const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     const postId  = `lfm_${crypto.randomBytes(8).toString('hex')}`;
     await sbPost('lfm_posts', { id: postId, player_id: userId,
-      player_name: req.session.user.username, player_avatar: avatar,
+      player_name: displayName, player_avatar: avatar,
       player_points: pts, main_char: main, format: fmt, mode, message,
       created_at: new Date().toISOString(), expires_at: expires });
     res.json({ success: true });
     await emitLeaderboardUpdate(); 
     sendDiscordLfmNotification({
-      playerName: req.session.user.username,
+      playerName: displayName,
       avatarId:   avatar,
       playerId:   userId,
       format:     fmt,
@@ -943,9 +951,11 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
   const post = posts[0];
   if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
   const cid = `ch_${crypto.randomBytes(8).toString('hex')}`;
+  const myPlayer2 = await sbGet('players', `id=eq.${userId}`);
+  const myDisplayName2 = myPlayer2[0]?.yuzu_pseudo || req.session.user.username;
 
   await sbPost('challenges', { id: cid, challenger_id: userId,
-    challenger_name: req.session.user.username, challenged_id: post.player_id,
+    challenger_name: myDisplayName2, challenged_id: post.player_id,
     challenged_name: post.player_name, status: 'accepted', format: post.format,
     accepted_at: new Date().toISOString() });
 
@@ -957,8 +967,8 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
 
   res.json({ success: true, challenge_id: cid });
 
-  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
-  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: req.session.user.username, p2: post.player_name });
+  io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: myDisplayName2, p2: post.player_name });
+  io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: myDisplayName2, p2: post.player_name });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
 });
 
