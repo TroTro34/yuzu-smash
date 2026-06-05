@@ -128,6 +128,16 @@
     .match-fmt { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
     .empty { color: var(--muted); text-align: center; padding: 2rem; font-size: 0.95rem; }
 
+    .btn-dm {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.45rem 1.1rem; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none;
+      background: rgba(88,101,242,0.12); color: #a5b4fc;
+      border: 1px solid rgba(88,101,242,0.45);
+    }
+    .btn-dm:hover { background: rgba(88,101,242,0.28); border-color: #7c8af7; color: #c7d2fe; transform: translateY(-1px); }
+
     .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--surface2);
       border: 1px solid var(--accent); color: var(--text); padding: 1rem 1.5rem;
       border-radius: 8px; z-index: 999; opacity: 0; transform: translateY(10px);
@@ -216,8 +226,12 @@
       {% endif %}
 
       {% if user and user.id != player.id %}
-      <div>
+      <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="sendChallenge()">⚔ Challenge {{ player.username }}</button>
+        <a href="/dm/{{ player.id }}" class="btn-dm" title="Message {{ player.username }}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+          Message
+        </a>
       </div>
       {% endif %}
     </div>
