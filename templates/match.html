@@ -537,6 +537,46 @@
     }
     #chat-send:hover { background: var(--accent2); color: #0a0a0f; }
 
+    /* Typing indicator */
+    #chat-typing {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.72rem; color: var(--muted); font-style: italic;
+      min-height: 1.4rem; flex-shrink: 0;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .typing-dots span {
+      display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--muted); margin: 0 1px;
+      animation: typing-bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-4px)} }
+
+    /* Reply preview bar */
+    #chat-reply-bar {
+      display: none; padding: 0.35rem 0.75rem;
+      background: rgba(255,128,0,0.06); border-top: 1px solid rgba(255,128,0,0.2);
+      font-size: 0.75rem; flex-shrink: 0;
+      align-items: center; gap: 0.5rem;
+    }
+    #chat-reply-bar.visible { display: flex; }
+    #chat-reply-text { flex: 1; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    #chat-reply-text strong { color: var(--accent2); }
+    #chat-reply-cancel { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 2px; }
+    #chat-reply-cancel:hover { color: var(--red); }
+
+    /* Reply quote inside message bubble */
+    .chat-reply-quote {
+      padding: 0.25rem 0.5rem; margin-bottom: 0.3rem;
+      border-left: 2px solid var(--accent2);
+      background: rgba(255,128,0,0.07); border-radius: 4px;
+      font-size: 0.72rem; color: var(--muted);
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
+    .chat-reply-quote strong { color: var(--accent2); }
+    .chat-msg-bubble-wrap { display: flex; flex-direction: column; max-width: 100%; }
+
     @media (max-width: 860px) {
       #match-chat { display: none; }
     }
@@ -669,6 +709,11 @@
   </div>
   <div id="chat-messages">
     <div class="chat-empty" id="chat-empty">No messages yet — say hi! 👋</div>
+  </div>
+  <div id="chat-typing"></div>
+  <div id="chat-reply-bar">
+    <div id="chat-reply-text">Reply to <strong id="chat-reply-name"></strong>: <span id="chat-reply-preview"></span></div>
+    <button id="chat-reply-cancel" onclick="cancelReply()" title="Cancel reply">✕</button>
   </div>
   <div id="chat-input-row">
     <input id="chat-input" type="text" placeholder="Message…" maxlength="200" autocomplete="off">
@@ -2855,6 +2900,22 @@ async function submitReport() {
 // ─────────────────────────────────────────────
 // MATCH CHAT
 // ─────────────────────────────────────────────
+let replyTarget = null; // { uid, name, text }
+let typingTimer = null;
+
+function setReply(uid, name, text) {
+  replyTarget = { uid, name, text };
+  document.getElementById('chat-reply-name').textContent = name;
+  document.getElementById('chat-reply-preview').textContent = text.slice(0, 60) + (text.length > 60 ? '…' : '');
+  document.getElementById('chat-reply-bar').classList.add('visible');
+  document.getElementById('chat-input').focus();
+}
+
+function cancelReply() {
+  replyTarget = null;
+  document.getElementById('chat-reply-bar').classList.remove('visible');
+}
+
 function chatSend() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
@@ -2863,9 +2924,20 @@ function chatSend() {
     showToast('Connection lost — try again in a moment.', false);
     return;
   }
-  matchSocket.emit('chat_message', { challenge_id: CHALLENGE_ID, text });
+  const payload = { challenge_id: CHALLENGE_ID, text };
+  if (replyTarget) payload.reply_to = replyTarget;
+  matchSocket.emit('chat_message', payload);
   input.value = '';
   input.focus();
+  cancelReply();
+  clearTimeout(typingTimer);
+}
+
+function chatTypingStart() {
+  if (!matchSocket || !matchSocket.connected) return;
+  matchSocket.emit('chat_typing', { challenge_id: CHALLENGE_ID });
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {}, 2500);
 }
 
 function chatReceive(data) {
@@ -2881,13 +2953,30 @@ function chatReceive(data) {
   const d = new Date(data.ts);
   const time = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 
+  let replyHtml = '';
+  if (data.replyTo) {
+    replyHtml = `<div class="chat-reply-quote"><strong>${escChatHtml(data.replyTo.name)}</strong>: ${escChatHtml(data.replyTo.text.slice(0,60))}${data.replyTo.text.length>60?'…':''}</div>`;
+  }
+
   div.innerHTML = `
     <div class="chat-msg-name">${escChatHtml(data.name)}</div>
-    <div class="chat-msg-bubble">${escChatHtml(data.text)}</div>
-    <div class="chat-msg-time">${time}</div>`;
+    <div class="chat-msg-bubble-wrap">
+      ${replyHtml}
+      <div class="chat-msg-bubble">${escChatHtml(data.text)}</div>
+    </div>
+    <div class="chat-msg-time">${time}${!isMine ? ` <span style="color:var(--border);cursor:pointer;margin-left:4px;" onclick='setReply("${escChatHtml(data.uid)}","${escChatHtml(data.name)}","${escChatHtml(data.text.replace(/'/g,'&#39;'))}")' title="Reply">↩</span>` : ''}</div>`;
 
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function updateTypingIndicator(typingList) {
+  const el = document.getElementById('chat-typing');
+  // Filter out self
+  const others = (typingList || []).filter(t => t.uid !== MY_ID);
+  if (!others.length) { el.innerHTML = ''; return; }
+  const names = others.map(t => escChatHtml(t.name)).join(', ');
+  el.innerHTML = `<span>${names} ${others.length===1?'is':'are'} typing</span><span class="typing-dots"><span></span><span></span><span></span></span>`;
 }
 
 function escChatHtml(s) {
