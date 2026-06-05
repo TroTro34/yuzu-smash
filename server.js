@@ -505,7 +505,66 @@ async function emitLeaderboardUpdate() {
 const chatHistory = new Map();
 const CHAT_MAX = 50;
 
+// ── DM CHAT (player-to-player) ────────────────────────────────────────────────
+// dmHistory: Map<roomId, { messages: [], createdAt: timestamp }>
+// roomId = sorted join of two player IDs, e.g. "dm_AAA_BBB"
+const dmHistory = new Map();
+const DM_CHAT_MAX = 100;
+const DM_TTL_MS   = 24 * 60 * 60 * 1000; // 24h
+
+function dmRoomId(a, b) { return 'dm_' + [a, b].sort().join('_'); }
+
+function getDmHistory(roomId) {
+  const entry = dmHistory.get(roomId);
+  if (!entry) return [];
+  if (Date.now() - entry.createdAt > DM_TTL_MS) { dmHistory.delete(roomId); return []; }
+  return entry.messages;
+}
+
+function pushDmMessage(roomId, payload) {
+  let entry = dmHistory.get(roomId);
+  if (!entry || Date.now() - entry.createdAt > DM_TTL_MS) {
+    entry = { messages: [], createdAt: Date.now() };
+    dmHistory.set(roomId, entry);
+  }
+  entry.messages.push(payload);
+  if (entry.messages.length > DM_CHAT_MAX) entry.messages.shift();
+}
+
+// Typing state: Map<roomId, Map<uid, timeoutHandle>>
+const typingState = new Map();
+
+function setTyping(roomId, uid, name, io_instance) {
+  if (!typingState.has(roomId)) typingState.set(roomId, new Map());
+  const room = typingState.get(roomId);
+  if (room.has(uid)) clearTimeout(room.get(uid).timer);
+  const timer = setTimeout(() => {
+    room.delete(uid);
+    io_instance.to(roomId).emit('typing_update', { roomId, typing: [...room.keys()].map(k => room.get(k)?.name || k) });
+  }, 3000);
+  room.set(uid, { timer, name });
+  io_instance.to(roomId).emit('typing_update', { roomId, typing: [...room.entries()].map(([k, v]) => ({ uid: k, name: v.name })) });
+}
+
+function clearTyping(roomId, uid, io_instance) {
+  const room = typingState.get(roomId);
+  if (!room || !room.has(uid)) return;
+  clearTimeout(room.get(uid).timer);
+  room.delete(uid);
+  io_instance.to(roomId).emit('typing_update', { roomId, typing: [...room.entries()].map(([k, v]) => ({ uid: k, name: v.name })) });
+}
+
 const chatRateMap = new Map();
+const dmRateMap   = new Map();
+
+function isDmRateLimited(uid) {
+  const now = Date.now();
+  const entry = dmRateMap.get(uid) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > CHAT_RATE_LIMIT_WINDOW) { entry.count = 0; entry.windowStart = now; }
+  entry.count++;
+  dmRateMap.set(uid, entry);
+  return entry.count > CHAT_RATE_LIMIT_COUNT;
+}
 
 function isChatRateLimited(uid) {
   const now = Date.now();
@@ -571,12 +630,79 @@ io.on('connection', (socket) => {
     const text = (data?.text || '').toString().slice(0, 200).trim();
     if (!uid || !validateId(cid) || !text) return;
     if (isChatRateLimited(uid)) return; 
-    const payload = { uid, name, text, ts: new Date().toISOString() };
+    clearTyping(`match_${cid}`, uid, io);
+    const replyTo = data?.reply_to ? {
+      uid:  String(data.reply_to.uid  || '').slice(0, 80),
+      name: String(data.reply_to.name || '').slice(0, 80),
+      text: String(data.reply_to.text || '').slice(0, 80),
+    } : null;
+    const payload = { uid, name, text, ts: new Date().toISOString(), ...(replyTo ? { replyTo } : {}) };
     if (!chatHistory.has(cid)) chatHistory.set(cid, []);
     const hist = chatHistory.get(cid);
     hist.push(payload);
     if (hist.length > CHAT_MAX) hist.shift();
     io.to(`match_${cid}`).emit('chat_message', payload);
+  });
+
+  socket.on('chat_typing', (data) => {
+    const uid  = req.session?.user?.id;
+    const name = req.session?.user?.username || 'Unknown';
+    const cid  = data?.challenge_id || '';
+    if (!uid || !validateId(cid)) return;
+    setTyping(`match_${cid}`, uid, name, io);
+  });
+
+  // DM CHAT
+  socket.on('dm_join', async (data) => {
+    const uid = req.session?.user?.id;
+    const otherId = data?.other_id || '';
+    if (!uid || !validateId(otherId)) return;
+    const [myRow, otherRow] = await Promise.all([
+      sbGet('players', `id=eq.${uid}`),
+      sbGet('players', `id=eq.${otherId}`),
+    ]);
+    if (!myRow.length || !otherRow.length) return;
+    const roomId = dmRoomId(uid, otherId);
+    socket.join(roomId);
+    const history = getDmHistory(roomId);
+    if (history.length) socket.emit('dm_history', { roomId, messages: history });
+  });
+
+  socket.on('dm_leave', (data) => {
+    const uid = req.session?.user?.id;
+    const otherId = data?.other_id || '';
+    if (!uid || !validateId(otherId)) return;
+    const roomId = dmRoomId(uid, otherId);
+    clearTyping(roomId, uid, io);
+    socket.leave(roomId);
+  });
+
+  socket.on('dm_typing', (data) => {
+    const uid  = req.session?.user?.id;
+    const name = req.session?.user?.username || 'Unknown';
+    const otherId = data?.other_id || '';
+    if (!uid || !validateId(otherId)) return;
+    const roomId = dmRoomId(uid, otherId);
+    setTyping(roomId, uid, name, io);
+  });
+
+  socket.on('dm_message', (data) => {
+    const uid  = req.session?.user?.id;
+    const name = req.session?.user?.username || 'Unknown';
+    const otherId = data?.other_id || '';
+    const text    = (data?.text || '').toString().slice(0, 200).trim();
+    if (!uid || !validateId(otherId) || !text) return;
+    if (isDmRateLimited(uid)) return;
+    const roomId = dmRoomId(uid, otherId);
+    clearTyping(roomId, uid, io);
+    const replyTo = data?.reply_to ? {
+      uid:  String(data.reply_to.uid  || '').slice(0, 80),
+      name: String(data.reply_to.name || '').slice(0, 80),
+      text: String(data.reply_to.text || '').slice(0, 80),
+    } : null;
+    const payload = { uid, name, text, ts: new Date().toISOString(), ...(replyTo ? { replyTo } : {}) };
+    pushDmMessage(roomId, payload);
+    io.to(roomId).emit('dm_message', { roomId, ...payload });
   });
 });
 
@@ -731,6 +857,39 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
     if (!challenger.length || !challenged.length) return res.redirect('/dashboard');
     const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
     res.render('match.html', { user: req.session.user, challenge: c, challenger: challenger[0], challenged: challenged[0], banners_map });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// ── DM PAGE ──────────────────────────────────────────────────────────────────
+app.get('/dm/:other_id', requireAuth, async (req, res) => {
+  const { other_id } = req.params;
+  if (!validateId(other_id)) return res.redirect('/dashboard');
+  const uid = req.session.user.id;
+  if (uid === other_id) return res.redirect('/dashboard');
+  try {
+    const [otherRows, myRow, bannersArr] = await Promise.all([
+      sbGet('players', `id=eq.${other_id}`),
+      sbGet('players', `id=eq.${uid}`),
+      sbGet('banners', 'select=id,img_lb,img_dash,img_lb_gif,img_dash_gif'),
+    ]);
+    if (!otherRows.length) return res.redirect('/dashboard');
+    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
+    // Include match chat history as archived messages
+    const matchRooms = [];
+    const allChallenges = await sbGet('challenges',
+      `or=(and(challenger_id.eq.${uid},challenged_id.eq.${other_id}),and(challenger_id.eq.${other_id},challenged_id.eq.${uid}))&status=in.(completed,disputed)&order=created_at.desc&limit=20`
+    );
+    for (const c of allChallenges) {
+      const hist = chatHistory.get(c.id) || [];
+      if (hist.length) matchRooms.push({ challenge_id: c.id, format: c.format, messages: hist });
+    }
+    res.render('dm.html', {
+      user: req.session.user,
+      me: myRow[0] || {},
+      other: otherRows[0],
+      banners_map,
+      match_rooms: matchRooms,
+    });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
