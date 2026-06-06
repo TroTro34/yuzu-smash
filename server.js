@@ -505,6 +505,10 @@ async function emitLeaderboardUpdate() {
 const chatHistory = new Map();
 const CHAT_MAX = 50;
 
+// Cache du dernier état de phase BO par match — permet de resynchroniser
+// un joueur qui arrive en retard ou dont la session storage est vide.
+const boPhaseCache = new Map();
+
 // ── DM CHAT (player-to-player) ────────────────────────────────────────────────
 // dmHistory: Map<roomId, { messages: [], createdAt: timestamp }>
 // roomId = sorted join of two player IDs, e.g. "dm_AAA_BBB"
@@ -609,6 +613,8 @@ io.on('connection', (socket) => {
     socket.join(`match_${cid}`);
     const history = chatHistory.get(cid) || [];
     if (history.length) socket.emit('chat_history', history);
+    const cachedPhase = boPhaseCache.get(cid);
+    if (cachedPhase) socket.emit('bo_phase_update', cachedPhase);
   });
 
   socket.on('leave_match', (data) => {
@@ -620,6 +626,7 @@ io.on('connection', (socket) => {
     const cid = data && data.challenge_id;
     if (!cid) return;
 
+    boPhaseCache.set(cid, data);
     socket.to(`match_${cid}`).emit('bo_phase_update', data);
   });
 
@@ -1213,6 +1220,7 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
     screenshot,
   });
   chatHistory.delete(challenge_id);
+    boPhaseCache.delete(challenge_id);
 
   const msg = { type: 'match_timeout', outcome: 'draw', challenge_id,
     message: '🚩 Match signalé — résultat en DRAW en attendant la décision admin.' };
@@ -1496,6 +1504,7 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
         await emitMatchUpdate(challenge_id, { status: 'completed', winner_id: null, score: scoreStr || '0-0', elo_change: 0 });
         await emitLeaderboardUpdate();
         chatHistory.delete(challenge_id);
+    boPhaseCache.delete(challenge_id);
         return res.json({ success: true, message: 'Match ended in a draw. No ELO change.', elo_change: 0, winner_id: null });
       }
       const [winnerArr, loserArr] = await Promise.all([
@@ -1527,6 +1536,7 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
         });
         await emitLeaderboardUpdate();
         chatHistory.delete(challenge_id);
+    boPhaseCache.delete(challenge_id);
         return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
       }
     } else {
@@ -1577,6 +1587,7 @@ async function resolveDeadMatches() {
         chat_history_snapshot: chatHistory.get(c.id) || [],
       });
       chatHistory.delete(c.id);
+    boPhaseCache.delete(c.id);
       const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
         message: '⏱ Temps écoulé — aucun résultat soumis. Match annulé (DRAW), un admin peut trancher.' };
       io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
@@ -1600,6 +1611,7 @@ async function resolveDeadMatches() {
         chat_history_snapshot: chatHistory.get(c.id) || [],
       });
       chatHistory.delete(c.id);
+    boPhaseCache.delete(c.id);
       const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
         message: '⏱ Confirmation non reçue à temps — match en DRAW. Un admin va trancher.' };
       io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
