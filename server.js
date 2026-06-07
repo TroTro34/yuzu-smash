@@ -1190,7 +1190,7 @@ app.post('/challenge/:challenge_id/cancel_match', requireAuth, async (req, res) 
   boPhaseCache.delete(challenge_id);
 
   const msg = { type: 'match_cancelled', challenge_id,
-    message: '\u{1F6AB} Match annulé par un joueur — retour au dashboard.' };
+    message: '\u{1F6AB} Match cancelled by a player — returning to dashboard.' };
   io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
   io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
   await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
@@ -1734,13 +1734,13 @@ async function resolveDeadMatches() {
       await createReport({
         challenge_id: c.id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
         format: c.format,
-        title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — aucun résultat soumis`,
+        title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — no result submitted`,
         reason: 'timeout_no_result',
         chat_history_snapshot: [],
       });
     boPhaseCache.delete(c.id);
       const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
-        message: '⏱ Temps écoulé — aucun résultat soumis. Match annulé (DRAW), un admin peut trancher.' };
+        message: '⏱ Time\'s up — no result submitted. Match set to DRAW, an admin will decide.' };
       io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
       io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
       await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
