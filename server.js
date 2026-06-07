@@ -34,7 +34,7 @@ const SUPABASE_URL        = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
 const ADMIN_DISCORD_ID    = process.env.ADMIN_DISCORD_ID || '';
 const DISCORD_LFM_WEBHOOK_URL = process.env.DISCORD_LFM_WEBHOOK_URL || '';
-const DISCORD_LFM_ROLE_ID    = process.env.DISCORD_LFM_ROLE_ID || '1513108737332609054';
+const DISCORD_LFM_ROLE_ID    = process.env.DISCORD_LFM_ROLE_ID || '1100475756653596773';
 
 const DISCORD_AUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
 
