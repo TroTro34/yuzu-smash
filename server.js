@@ -391,6 +391,41 @@ function calcEloStocks(wp, lp, wSt, lSt) {
   return Math.max(Math.round(base * (1.0 + diffRatio * 0.5)), 1);
 }
 
+// ── CHAR STATS ────────────────────────────────────────────────────────────────
+// Met à jour le champ JSONB `char_stats` dans `players` pour les deux joueurs.
+// Structure : { mario: { wins: 3, losses: 1 }, pikachu: { wins: 0, losses: 2 }, ... }
+async function updateCharStats(winnerId, winnerChar, loserId, loserChar) {
+  const updates = [];
+
+  if (winnerChar) {
+    updates.push(
+      sbGet('players', `id=eq.${winnerId}`).then(rows => {
+        if (!rows.length) return;
+        const p = rows[0];
+        const stats = (typeof p.char_stats === 'object' && p.char_stats) ? { ...p.char_stats } : {};
+        if (!stats[winnerChar]) stats[winnerChar] = { wins: 0, losses: 0 };
+        stats[winnerChar].wins = (stats[winnerChar].wins || 0) + 1;
+        return sbPatch('players', { id: winnerId }, { char_stats: stats });
+      })
+    );
+  }
+
+  if (loserChar) {
+    updates.push(
+      sbGet('players', `id=eq.${loserId}`).then(rows => {
+        if (!rows.length) return;
+        const p = rows[0];
+        const stats = (typeof p.char_stats === 'object' && p.char_stats) ? { ...p.char_stats } : {};
+        if (!stats[loserChar]) stats[loserChar] = { wins: 0, losses: 0 };
+        stats[loserChar].losses = (stats[loserChar].losses || 0) + 1;
+        return sbPatch('players', { id: loserId }, { char_stats: stats });
+      })
+    );
+  }
+
+  if (updates.length) await Promise.all(updates);
+}
+
 function validateId(v) { return v && VALID_ID_RE.test(String(v)); }
 function sanitizeStr(v, max) { return String(v || '').trim().slice(0, max); }
 function validateStocks(v) {
@@ -1349,6 +1384,7 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
     }),
   ]);
 
+  await updateCharStats(winner_id, winner.main_char || null, loser_id, loser.main_char || null);
   await emitLeaderboardUpdate();
   await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
 
@@ -1536,10 +1572,8 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
+        await updateCharStats(winner_id, winner.main_char || null, loser_id, loser.main_char || null);
         await new Promise(r => setTimeout(r, 300));
-        await emitMatchUpdate(challenge_id, {
-          status: 'completed', winner_id, score: report.score || scoreStr, elo_change: eloGain,
-        });
         await emitLeaderboardUpdate();
         chatHistory.delete(challenge_id);
     boPhaseCache.delete(challenge_id);
