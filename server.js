@@ -11,10 +11,10 @@ const path       = require('path');
 const rateLimit   = require('express-rate-limit');
 
 const SECRET_KEY          = process.env.SECRET_KEY;
-if (!SECRET_KEY) { console.error('SECRET_KEY manquant'); process.exit(1); }
+if (!SECRET_KEY) { console.error('SECRET_KEY missing'); process.exit(1); }
 
 const KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN;
-if (!KOFI_VERIFICATION_TOKEN) { console.error('KOFI_VERIFICATION_TOKEN manquant'); process.exit(1); }
+if (!KOFI_VERIFICATION_TOKEN) { console.error('KOFI_VERIFICATION_TOKEN missing'); process.exit(1); }
 
 const KOFI_PACKS = [
   { amount: 2.00, coins: 500,  label: '500 RCoins',  emoji: '💜', id: 'pack_500'  },
@@ -91,17 +91,17 @@ app.post('/webhook/kofi', async (req, res) => {
     } else if (req.body && req.body.verification_token) {
       payload = req.body;
     } else {
-      console.warn('[Ko-fi Webhook] Payload inattendu:', JSON.stringify(req.body).slice(0, 200));
+      console.warn('[Ko-fi Webhook] Unexpected payload:', JSON.stringify(req.body).slice(0, 200));
       return res.status(400).send('Missing data field');
     }
 
     if (payload.verification_token !== KOFI_VERIFICATION_TOKEN) {
-      console.warn('[Ko-fi Webhook] Token invalide reçu:', payload.verification_token);
+      console.warn('[Ko-fi Webhook] Invalid token received:', payload.verification_token);
       return res.status(401).send('Invalid verification token');
     }
 
     if (payload.type !== 'Shop Order' && payload.type !== 'Donation') {
-      console.log('[Ko-fi Webhook] Type ignoré:', payload.type);
+      console.log('[Ko-fi Webhook] Ignored type:', payload.type);
       return res.status(200).send('OK');
     }
 
@@ -110,19 +110,19 @@ app.post('/webhook/kofi', async (req, res) => {
   
     let pack = KOFI_PACKS.find(p => Math.abs(p.amount - amountRaw) < 0.01);
     if (!pack) {
-      console.warn('[Ko-fi Webhook] Montant non reconnu:', amountRaw, '— fallback pack_500 pour test');
+      console.warn('[Ko-fi Webhook] Unrecognized amount:', amountRaw, '— fallback pack_500 for test');
       pack = KOFI_PACKS[0];
     }
 
     const txId = payload.kofi_transaction_id || payload.message_id || null;
     if (!txId) {
-      console.warn('[Ko-fi Webhook] Pas de kofi_transaction_id dans le payload');
+      console.warn('[Ko-fi Webhook] No kofi_transaction_id in payload');
       return res.status(200).send('No transaction ID');
     }
 
     const existing = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(txId)}`);
     if (existing && existing.length) {
-      console.log('[Ko-fi Webhook] Transaction déjà enregistrée:', txId);
+      console.log('[Ko-fi Webhook] Transaction already recorded:', txId);
       return res.status(200).send('Already recorded');
     }
 
@@ -138,15 +138,15 @@ app.post('/webhook/kofi', async (req, res) => {
     });
 
     if (!ok) {
-      console.error('[Ko-fi Webhook] Échec de l\'insertion Supabase pour tx:', txId);
+      console.error('[Ko-fi Webhook] Failed to insert into Supabase for tx:', txId);
       return res.status(500).send('DB error');
     }
 
-    console.log(`✅ [Ko-fi] Transaction stockée (pending) : ${txId} — ${pack.coins} RCoins — ${amountRaw}€`);
+    console.log(`✅ [Ko-fi] Transaction stored (pending): ${txId} — ${pack.coins} RCoins — ${amountRaw}€`);
     return res.status(200).send('OK');
 
   } catch (err) {
-    console.error('[Ko-fi Webhook] Erreur inattendue:', err);
+    console.error('[Ko-fi Webhook] Unexpected error:', err);
     return res.status(500).send('Internal error');
   }
 });
@@ -178,20 +178,20 @@ app.post('/api/redeem', async (req, res) => {
   const { tx_id } = req.body || {};
 
   if (!tx_id || typeof tx_id !== 'string' || tx_id.length > 200) {
-    return res.status(400).json({ error: 'missing_tx', message: 'Lien invalide — utilise le lien reçu dans ton email Ko-fi.' });
+    return res.status(400).json({ error: 'missing_tx', message: 'Invalid link — use the link received in your Ko-fi email.' });
   }
 
   try {
 
     const txRows = await sbGet('kofi_transactions', `kofi_transaction_id=eq.${encodeURIComponent(tx_id)}`);
     if (!txRows || !txRows.length) {
-      return res.status(404).json({ error: 'not_found', message: 'Transaction introuvable. Vérifie que tu utilises bien le lien reçu par Ko-fi.' });
+      return res.status(404).json({ error: 'not_found', message: 'Transaction not found. Make sure you are using the link received from Ko-fi.' });
     }
 
     const tx = txRows[0];
 
     if (tx.status === 'claimed') {
-      return res.status(409).json({ error: 'already_claimed', message: 'Ces RCoins ont déjà été réclamés.' });
+      return res.status(409).json({ error: 'already_claimed', message: 'These RCoins have already been claimed.' });
     }
 
     const claimed = await sbPatchIf(
@@ -201,14 +201,14 @@ app.post('/api/redeem', async (req, res) => {
     );
 
     if (!claimed) {
-      return res.status(409).json({ error: 'already_claimed', message: 'Ces RCoins ont déjà été réclamés.' });
+      return res.status(409).json({ error: 'already_claimed', message: 'These RCoins have already been claimed.' });
     }
 
     const playerRows = await sbGet('players', `id=eq.${userId}`);
     if (!playerRows || !playerRows.length) {
 
       await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
-      return res.status(404).json({ error: 'player_not_found', message: 'Ton compte joueur est introuvable.' });
+      return res.status(404).json({ error: 'player_not_found', message: 'Your player account could not be found.' });
     }
 
     const player   = playerRows[0];
@@ -220,17 +220,17 @@ app.post('/api/redeem', async (req, res) => {
     if (!ok) {
 
       await sbPatch('kofi_transactions', { kofi_transaction_id: tx.kofi_transaction_id }, { status: 'pending', claimed_by: null, claimed_at: null });
-      return res.status(500).json({ error: 'db_error', message: 'Erreur DB lors du crédit — réessaie.' });
+      return res.status(500).json({ error: 'db_error', message: 'DB error during credit — please try again.' });
     }
 
     io.to(`user_${userId}`).emit('rcoins_update', { new_balance: newTotal, added });
 
-    console.log(`✅ [Redeem] ${added} RCoins crédités à ${userId} (${player.username || userId}) — tx: ${tx.kofi_transaction_id} — total: ${newTotal}`);
+    console.log(`✅ [Redeem] ${added} RCoins credited to ${userId} (${player.username || userId}) — tx: ${tx.kofi_transaction_id} — total: ${newTotal}`);
     return res.json({ success: true, added, new_balance: newTotal });
 
   } catch (err) {
-    console.error('[/api/redeem] Erreur:', err);
-    return res.status(500).json({ error: 'internal', message: 'Erreur serveur inattendue.' });
+    console.error('[/api/redeem] Error:', err);
+    return res.status(500).json({ error: 'internal', message: 'Unexpected server error.' });
   }
 });
 
@@ -288,7 +288,7 @@ env.addFilter('format', function(val, pattern) {
     const decimals = (pattern.match(/0/g) || []).length;
     return num.toFixed(decimals);
   }
-  return num.toLocaleString('fr-FR');
+  return num.toLocaleString('en-US');
 });
 
 function sbHeaders() {
@@ -576,21 +576,27 @@ async function cleanOldMessages() {
   try {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await sbDelete('dm_messages', { ts: `lt.${cutoff}` });
-    console.log('[cleanOldMessages] Messages > 24h supprimés');
+    console.log('[cleanOldMessages] Messages older than 24h deleted');
   } catch (e) { console.error('[cleanOldMessages]', e); }
 }
 
-// Nettoyage toutes les heures
+// Cleanup every hour
 setInterval(cleanOldMessages, 60 * 60 * 1000);
 
-// Copie les messages d'un match dans la room DM des deux joueurs
-// appelé à la fin d'un match pour que les messages apparaissent dans le fil DM
+// Copy match messages into the DM room between the two players.
+// This is now a fallback for messages sent before the unified chat was active.
+// During an active match, messages are saved to both rooms in real-time.
 async function copyMatchMsgsToDmRoom(challengeId, player1Id, player2Id) {
   try {
     const roomId = dmRoomId(player1Id, player2Id);
     const msgs = await sbGet('dm_messages', `room_id=eq.match_${encodeURIComponent(challengeId)}&order=ts.asc`);
     if (!msgs || !msgs.length) return;
+    // Only copy messages not already in the DM room (avoid duplicates)
+    const existing = await sbGet('dm_messages', `room_id=eq.${encodeURIComponent(roomId)}&challenge_id=eq.${encodeURIComponent(challengeId)}&select=id`);
+    const existingIds = new Set((existing || []).map(m => m.id));
+    let copied = 0;
     for (const m of msgs) {
+      if (existingIds.has(m.id)) continue; // already copied in real-time
       const newId = 'msg_' + require('crypto').randomBytes(8).toString('hex');
       await sbPost('dm_messages', {
         id:           newId,
@@ -603,8 +609,9 @@ async function copyMatchMsgsToDmRoom(challengeId, player1Id, player2Id) {
         source:       'match',
         challenge_id: challengeId,
       });
+      copied++;
     }
-    console.log(`[copyMatchMsgsToDmRoom] ${msgs.length} messages copiés pour challenge ${challengeId}`);
+    if (copied > 0) console.log(`[copyMatchMsgsToDmRoom] ${copied} messages copied for challenge ${challengeId}`);
   } catch (e) { console.error('[copyMatchMsgsToDmRoom]', e); }
 }
 
@@ -718,17 +725,43 @@ io.on('connection', (socket) => {
       text: String(data.reply_to.text || '').slice(0, 80),
     } : null;
     const payload = { uid, name, text, ts: new Date().toISOString(), source: 'match', challenge_id: cid, ...(replyTo ? { replyTo } : {}) };
-    // Sauvegarder dans Supabase
+    // Save to Supabase in the match room
     await saveMessageToDb(`match_${cid}`, payload);
+    // Broadcast to match room (match chat sidebar)
     io.to(`match_${cid}`).emit('chat_message', payload);
+
+    // Also broadcast to the DM room between the two players in real-time
+    // so match chat and DM share a unified message thread
+    try {
+      const challenges = await sbGet('challenges', `id=eq.${cid}`);
+      if (challenges.length) {
+        const c = challenges[0];
+        const dmRoom = dmRoomId(c.challenger_id, c.challenged_id);
+        // Save a copy in the DM room too (so DM history includes match messages)
+        await saveMessageToDb(dmRoom, { ...payload });
+        // Emit to DM room so the other player sees it live in DM as well
+        io.to(dmRoom).emit('dm_message', { roomId: dmRoom, ...payload });
+        // Also update typing in the shared DM room
+        clearTyping(dmRoom, uid, io);
+      }
+    } catch (e) { console.error('[chat_message dm broadcast]', e); }
   });
 
-  socket.on('chat_typing', (data) => {
+  socket.on('chat_typing', async (data) => {
     const uid  = req.session?.user?.id;
     const name = req.session?.user?.username || 'Unknown';
     const cid  = data?.challenge_id || '';
     if (!uid || !validateId(cid)) return;
     setTyping(`match_${cid}`, uid, name, io);
+    // Also propagate typing to the DM room
+    try {
+      const challenges = await sbGet('challenges', `id=eq.${cid}`);
+      if (challenges.length) {
+        const c = challenges[0];
+        const dmRoom = dmRoomId(c.challenger_id, c.challenged_id);
+        setTyping(dmRoom, uid, name, io);
+      }
+    } catch (e) { /* silent */ }
   });
 
   // DM CHAT
@@ -743,7 +776,7 @@ io.on('connection', (socket) => {
     if (!myRow.length || !otherRow.length) return;
     const roomId = dmRoomId(uid, otherId);
     socket.join(roomId);
-    // Charger l'historique DM + match depuis Supabase (fil unique)
+    // Load DM history from Supabase (already includes match messages written there in real-time)
     const history = await getMessagesFromDb(roomId, 100);
     socket.emit('dm_history', { roomId, messages: history });
   });
@@ -757,13 +790,22 @@ io.on('connection', (socket) => {
     socket.leave(roomId);
   });
 
-  socket.on('dm_typing', (data) => {
+  socket.on('dm_typing', async (data) => {
     const uid  = req.session?.user?.id;
     const name = req.session?.user?.username || 'Unknown';
     const otherId = data?.other_id || '';
     if (!uid || !validateId(otherId)) return;
     const roomId = dmRoomId(uid, otherId);
     setTyping(roomId, uid, name, io);
+    // Also propagate typing to the active match room if one exists
+    try {
+      const activeChallenges = await sbGet('challenges',
+        `status=in.(accepted)&or=(and(challenger_id=eq.${uid},challenged_id=eq.${otherId}),and(challenger_id=eq.${otherId},challenged_id=eq.${uid}))`
+      );
+      if (activeChallenges && activeChallenges.length) {
+        setTyping(`match_${activeChallenges[0].id}`, uid, name, io);
+      }
+    } catch (e) { /* silent */ }
   });
 
   socket.on('dm_message', async (data) => {
@@ -781,9 +823,21 @@ io.on('connection', (socket) => {
       text: String(data.reply_to.text || '').slice(0, 80),
     } : null;
     const payload = { uid, name, text, ts: new Date().toISOString(), source: 'dm', ...(replyTo ? { replyTo } : {}) };
-    // Sauvegarder dans Supabase
+    // Save to Supabase DM room
     await saveMessageToDb(roomId, payload);
     io.to(roomId).emit('dm_message', { roomId, ...payload });
+
+    // If there is an active match between these two players, also forward to match room
+    try {
+      const activeChallenges = await sbGet('challenges',
+        `status=in.(accepted)&or=(and(challenger_id=eq.${uid},challenged_id=eq.${otherId}),and(challenger_id=eq.${otherId},challenged_id=eq.${uid}))`
+      );
+      if (activeChallenges && activeChallenges.length) {
+        const c = activeChallenges[0];
+        const matchPayload = { ...payload, source: 'dm', challenge_id: c.id };
+        io.to(`match_${c.id}`).emit('chat_message', matchPayload);
+      }
+    } catch (e) { /* silent */ }
   });
 });
 
@@ -1852,7 +1906,7 @@ app.post('/shop/buy', authApiLimiter, requireAuth, async (req, res) => {
 app.post('/shop/buy-coins', authApiLimiter, requireAuth, async (req, res) => {
   const { pack_id } = req.body;
   const pack = RCOIN_PACKS.find(p => p.id === pack_id);
-  if (!pack) return res.status(400).json({ error: 'Pack invalide' });
+  if (!pack) return res.status(400).json({ error: 'Invalid pack' });
 
   res.json({
     url:       pack.kofi_url,
