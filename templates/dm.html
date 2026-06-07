@@ -220,7 +220,7 @@
 </nav>
 
 <div class="ttl-banner">
-  💬 Messages effacés toutes les 24h · Les messages de match apparaissent dans ce fil
+  💬 Messages deleted after 24h · Match messages appear in this thread
 </div>
 
 <div class="chat-wrap">
@@ -242,7 +242,7 @@
   <div class="messages" id="messages">
     <div class="empty-chat" id="empty-state">
       <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
-      <p>Aucun message — dis bonjour ! 👋</p>
+      <p>No messages yet — say hi! 👋</p>
     </div>
   </div>
 
@@ -298,7 +298,7 @@ socket.on('dm_history', ({ roomId, messages }) => {
   if (!messages || messages.length === 0) {
     box.innerHTML = `<div class="empty-chat" id="empty-state">
       <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
-      <p>Aucun message — dis bonjour ! 👋</p>
+      <p>No messages yet — say hi! 👋</p>
     </div>`;
     return;
   }
@@ -306,7 +306,7 @@ socket.on('dm_history', ({ roomId, messages }) => {
   let lastChallengeId = null;
   messages.forEach(m => {
     // Séparateur de date
-    const d = m.ts ? new Date(m.ts).toLocaleDateString('fr-FR', { day:'numeric', month:'long' }) : null;
+    const d = m.ts ? new Date(m.ts).toLocaleDateString('en-US', { day:'numeric', month:'long' }) : null;
     if (d && d !== lastDate) {
       const sep = document.createElement('div');
       sep.className = 'msg-day-sep';
@@ -342,7 +342,7 @@ socket.on('typing_update', (data) => {
   if (data.roomId && data.roomId !== DM_ROOM_ID) return;
   const el = document.getElementById('typing-indicator');
   const others = (data.typing || []).filter(t => t.uid !== ME_ID);
-  el.textContent = others.length ? `${others.map(t => t.name).join(', ')} écrit…` : '';
+  el.textContent = others.length ? `${others.map(t => t.name).join(', ')} ${others.length === 1 ? 'is' : 'are'} typing…` : '';
 });
 
 // ── MESSAGES ─────────────────────────────────────────────────────────────────
