@@ -691,6 +691,10 @@
         <button class="submit-btn" id="submit-bo" onclick="submitBO()" disabled style="display:none;">
           ⚔ SUBMIT RESULT
         </button>
+        <button class="submit-btn" id="cancel-game-btn" onclick="cancelGame()"
+          style="display:none;background:rgba(255,85,85,0.12);color:var(--red);border:1px solid rgba(255,85,85,0.35);margin-top:0.5rem;">
+          ✕ CANCEL GAME
+        </button>
         <div class="submit-hint" id="submit-hint-bo" style="display:none;">Both players must confirm the result</div>
       </div>
     </div>
@@ -1129,6 +1133,15 @@ function initBOMode() {
 function renderBOPhase() {
   document.getElementById('bo-section').style.display = 'block';
   const ph = boState.phase;
+
+  // Show "Cancel Game" only before the first game is finished
+  const cancelBtn = document.getElementById('cancel-game-btn');
+  if (cancelBtn) {
+    const isBeforeFirstGameEnd = boState.currentGame === 1 &&
+      ['p1_char','p2_char','p1_ban','p2_ban','p1_pick'].includes(ph);
+    cancelBtn.style.display = isBeforeFirstGameEnd ? 'block' : 'none';
+  }
+
   if      (ph === 'p1_char') renderCharPick('p1');
   else if (ph === 'p2_char') renderCharPick('p2');
   else if (ph === 'p1_ban')  renderStageBans();
@@ -2176,6 +2189,32 @@ function updateDots(dots) {
 // ─────────────────────────────────────────────
 // SUBMIT
 // ─────────────────────────────────────────────
+// ── CANCEL GAME ─────────────────────────────────────────────────────────────
+// Allows either player to cancel before the first game result is submitted.
+// Uses the existing /challenge/:id/cancel endpoint (challenger only) or
+// shows an alert for the challenged player to ask their opponent to cancel.
+async function cancelGame() {
+  const isChallenger = MY_ID === P1_ID;
+  if (!confirm('Cancel this game and go back to dashboard?')) return;
+  if (isChallenger) {
+    // Challenger can cancel directly
+    try {
+      const r = await fetch('/challenge/' + CHALLENGE_ID + '/cancel', { method: 'POST' });
+      const d = await r.json();
+      if (d.success) {
+        window.location.href = '/dashboard';
+      } else {
+        alert('Could not cancel: ' + (d.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Network error — try again.');
+    }
+  } else {
+    // Challenged player — only challenger can cancel, so notify them
+    alert('Only the challenger (' + P1_NAME + ') can cancel this game. Ask them to cancel from their dashboard.');
+  }
+}
+
 async function submitBO() {
   if (!selectedResult) { showToast('Select a result first!', false); return; }
   const btn = document.getElementById('submit-bo');
