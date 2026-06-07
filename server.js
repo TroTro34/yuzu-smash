@@ -538,37 +538,74 @@ async function emitLeaderboardUpdate() {
   io.emit('leaderboard_changed');
 }
 
-const chatHistory = new Map();
-const CHAT_MAX = 50;
-
 // Cache du dernier état de phase BO par match — permet de resynchroniser
 // un joueur qui arrive en retard ou dont la session storage est vide.
 const boPhaseCache = new Map();
 
-// ── DM CHAT (player-to-player) ────────────────────────────────────────────────
-// dmHistory: Map<roomId, { messages: [], createdAt: timestamp }>
-// roomId = sorted join of two player IDs, e.g. "dm_AAA_BBB"
-const dmHistory = new Map();
-const DM_CHAT_MAX = 100;
-const DM_TTL_MS   = 24 * 60 * 60 * 1000; // 24h
+// ── CHAT — stocké dans Supabase, table dm_messages ───────────────────────────
+// room_id = "dm_AAA_BBB" (IDs triés) pour DM, "match_XXX" pour match chat
+// Nettoyage automatique des messages > 24h via job toutes les heures
 
 function dmRoomId(a, b) { return 'dm_' + [a, b].sort().join('_'); }
 
-function getDmHistory(roomId) {
-  const entry = dmHistory.get(roomId);
-  if (!entry) return [];
-  if (Date.now() - entry.createdAt > DM_TTL_MS) { dmHistory.delete(roomId); return []; }
-  return entry.messages;
+async function getMessagesFromDb(roomId, limit = 100) {
+  try {
+    const rows = await sbGet('dm_messages', `room_id=eq.${encodeURIComponent(roomId)}&order=ts.asc&limit=${limit}`);
+    return rows || [];
+  } catch { return []; }
 }
 
-function pushDmMessage(roomId, payload) {
-  let entry = dmHistory.get(roomId);
-  if (!entry || Date.now() - entry.createdAt > DM_TTL_MS) {
-    entry = { messages: [], createdAt: Date.now() };
-    dmHistory.set(roomId, entry);
-  }
-  entry.messages.push(payload);
-  if (entry.messages.length > DM_CHAT_MAX) entry.messages.shift();
+async function saveMessageToDb(roomId, payload) {
+  try {
+    const id = 'msg_' + require('crypto').randomBytes(8).toString('hex');
+    await sbPost('dm_messages', {
+      id,
+      room_id:      roomId,
+      uid:          payload.uid,
+      name:         payload.name,
+      text:         payload.text,
+      reply_to:     payload.replyTo || null,
+      ts:           payload.ts,
+      source:       payload.source || 'dm',
+      challenge_id: payload.challenge_id || null,
+    });
+  } catch (e) { console.error('[saveMessageToDb]', e); }
+}
+
+async function cleanOldMessages() {
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await sbDelete('dm_messages', { ts: `lt.${cutoff}` });
+    console.log('[cleanOldMessages] Messages > 24h supprimés');
+  } catch (e) { console.error('[cleanOldMessages]', e); }
+}
+
+// Nettoyage toutes les heures
+setInterval(cleanOldMessages, 60 * 60 * 1000);
+
+// Copie les messages d'un match dans la room DM des deux joueurs
+// appelé à la fin d'un match pour que les messages apparaissent dans le fil DM
+async function copyMatchMsgsToDmRoom(challengeId, player1Id, player2Id) {
+  try {
+    const roomId = dmRoomId(player1Id, player2Id);
+    const msgs = await sbGet('dm_messages', `room_id=eq.match_${encodeURIComponent(challengeId)}&order=ts.asc`);
+    if (!msgs || !msgs.length) return;
+    for (const m of msgs) {
+      const newId = 'msg_' + require('crypto').randomBytes(8).toString('hex');
+      await sbPost('dm_messages', {
+        id:           newId,
+        room_id:      roomId,
+        uid:          m.uid,
+        name:         m.name,
+        text:         m.text,
+        reply_to:     m.reply_to || null,
+        ts:           m.ts,
+        source:       'match',
+        challenge_id: challengeId,
+      });
+    }
+    console.log(`[copyMatchMsgsToDmRoom] ${msgs.length} messages copiés pour challenge ${challengeId}`);
+  } catch (e) { console.error('[copyMatchMsgsToDmRoom]', e); }
 }
 
 // Typing state: Map<roomId, Map<uid, timeoutHandle>>
@@ -647,8 +684,9 @@ io.on('connection', (socket) => {
     const c = challenges[0];
     if (![c.challenger_id, c.challenged_id].includes(uid)) return;
     socket.join(`match_${cid}`);
-    const history = chatHistory.get(cid) || [];
-    if (history.length) socket.emit('chat_history', history);
+    // Charger l'historique depuis Supabase
+    const history = await getMessagesFromDb(`match_${cid}`);
+    socket.emit('chat_history', history);
     const cachedPhase = boPhaseCache.get(cid);
     if (cachedPhase) socket.emit('bo_phase_update', cachedPhase);
   });
@@ -666,24 +704,22 @@ io.on('connection', (socket) => {
     socket.to(`match_${cid}`).emit('bo_phase_update', data);
   });
 
-  socket.on('chat_message', (data) => {
+  socket.on('chat_message', async (data) => {
     const uid  = req.session?.user?.id;
     const name = req.session?.user?.username || 'Unknown';
     const cid  = data?.challenge_id || '';
     const text = (data?.text || '').toString().slice(0, 200).trim();
     if (!uid || !validateId(cid) || !text) return;
-    if (isChatRateLimited(uid)) return; 
+    if (isChatRateLimited(uid)) return;
     clearTyping(`match_${cid}`, uid, io);
     const replyTo = data?.reply_to ? {
       uid:  String(data.reply_to.uid  || '').slice(0, 80),
       name: String(data.reply_to.name || '').slice(0, 80),
       text: String(data.reply_to.text || '').slice(0, 80),
     } : null;
-    const payload = { uid, name, text, ts: new Date().toISOString(), ...(replyTo ? { replyTo } : {}) };
-    if (!chatHistory.has(cid)) chatHistory.set(cid, []);
-    const hist = chatHistory.get(cid);
-    hist.push(payload);
-    if (hist.length > CHAT_MAX) hist.shift();
+    const payload = { uid, name, text, ts: new Date().toISOString(), source: 'match', challenge_id: cid, ...(replyTo ? { replyTo } : {}) };
+    // Sauvegarder dans Supabase
+    await saveMessageToDb(`match_${cid}`, payload);
     io.to(`match_${cid}`).emit('chat_message', payload);
   });
 
@@ -707,8 +743,9 @@ io.on('connection', (socket) => {
     if (!myRow.length || !otherRow.length) return;
     const roomId = dmRoomId(uid, otherId);
     socket.join(roomId);
-    const history = getDmHistory(roomId);
-    if (history.length) socket.emit('dm_history', { roomId, messages: history });
+    // Charger l'historique DM + match depuis Supabase (fil unique)
+    const history = await getMessagesFromDb(roomId, 100);
+    socket.emit('dm_history', { roomId, messages: history });
   });
 
   socket.on('dm_leave', (data) => {
@@ -729,7 +766,7 @@ io.on('connection', (socket) => {
     setTyping(roomId, uid, name, io);
   });
 
-  socket.on('dm_message', (data) => {
+  socket.on('dm_message', async (data) => {
     const uid  = req.session?.user?.id;
     const name = req.session?.user?.username || 'Unknown';
     const otherId = data?.other_id || '';
@@ -743,8 +780,9 @@ io.on('connection', (socket) => {
       name: String(data.reply_to.name || '').slice(0, 80),
       text: String(data.reply_to.text || '').slice(0, 80),
     } : null;
-    const payload = { uid, name, text, ts: new Date().toISOString(), ...(replyTo ? { replyTo } : {}) };
-    pushDmMessage(roomId, payload);
+    const payload = { uid, name, text, ts: new Date().toISOString(), source: 'dm', ...(replyTo ? { replyTo } : {}) };
+    // Sauvegarder dans Supabase
+    await saveMessageToDb(roomId, payload);
     io.to(roomId).emit('dm_message', { roomId, ...payload });
   });
 });
@@ -910,28 +948,15 @@ app.get('/dm/:other_id', requireAuth, async (req, res) => {
   const uid = req.session.user.id;
   if (uid === other_id) return res.redirect('/dashboard');
   try {
-    const [otherRows, myRow, bannersArr] = await Promise.all([
+    const [otherRows, myRow] = await Promise.all([
       sbGet('players', `id=eq.${other_id}`),
       sbGet('players', `id=eq.${uid}`),
-      sbGet('banners', 'select=id,img_lb,img_dash,img_lb_gif,img_dash_gif'),
     ]);
     if (!otherRows.length) return res.redirect('/dashboard');
-    const banners_map = Object.fromEntries(bannersArr.map(b => [b.id, b]));
-    // Include match chat history as archived messages
-    const matchRooms = [];
-    const allChallenges = await sbGet('challenges',
-      `or=(and(challenger_id.eq.${uid},challenged_id.eq.${other_id}),and(challenger_id.eq.${other_id},challenged_id.eq.${uid}))&status=in.(completed,disputed)&order=created_at.desc&limit=20`
-    );
-    for (const c of allChallenges) {
-      const hist = chatHistory.get(c.id) || [];
-      if (hist.length) matchRooms.push({ challenge_id: c.id, format: c.format, messages: hist });
-    }
     res.render('dm.html', {
       user: req.session.user,
       me: myRow[0] || {},
       other: otherRows[0],
-      banners_map,
-      match_rooms: matchRooms,
     });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
@@ -1108,7 +1133,6 @@ app.post('/challenge/:challenge_id/cancel_match', requireAuth, async (req, res) 
     return res.status(400).json({ error: 'Cannot cancel — at least one game result has already been submitted.' });
 
   await sbDelete('challenges', { id: challenge_id });
-  chatHistory.delete(challenge_id);
   boPhaseCache.delete(challenge_id);
 
   const msg = { type: 'match_cancelled', challenge_id,
@@ -1290,10 +1314,9 @@ app.post('/report/:challenge_id', requireAuth, async (req, res) => {
     challenge_id, challenger_id: c.challenger_id, challenged_id: c.challenged_id,
     format: c.format, title,
     reason: 'player_report',
-    chat_history_snapshot: chatHistory.get(challenge_id) || [],
+    chat_history_snapshot: [],
     screenshot,
   });
-  chatHistory.delete(challenge_id);
     boPhaseCache.delete(challenge_id);
 
   const msg = { type: 'match_timeout', outcome: 'draw', challenge_id,
@@ -1578,8 +1601,9 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
         await new Promise(r => setTimeout(r, 300));
         await emitMatchUpdate(challenge_id, { status: 'completed', winner_id: null, score: scoreStr || '0-0', elo_change: 0 });
         await emitLeaderboardUpdate();
-        chatHistory.delete(challenge_id);
-    boPhaseCache.delete(challenge_id);
+        boPhaseCache.delete(challenge_id);
+        // Copier les messages du match dans le fil DM des deux joueurs
+        await copyMatchMsgsToDmRoom(challenge_id, c.challenger_id, c.challenged_id);
         return res.json({ success: true, message: 'Match ended in a draw. No ELO change.', elo_change: 0, winner_id: null });
       }
       const [winnerArr, loserArr] = await Promise.all([
@@ -1608,8 +1632,9 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
         await updateCharStats(winner_id, winner.main_char || null, loser_id, loser.main_char || null);
         await new Promise(r => setTimeout(r, 300));
         await emitLeaderboardUpdate();
-        chatHistory.delete(challenge_id);
-    boPhaseCache.delete(challenge_id);
+        boPhaseCache.delete(challenge_id);
+        // Copier les messages du match dans le fil DM des deux joueurs
+        await copyMatchMsgsToDmRoom(challenge_id, c.challenger_id, c.challenged_id);
         return res.json({ success: true, message: `Match validated! +${eloGain} ELO for the winner.`, elo_change: eloGain, winner_id });
       }
     } else {
@@ -1657,9 +1682,8 @@ async function resolveDeadMatches() {
         format: c.format,
         title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — aucun résultat soumis`,
         reason: 'timeout_no_result',
-        chat_history_snapshot: chatHistory.get(c.id) || [],
+        chat_history_snapshot: [],
       });
-      chatHistory.delete(c.id);
     boPhaseCache.delete(c.id);
       const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
         message: '⏱ Temps écoulé — aucun résultat soumis. Match annulé (DRAW), un admin peut trancher.' };
@@ -1681,9 +1705,8 @@ async function resolveDeadMatches() {
         format: c.format,
         title: `[AUTO] ${c.challenger_name} vs ${c.challenged_name} — confirmation expirée`,
         reason: 'timeout_no_confirm',
-        chat_history_snapshot: chatHistory.get(c.id) || [],
+        chat_history_snapshot: [],
       });
-      chatHistory.delete(c.id);
     boPhaseCache.delete(c.id);
       const msg = { type: 'match_timeout', outcome: 'draw', challenge_id: c.id,
         message: '⏱ Confirmation non reçue à temps — match en DRAW. Un admin va trancher.' };
