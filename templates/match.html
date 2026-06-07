@@ -2190,28 +2190,19 @@ function updateDots(dots) {
 // SUBMIT
 // ─────────────────────────────────────────────
 // ── CANCEL GAME ─────────────────────────────────────────────────────────────
-// Allows either player to cancel before the first game result is submitted.
-// Uses the existing /challenge/:id/cancel endpoint (challenger only) or
-// shows an alert for the challenged player to ask their opponent to cancel.
+// N'importe lequel des deux joueurs peut annuler tant que le score est 0-0.
 async function cancelGame() {
-  const isChallenger = MY_ID === P1_ID;
   if (!confirm('Cancel this game and go back to dashboard?')) return;
-  if (isChallenger) {
-    // Challenger can cancel directly
-    try {
-      const r = await fetch('/challenge/' + CHALLENGE_ID + '/cancel', { method: 'POST' });
-      const d = await r.json();
-      if (d.success) {
-        window.location.href = '/dashboard';
-      } else {
-        alert('Could not cancel: ' + (d.error || 'Unknown error'));
-      }
-    } catch (e) {
-      alert('Network error — try again.');
+  try {
+    const r = await fetch('/challenge/' + CHALLENGE_ID + '/cancel_match', { method: 'POST' });
+    const d = await r.json();
+    if (d.success) {
+      window.location.href = '/dashboard';
+    } else {
+      alert('Could not cancel: ' + (d.error || 'Unknown error'));
     }
-  } else {
-    // Challenged player — only challenger can cancel, so notify them
-    alert('Only the challenger (' + P1_NAME + ') can cancel this game. Ask them to cancel from their dashboard.');
+  } catch (e) {
+    alert('Network error — try again.');
   }
 }
 
