@@ -1086,6 +1086,39 @@ app.post('/challenge/:challenge_id/cancel', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ── CANCEL ACCEPTED MATCH (avant tout résultat soumis) ───────────────────────
+// N'importe lequel des deux joueurs peut annuler tant qu'aucun résultat n'a
+// été soumis (games_history vide ou absent → score 0-0).
+app.post('/challenge/:challenge_id/cancel_match', requireAuth, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  const userId = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+  const c = challenges[0];
+  if (![c.challenger_id, c.challenged_id].includes(userId))
+    return res.status(403).json({ error: 'Not part of this match' });
+  if (c.status !== 'accepted')
+    return res.status(400).json({ error: 'Match is not in accepted state' });
+
+  // Vérifier que personne n'a soumis de résultat de game (games_history vide)
+  const report = (typeof c.report === 'object' && c.report) ? c.report : {};
+  const gamesHistory = Array.isArray(report.games_history) ? report.games_history : [];
+  if (gamesHistory.length > 0)
+    return res.status(400).json({ error: 'Cannot cancel — at least one game result has already been submitted.' });
+
+  await sbDelete('challenges', { id: challenge_id });
+  chatHistory.delete(challenge_id);
+  boPhaseCache.delete(challenge_id);
+
+  const msg = { type: 'match_cancelled', challenge_id,
+    message: '\u{1F6AB} Match annulé par un joueur — retour au dashboard.' };
+  io.to(`user_${c.challenger_id}`).emit('match_timeout', msg);
+  io.to(`user_${c.challenged_id}`).emit('match_timeout', msg);
+  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+  res.json({ success: true });
+});
+
 // ── DISCORD WEBHOOK — LFM NOTIFICATION ───────────────────────────────────────
 // Sends a message to a Discord channel when a player posts a "Find a Match" ad.
 
