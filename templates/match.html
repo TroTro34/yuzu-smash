@@ -2632,6 +2632,10 @@ function initMatchSocket() {
   matchSocket.on('chat_history', (msgs) => {
     msgs.forEach(d => chatReceive(d));
   });
+  matchSocket.on('typing_update', (d) => {
+    if (!d || d.roomId !== `match_${CHALLENGE_ID}`) return;
+    updateTypingIndicator(d.typing);
+  });
 
   // Nettoyeur serveur : match expiré côté back-end
   matchSocket.on('match_timeout', (d) => {
@@ -2987,6 +2991,7 @@ function escChatHtml(s) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
+    else chatTypingStart();
   });
   init();
   // Connexion immédiate — les deux joueurs rejoignent la room dès le chargement
