@@ -545,7 +545,7 @@ function setTyping(roomId, uid, name, io_instance) {
   if (room.has(uid)) clearTimeout(room.get(uid).timer);
   const timer = setTimeout(() => {
     room.delete(uid);
-    io_instance.to(roomId).emit('typing_update', { roomId, typing: [...room.keys()].map(k => room.get(k)?.name || k) });
+    io_instance.to(roomId).emit('typing_update', { roomId, typing: [...room.entries()].map(([k, v]) => ({ uid: k, name: v.name })) });
   }, 3000);
   room.set(uid, { timer, name });
   io_instance.to(roomId).emit('typing_update', { roomId, typing: [...room.entries()].map(([k, v]) => ({ uid: k, name: v.name })) });
@@ -1089,7 +1089,11 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
     await fetch(DISCORD_LFM_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: mention, embeds: [embed] }),
+      body: JSON.stringify({
+        content: mention,
+        allowed_mentions: { parse: ['roles'] },
+        embeds: [embed],
+      }),
     });
   } catch (e) {
     console.error('[Discord LFM Webhook] Error:', e);
