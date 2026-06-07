@@ -33,8 +33,8 @@ const REDIRECT_URI        = process.env.REDIRECT_URI || 'https://yuzu-smash.onre
 const SUPABASE_URL        = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY        = process.env.SUPABASE_KEY || '';
 const ADMIN_DISCORD_ID    = process.env.ADMIN_DISCORD_ID || '';
-const DISCORD_LFM_WEBHOOK_URL  = process.env.DISCORD_LFM_WEBHOOK_URL  || '';
-const DISCORD_LFM_ROLE_ID     = process.env.DISCORD_LFM_ROLE_ID     || '';
+const DISCORD_LFM_WEBHOOK_URL = process.env.DISCORD_LFM_WEBHOOK_URL || '';
+const DISCORD_LFM_ROLE_ID    = process.env.DISCORD_LFM_ROLE_ID || '1513108737332609054';
 
 const DISCORD_AUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
 
@@ -1085,13 +1085,11 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
       timestamp: new Date().toISOString(),
     };
 
-    const webhookBody = { embeds: [embed] };
-    if (DISCORD_LFM_ROLE_ID) webhookBody.content = `<@&${DISCORD_LFM_ROLE_ID}>`;
-
+    const mention = DISCORD_LFM_ROLE_ID ? `<@&${DISCORD_LFM_ROLE_ID}>` : '@Yuzu LDN';
     await fetch(DISCORD_LFM_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(webhookBody),
+      body: JSON.stringify({ content: mention, embeds: [embed] }),
     });
   } catch (e) {
     console.error('[Discord LFM Webhook] Error:', e);
