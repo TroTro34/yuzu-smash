@@ -126,6 +126,22 @@
       display: flex; flex-direction: column; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.8rem; }
     .char-add:hover { border-color: var(--accent2); color: var(--accent2); }
 
+    /* CHAR STATS (most played with WR) */
+    .char-stats-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .char-stat-card {
+      display: flex; align-items: center; gap: 0.55rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.4rem 0.8rem; min-width: 120px;
+    }
+    .char-stat-card img { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+    .char-stat-info { display: flex; flex-direction: column; gap: 0.1rem; }
+    .char-stat-name { font-size: 0.75rem; font-weight: 700; text-transform: capitalize; letter-spacing: 0.5px; }
+    .char-stat-meta { font-size: 0.68rem; color: var(--muted); }
+    .char-stat-wr { font-size: 0.72rem; font-weight: 700; }
+    .char-stat-wr.good { color: var(--green); }
+    .char-stat-wr.bad  { color: var(--red); }
+    .char-stat-wr.mid  { color: var(--accent2); }
+
     /* WR BAR */
     .wr-section { margin-top: 0.5rem; }
     .wr-row { display: flex; align-items: center; gap: 1rem; }
@@ -466,6 +482,9 @@
           {% endif %}
         </div>
       </div>
+
+      <!-- MOST PLAYED CHARS with WR -->
+      <div id="char-stats-section" style="margin-top:0.7rem;"></div>
     </div>
   </div>
 
@@ -1008,6 +1027,11 @@ function pollBurst() {}
   const secEl  = document.getElementById('sec-char-img');
   if (mainEl && mainId && CHAR_ICONS[mainId]) mainEl.src = CHAR_ICONS[mainId];
   if (secEl  && secId  && CHAR_ICONS[secId])  secEl.src  = CHAR_ICONS[secId];
+
+  // Init char stats from server-rendered matches
+  const initMatches = {{ my_matches | tojson }};
+  const initCharStats = {{ player.char_stats | tojson if player.char_stats else '{}' }};
+  renderCharStats(initMatches, myId, initCharStats);
 })();
 
 function applyDashboardData(d) {
@@ -1023,6 +1047,7 @@ function applyDashboardData(d) {
     renderMatchs(d.active_matches);
     renderAttente(d.awaiting_confirmation);
     renderHistory(d.my_matches);
+    renderCharStats(d.my_matches, myId, d.player && d.player.char_stats);
 }
 
 function renderDefis(defis) {
@@ -1076,6 +1101,62 @@ function renderAttente(att) {
     h += `<div class="challenge-card awaiting"><div class="challenge-top"><div><div class="challenge-title">⏳ ${c.challenger_name} vs ${c.challenged_name}</div><div class="challenge-sub">Your opponent submitted a result — confirm it!</div></div><button class="btn btn-primary" onclick="window.location.href='/match/${cid}'">✅ Confirm Result</button></div></div>`;
   }
   z.innerHTML = h;
+}
+
+// ── CHAR STATS: most played characters with WR ──────────────────────────────
+function computeCharStats(matches, myId) {
+  if (!matches || !matches.length) return [];
+  const map = {};
+  for (const m of matches) {
+    const isWin = m.winner_id === myId;
+    const myChar = isWin ? m.winner_main : m.loser_main;
+    if (!myChar) continue;
+    if (!map[myChar]) map[myChar] = { games: 0, wins: 0 };
+    map[myChar].games++;
+    if (isWin) map[myChar].wins++;
+  }
+  return Object.entries(map)
+    .map(([char, s]) => ({ char, games: s.games, wins: s.wins, wr: Math.round(s.wins / s.games * 100) }))
+    .sort((a, b) => b.games - a.games)
+    .slice(0, 4);
+}
+
+function buildCharStatsFromSupabase(charStatsObj) {
+  if (!charStatsObj || typeof charStatsObj !== 'object') return [];
+  return Object.entries(charStatsObj)
+    .map(([char, s]) => {
+      const wins = s.wins || 0;
+      const losses = s.losses || 0;
+      const games = wins + losses;
+      return { char, games, wins, wr: games > 0 ? Math.round(wins / games * 100) : 0 };
+    })
+    .filter(s => s.games > 0)
+    .sort((a, b) => b.games - a.games)
+    .slice(0, 4);
+}
+
+function renderCharStats(matches, myId, charStatsObj) {
+  const el = document.getElementById('char-stats-section');
+  if (!el) return;
+  const stats = (charStatsObj && Object.keys(charStatsObj).length)
+    ? buildCharStatsFromSupabase(charStatsObj)
+    : computeCharStats(matches, myId);
+  if (!stats.length) { el.innerHTML = ''; return; }
+  let h = '<div class="char-stats-row">';
+  for (const s of stats) {
+    const icon = CHAR_ICONS[s.char] || '';
+    const wrClass = s.wr >= 60 ? 'good' : s.wr < 40 ? 'bad' : 'mid';
+    h += `<div class="char-stat-card">
+      ${icon ? `<img src="${icon}" onerror="this.style.display='none'" alt="${s.char}">` : ''}
+      <div class="char-stat-info">
+        <div class="char-stat-name">${s.char.replace(/_/g,' ')}</div>
+        <div class="char-stat-meta">${s.games} set${s.games>1?'s':''}</div>
+        <div class="char-stat-wr ${wrClass}">${s.wr}% WR</div>
+      </div>
+    </div>`;
+  }
+  h += '</div>';
+  el.innerHTML = h;
 }
 
 function renderHistory(matches) {
