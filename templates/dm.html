@@ -284,6 +284,7 @@ let typingTimer = null;
 
 // ── SOCKET ───────────────────────────────────────────────────────────────────
 const socket = io({ transports: ['websocket'] });
+window.socket = socket; // exposé pour notifications.js
 
 socket.on('connect', () => {
   socket.emit('join_user', {});
