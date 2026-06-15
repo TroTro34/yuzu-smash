@@ -156,6 +156,69 @@
     });
   }
 
+  /* ── Notifications de chat (DM + chat de match) ─────────────────── */
+  function handleDmMessage(data) {
+    if (!data) return;
+    const myId = window.YUZU_USER_ID;
+
+    /* Ne pas se notifier soi-même */
+    if (myId && data.uid === myId) return;
+
+    /* Si la conversation DM concernée est déjà ouverte à l'écran, pas de notif */
+    if (window.YUZU_OPEN_DM_ROOM && data.roomId === window.YUZU_OPEN_DM_ROOM && document.hasFocus()) return;
+
+    /* Si l'onglet est au premier plan ET qu'on est sur la page de cette conversation, pas de notif */
+    if (document.hasFocus() && window.YUZU_OPEN_DM_ROOM && data.roomId === window.YUZU_OPEN_DM_ROOM) return;
+
+    playSound();
+    const sender = data.name || '???';
+    const body   = (data.text || '').slice(0, 120) || 'Nouveau message';
+
+    requestPermission(function (ok) {
+      if (!ok) return;
+      showNotif(
+        '💬 ' + sender,
+        body,
+        'yuzu_dm_' + (data.roomId || sender),
+        function () {
+          /* Rediriger vers la conversation DM correspondante */
+          if (data.roomId) {
+            const ids = String(data.roomId).replace(/^dm_/, '').split('_');
+            const otherId = ids.find(id => id !== myId) || ids[0];
+            window.location.href = '/dm/' + otherId;
+          } else {
+            window.location.href = '/dashboard';
+          }
+        }
+      );
+    });
+  }
+
+  function handleMatchChatMessage(data) {
+    if (!data) return;
+    const myId = window.YUZU_USER_ID;
+
+    /* Ne pas se notifier soi-même */
+    if (myId && data.uid === myId) return;
+
+    /* Si l'onglet est au premier plan, l'utilisateur voit déjà le chat du match */
+    if (document.hasFocus()) return;
+
+    playSound();
+    const sender = data.name || '???';
+    const body   = (data.text || '').slice(0, 120) || 'Nouveau message';
+
+    requestPermission(function (ok) {
+      if (!ok) return;
+      showNotif(
+        '💬 ' + sender,
+        body,
+        'yuzu_match_chat_' + (data.challenge_id || ''),
+        function () { window.focus(); }
+      );
+    });
+  }
+
   /* ── Attacher les listeners sur window.socket ────────────────────
      window.socket est exposé par la page hôte AVANT le chargement de ce fichier.
      Si ce n'est pas encore disponible (page sans socket), on n'attache rien.
@@ -166,6 +229,12 @@
 
     /* dashboard_update : émis régulièrement — on filtre les nouveaux challenges_received */
     sock.on('dashboard_update', handleDashboardUpdate);
+
+    /* dm_message : nouveau message privé reçu */
+    sock.on('dm_message', handleDmMessage);
+
+    /* chat_message : nouveau message dans le chat d'un match */
+    sock.on('chat_message', handleMatchChatMessage);
   }
 
   /* Pré-charger le son ET demander la permission de notif dès le premier clic.
