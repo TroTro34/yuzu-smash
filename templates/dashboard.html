@@ -943,6 +943,7 @@ pendingOnlyIds.forEach(id => seenActiveMatches.delete(id));
 
 // ── SOCKET.IO ────────────────────────────────────────────────
 const socket = io({ transports: ['websocket'], upgrade: false });
+window.socket = socket; // exposé pour notifications.js
 
 socket.on('connect', () => {
   // Passe les IDs des matchs terminés → le serveur exclut ces challenges du dashboard_update immédiat
@@ -1147,16 +1148,17 @@ function renderCharStats(matches, myId, charStatsObj) {
   for (const s of stats) {
     const icon = CHAR_ICONS[s.char] || '';
     const wrClass = s.wr >= 60 ? 'good' : s.wr < 40 ? 'bad' : 'mid';
-    h += `<div class="char-stat-card">
+    h += `<a class="char-stat-card" href="/characters" title="See all character stats" style="text-decoration:none;cursor:pointer;">
       ${icon ? `<img src="${icon}" onerror="this.style.display='none'" alt="${s.char}">` : ''}
       <div class="char-stat-info">
         <div class="char-stat-name">${s.char.replace(/_/g,' ')}</div>
-        <div class="char-stat-meta">${s.games} set${s.games>1?'s':''}</div>
+        <div class="char-stat-meta">${s.games} game${s.games>1?'s':''}</div>
         <div class="char-stat-wr ${wrClass}">${s.wr}% WR</div>
       </div>
-    </div>`;
+    </a>`;
   }
   h += '</div>';
+  h += `<a href="/characters" style="display:inline-block;margin-top:0.6rem;font-size:0.75rem;color:var(--muted);letter-spacing:1px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--accent2)'" onmouseout="this.style.color='var(--muted)'">📊 See all character stats \u2192</a>`;
   el.innerHTML = h;
 }
 
