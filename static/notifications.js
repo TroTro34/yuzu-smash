@@ -1,22 +1,30 @@
 /**
  * notifications.js — Smash YUZU
- * Notifications OS (Web Notifications API) + son pour :
- *   • MATCH FOUND  (event socket : match_redirect)
- *   • Challenge reçu (event socket : dashboard_update avec nouveaux challenges_received)
+ * Petits encarts ("toasts") in-page, en haut à gauche de l'écran, + son, pour :
+ *   • Challenge reçu via "Find a Player"  (event socket : dashboard_update → challenges_received)
+ *   • Nouveau message DM / chat de match  (event socket : dm_message / chat_message)
+ *
+ * Cliquer sur un encart redirige :
+ *   • Challenge reçu      → /dashboard
+ *   • Message reçu        → /dm/<other_id>
  *
  * Ce fichier est inclus en dernier dans chaque page.
  * Il réutilise window.socket exposé par la page hôte — aucun socket supplémentaire.
  * Le MP3 est mis en cache navigateur (servi depuis /static/) : un seul téléchargement par client.
+ *
+ * Variables globales attendues, exposées par la page hôte avant ce script :
+ *   window.socket           — instance Socket.IO partagée
+ *   window.YUZU_USER_ID      — id du joueur connecté (pour ignorer ses propres messages)
+ *   window.YUZU_OPEN_DM_ROOM — (optionnel, dm.html) roomId de la conversation actuellement ouverte
  */
 
 (function () {
   'use strict';
 
   /* ── Config ─────────────────────────────────────────────────────── */
-  const SOUND_URL      = '/static/melee-menu-select.mp3';
-  const ICON_URL       = '/static/favicon.png';
-  const SEEN_KEY       = 'yuzu_seen_challenges';   // sessionStorage — partagé avec dashboard.html
-  const MATCH_NOTIF_ID = 'yuzu_match_found';        // tag de notification (remplace la précédente)
+  const SOUND_URL = '/static/melee-menu-select.mp3';
+  const SEEN_KEY  = 'yuzu_seen_challenges'; // sessionStorage — partagé avec dashboard.html
+  const TOAST_TTL = 6000; // durée d'affichage en ms
 
   /* ── Audio (préchargé une fois, mis en cache par le navigateur) ── */
   let audio = null;
@@ -36,36 +44,103 @@
     } catch (_) {}
   }
 
-  /* ── Permissions ─────────────────────────────────────────────────── */
-  function requestPermission(cb) {
-    if (!('Notification' in window)) { if (cb) cb(false); return; }
-    if (Notification.permission === 'granted') { if (cb) cb(true); return; }
-    if (Notification.permission === 'denied')  { if (cb) cb(false); return; }
-    Notification.requestPermission().then(p => { if (cb) cb(p === 'granted'); });
+  /* Précharger le son dès le premier clic (geste utilisateur requis pour l'audio) */
+  document.addEventListener('click', function onFirstClick() {
+    getAudio();
+  }, { once: true });
+
+  /* ── Conteneur des toasts (en haut à gauche) ─────────────────────── */
+  let container = null;
+  function getContainer() {
+    if (container && document.body.contains(container)) return container;
+    container = document.createElement('div');
+    container.id = 'yuzu-toast-container';
+    container.style.cssText = [
+      'position:fixed',
+      'top:1rem',
+      'left:1rem',
+      'z-index:99999',
+      'display:flex',
+      'flex-direction:column',
+      'gap:0.6rem',
+      'max-width:340px',
+      'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(container);
+
+    /* Styles d'animation injectés une seule fois */
+    if (!document.getElementById('yuzu-toast-style')) {
+      const style = document.createElement('style');
+      style.id = 'yuzu-toast-style';
+      style.textContent = `
+        @keyframes yuzu-toast-in {
+          from { opacity: 0; transform: translateX(-24px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes yuzu-toast-out {
+          from { opacity: 1; transform: translateX(0); }
+          to   { opacity: 0; transform: translateX(-24px); }
+        }
+        .yuzu-toast {
+          pointer-events: auto;
+          cursor: pointer;
+          background: #14141f;
+          border: 1px solid #2a2a3d;
+          border-left: 3px solid #f04a00;
+          border-radius: 8px;
+          padding: 0.7rem 0.9rem;
+          color: #e8e8f0;
+          font-family: 'Rajdhani', sans-serif;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+          animation: yuzu-toast-in 0.3s cubic-bezier(.22,1,.36,1) both;
+          transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .yuzu-toast:hover { border-left-color: #ff6a1a; background: #1a1a28; }
+        .yuzu-toast .yuzu-toast-title {
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 1rem;
+          letter-spacing: 1px;
+          color: #f04a00;
+          margin-bottom: 0.2rem;
+        }
+        .yuzu-toast .yuzu-toast-body {
+          font-size: 0.9rem;
+          color: #c8c8da;
+          line-height: 1.3;
+        }
+        .yuzu-toast.yuzu-toast-closing {
+          animation: yuzu-toast-out 0.25s ease both;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return container;
   }
 
-  function canNotify() {
-    return ('Notification' in window) && Notification.permission === 'granted';
-  }
+  /* ── Afficher un toast in-page ─────────────────────────────────── */
+  function showToast(title, body, onClick) {
+    const cont = getContainer();
+    const el = document.createElement('div');
+    el.className = 'yuzu-toast';
+    el.innerHTML =
+      '<div class="yuzu-toast-title"></div>' +
+      '<div class="yuzu-toast-body"></div>';
+    el.querySelector('.yuzu-toast-title').textContent = title;
+    el.querySelector('.yuzu-toast-body').textContent  = body;
 
-  /* ── Afficher une notification OS ───────────────────────────────── */
-  function showNotif(title, body, tag, onClick) {
-    if (!canNotify()) return;
-    try {
-      const n = new Notification(title, {
-        body,
-        icon:           ICON_URL,
-        badge:          ICON_URL,
-        tag:            tag || 'yuzu',
-        renotify:       true,
-        requireInteraction: false,
-      });
-      if (typeof onClick === 'function') {
-        n.onclick = function () { window.focus(); onClick(); n.close(); };
-      }
-      /* Auto-fermeture après 6 s */
-      setTimeout(() => { try { n.close(); } catch(_) {} }, 6000);
-    } catch (_) {}
+    function close() {
+      el.classList.add('yuzu-toast-closing');
+      setTimeout(() => { try { el.remove(); } catch (_) {} }, 250);
+    }
+
+    el.addEventListener('click', function () {
+      close();
+      if (typeof onClick === 'function') onClick();
+    });
+
+    cont.appendChild(el);
+    setTimeout(close, TOAST_TTL);
   }
 
   /* ── Gestion des challenges déjà vus ────────────────────────────── */
@@ -81,57 +156,9 @@
     } catch (_) {}
   }
 
-  /* ── Logique principale ─────────────────────────────────────────── */
-  function handleMatchFound(data) {
-    const p1  = data && data.p1 ? data.p1 : '???';
-    const p2  = data && data.p2 ? data.p2 : '???';
-    const cid = data && data.challenge_id;
-
-    playSound();
-
-    /* Notif OS — fonctionne même si la page est en arrière-plan (alt+tab).
-       On n'appelle PAS requestPermission() ici car ce callback socket n'est
-       pas un geste utilisateur. La permission doit déjà être 'granted'
-       (demandée au premier clic via onFirstClick ci-dessous).
-       Si elle est 'default', on tente quand même — certains navigateurs
-       acceptent si la permission a été accordée dans une session précédente. */
-    console.log('[YUZU] match_redirect reçu, Notification.permission =', ('Notification' in window ? Notification.permission : 'N/A'));
-
-    if (!('Notification' in window)) return;
-
-    /* Si déjà granted : notif directe */
-    if (Notification.permission === 'granted') {
-      showNotif(
-        '⚔ MATCH FOUND',
-        p1 + ' vs ' + p2,
-        MATCH_NOTIF_ID,
-        function () {
-          if (cid) window.location.href = '/match/' + cid;
-          else     window.location.href = '/dashboard';
-        }
-      );
-      return;
-    }
-
-    /* Si default : tenter de demander (fonctionne uniquement si déclenché
-       depuis un contexte de confiance — sinon silencieux) */
-    if (Notification.permission === 'default') {
-      Notification.requestPermission().then(function(p) {
-        if (p !== 'granted') return;
-        showNotif(
-          '⚔ MATCH FOUND',
-          p1 + ' vs ' + p2,
-          MATCH_NOTIF_ID,
-          function () {
-            if (cid) window.location.href = '/match/' + cid;
-            else     window.location.href = '/dashboard';
-          }
-        );
-      });
-    }
-    /* Si denied : silencieux */
-  }
-
+  /* ── Challenge reçu via "Find a Player" ──────────────────────────
+     event socket : dashboard_update → { challenges_received: { [cid]: c } }
+  ─────────────────────────────────────────────────────────────────── */
   function handleDashboardUpdate(data) {
     if (!data || !data.challenges_received) return;
     const seen = getSeenSet();
@@ -141,22 +168,20 @@
     /* Marquer immédiatement pour éviter les doublons */
     newChallenges.forEach(([cid]) => markSeen(cid));
 
-    /* Son + notif pour chaque nouveau challenge (en pratique toujours 1) */
     newChallenges.forEach(([cid, c]) => {
       playSound();
-      requestPermission(function (ok) {
-        if (!ok) return;
-        showNotif(
-          '🎮 Challenge reçu !',
-          (c.challenger_name || '???') + ' te défie — ' + (c.format || ''),
-          'yuzu_challenge_' + cid,
-          function () { window.location.href = '/dashboard'; }
-        );
-      });
+      showToast(
+        '⚔ Challenge reçu !',
+        (c.challenger_name || '???') + ' te défie — ' + (c.format || ''),
+        function () { window.location.href = '/dashboard'; }
+      );
     });
   }
 
-  /* ── Notifications de chat (DM + chat de match) ─────────────────── */
+  /* ── Nouveau message (DM ou chat de match relayé en DM) ──────────
+     event socket : dm_message → { roomId, uid, name, text, ... }
+                    chat_message → { challenge_id, uid, name, text, ... }
+  ─────────────────────────────────────────────────────────────────── */
   function handleDmMessage(data) {
     if (!data) return;
     const myId = window.YUZU_USER_ID;
@@ -164,59 +189,44 @@
     /* Ne pas se notifier soi-même */
     if (myId && data.uid === myId) return;
 
-    /* Si la conversation DM concernée est déjà ouverte à l'écran, pas de notif */
+    /* Si la conversation concernée est déjà ouverte et l'onglet au premier plan, pas de toast */
     if (window.YUZU_OPEN_DM_ROOM && data.roomId === window.YUZU_OPEN_DM_ROOM && document.hasFocus()) return;
 
-    /* Si l'onglet est au premier plan ET qu'on est sur la page de cette conversation, pas de notif */
-    if (document.hasFocus() && window.YUZU_OPEN_DM_ROOM && data.roomId === window.YUZU_OPEN_DM_ROOM) return;
+    const sender = data.name || '???';
+    const body   = (data.text || '').slice(0, 100) || 'Nouveau message';
 
     playSound();
-    const sender = data.name || '???';
-    const body   = (data.text || '').slice(0, 120) || 'Nouveau message';
-
-    requestPermission(function (ok) {
-      if (!ok) return;
-      showNotif(
-        '💬 ' + sender,
-        body,
-        'yuzu_dm_' + (data.roomId || sender),
-        function () {
-          /* Rediriger vers la conversation DM correspondante */
-          if (data.roomId) {
-            const ids = String(data.roomId).replace(/^dm_/, '').split('_');
-            const otherId = ids.find(id => id !== myId) || ids[0];
-            window.location.href = '/dm/' + otherId;
-          } else {
-            window.location.href = '/dashboard';
-          }
+    showToast(
+      '💬 ' + sender,
+      body,
+      function () {
+        let otherId = '';
+        if (data.roomId) {
+          const ids = String(data.roomId).replace(/^dm_/, '').split('_');
+          otherId = ids.find(id => id !== myId) || ids[0] || '';
         }
-      );
-    });
+        window.location.href = otherId ? '/dm/' + otherId : '/dashboard';
+      }
+    );
   }
 
   function handleMatchChatMessage(data) {
     if (!data) return;
     const myId = window.YUZU_USER_ID;
-
-    /* Ne pas se notifier soi-même */
     if (myId && data.uid === myId) return;
 
     /* Si l'onglet est au premier plan, l'utilisateur voit déjà le chat du match */
     if (document.hasFocus()) return;
 
-    playSound();
     const sender = data.name || '???';
-    const body   = (data.text || '').slice(0, 120) || 'Nouveau message';
+    const body   = (data.text || '').slice(0, 100) || 'Nouveau message';
 
-    requestPermission(function (ok) {
-      if (!ok) return;
-      showNotif(
-        '💬 ' + sender,
-        body,
-        'yuzu_match_chat_' + (data.challenge_id || ''),
-        function () { window.focus(); }
-      );
-    });
+    playSound();
+    showToast(
+      '💬 ' + sender,
+      body,
+      function () { window.focus(); }
+    );
   }
 
   /* ── Attacher les listeners sur window.socket ────────────────────
@@ -224,9 +234,6 @@
      Si ce n'est pas encore disponible (page sans socket), on n'attache rien.
   ─────────────────────────────────────────────────────────────────── */
   function attach(sock) {
-    /* match_redirect : émis quand un LFM est accepté (les deux joueurs sont redirigés) */
-    sock.on('match_redirect', handleMatchFound);
-
     /* dashboard_update : émis régulièrement — on filtre les nouveaux challenges_received */
     sock.on('dashboard_update', handleDashboardUpdate);
 
@@ -236,16 +243,6 @@
     /* chat_message : nouveau message dans le chat d'un match */
     sock.on('chat_message', handleMatchChatMessage);
   }
-
-  /* Pré-charger le son ET demander la permission de notif dès le premier clic.
-     Les deux doivent être déclenchés par un geste utilisateur direct — on en profite
-     pour les grouper ici plutôt que d'attendre l'arrivée de l'événement socket. */
-  document.addEventListener('click', function onFirstClick() {
-    getAudio(); /* déclenche le préchargement audio */
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission(); /* pas besoin d'attendre la réponse ici */
-    }
-  }, { once: true });
 
   /* Attente que window.socket soit disponible */
   if (window.socket) {
