@@ -781,6 +781,10 @@
 
   // ── SOCKET.IO — mise à jour temps réel de la grille LFM ─────────────────
   const currentUserId = {{ (user.id if user else '') | tojson }};
+  if (currentUserId) {
+    window.YUZU_USER_ID   = currentUserId;
+    window.YUZU_USER_NAME = {{ (user.username if user else '') | tojson }};
+  }
 
   function renderLFM(posts, bannersMap) {
     const grid  = document.getElementById('lfm-grid');
