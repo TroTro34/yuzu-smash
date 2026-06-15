@@ -279,6 +279,10 @@ const OTHER_AVATAR = "{{ other.avatar or '' }}";
 // roomId DM = mêmes algo que serveur
 const DM_ROOM_ID = 'dm_' + [ME_ID, OTHER_ID].sort().join('_');
 
+window.YUZU_USER_ID      = ME_ID;
+window.YUZU_USER_NAME    = ME_NAME;
+window.YUZU_OPEN_DM_ROOM = DM_ROOM_ID; // currently-open conversation — suppress its notifications
+
 let replyTo = null;
 let typingTimer = null;
 
