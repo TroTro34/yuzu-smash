@@ -1,259 +1,269 @@
-/**
- * notifications.js — Smash YUZU
- * Petits encarts ("toasts") in-page, en haut à gauche de l'écran, + son, pour :
- *   • Challenge reçu via "Find a Player"  (event socket : dashboard_update → challenges_received)
- *   • Nouveau message DM / chat de match  (event socket : dm_message / chat_message)
- *
- * Cliquer sur un encart redirige :
- *   • Challenge reçu      → /dashboard
- *   • Message reçu        → /dm/<other_id>
- *
- * Ce fichier est inclus en dernier dans chaque page.
- * Il réutilise window.socket exposé par la page hôte — aucun socket supplémentaire.
- * Le MP3 est mis en cache navigateur (servi depuis /static/) : un seul téléchargement par client.
- *
- * Variables globales attendues, exposées par la page hôte avant ce script :
- *   window.socket           — instance Socket.IO partagée
- *   window.YUZU_USER_ID      — id du joueur connecté (pour ignorer ses propres messages)
- *   window.YUZU_OPEN_DM_ROOM — (optionnel, dm.html) roomId de la conversation actuellement ouverte
- */
+// ── notifications.js ─────────────────────────────────────────────────────────
+// Gère les popups de notification globales (coin top-left) sur toutes les pages.
+// Fonctionne avec le socket partagé via window.socket (défini par chaque page).
+//
+// Events écoutés :
+//   new_challenge   → invitation de match reçue
+//   dm_notification → message DM reçu hors de la page DM
+// ─────────────────────────────────────────────────────────────────────────────
 
 (function () {
   'use strict';
 
-  /* ── Config ─────────────────────────────────────────────────────── */
-  const SOUND_URL = '/static/melee-menu-select.mp3';
-  const SEEN_KEY  = 'yuzu_seen_challenges'; // sessionStorage — partagé avec dashboard.html
-  const TOAST_TTL = 6000; // durée d'affichage en ms
-
-  /* ── Audio (préchargé une fois, mis en cache par le navigateur) ── */
-  let audio = null;
-  function getAudio() {
-    if (!audio) {
-      audio = new Audio(SOUND_URL);
-      audio.preload = 'auto';
+  // ── Styles injectés une seule fois ───────────────────────────────────────
+  const STYLE = `
+    #notif-container {
+      position: fixed;
+      top: 1rem;
+      left: 1rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      pointer-events: none;
+      max-width: 320px;
     }
-    return audio;
+    .notif-popup {
+      pointer-events: all;
+      background: #0f0f1a;
+      border: 1px solid #252540;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateX(-16px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      min-width: 260px;
+    }
+    .notif-popup.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .notif-popup.hide {
+      opacity: 0;
+      transform: translateX(-16px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .notif-popup::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .notif-popup.type-challenge::before {
+      background: linear-gradient(90deg, #e8400a, #ff8000);
+    }
+    .notif-popup.type-dm::before {
+      background: linear-gradient(90deg, #4f8ef7, #7c60ff);
+    }
+    .notif-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+      line-height: 1;
+      margin-top: 0.1rem;
+    }
+    .notif-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .notif-title {
+      font-family: 'Bebas Neue', 'Impact', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 2px;
+      margin-bottom: 0.2rem;
+    }
+    .notif-popup.type-challenge .notif-title { color: #ff8000; }
+    .notif-popup.type-dm        .notif-title { color: #4f8ef7; }
+    .notif-text {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.88rem;
+      color: #eeeef5;
+      line-height: 1.35;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .notif-sub {
+      font-size: 0.72rem;
+      color: #6060a0;
+      margin-top: 0.15rem;
+      letter-spacing: 0.5px;
+    }
+    .notif-close {
+      position: absolute;
+      top: 0.4rem; right: 0.5rem;
+      background: none; border: none;
+      color: #6060a0; font-size: 0.9rem;
+      cursor: pointer; line-height: 1;
+      padding: 0;
+      transition: color 0.15s;
+    }
+    .notif-close:hover { color: #eeeef5; }
+    .notif-progress {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: rgba(255,255,255,0.15);
+      transition: width linear;
+    }
+    .notif-popup.type-challenge .notif-progress { background: rgba(232,64,10,0.4); }
+    .notif-popup.type-dm        .notif-progress { background: rgba(79,142,247,0.4); }
+  `;
+
+  function injectStyles() {
+    if (document.getElementById('notif-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'notif-styles';
+    s.textContent = STYLE;
+    document.head.appendChild(s);
   }
 
-  function playSound() {
-    try {
-      const a = getAudio();
-      a.currentTime = 0;
-      a.play().catch(() => {/* autoplay bloqué — silencieux */});
-    } catch (_) {}
-  }
-
-  /* Précharger le son dès le premier clic (geste utilisateur requis pour l'audio) */
-  document.addEventListener('click', function onFirstClick() {
-    getAudio();
-  }, { once: true });
-
-  /* ── Conteneur des toasts (en haut à gauche) ─────────────────────── */
-  let container = null;
   function getContainer() {
-    if (container && document.body.contains(container)) return container;
-    container = document.createElement('div');
-    container.id = 'yuzu-toast-container';
-    container.style.cssText = [
-      'position:fixed',
-      'top:1rem',
-      'left:1rem',
-      'z-index:99999',
-      'display:flex',
-      'flex-direction:column',
-      'gap:0.6rem',
-      'max-width:340px',
-      'pointer-events:none',
-    ].join(';');
-    document.body.appendChild(container);
-
-    /* Styles d'animation injectés une seule fois */
-    if (!document.getElementById('yuzu-toast-style')) {
-      const style = document.createElement('style');
-      style.id = 'yuzu-toast-style';
-      style.textContent = `
-        @keyframes yuzu-toast-in {
-          from { opacity: 0; transform: translateX(-24px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes yuzu-toast-out {
-          from { opacity: 1; transform: translateX(0); }
-          to   { opacity: 0; transform: translateX(-24px); }
-        }
-        .yuzu-toast {
-          pointer-events: auto;
-          cursor: pointer;
-          background: #14141f;
-          border: 1px solid #2a2a3d;
-          border-left: 3px solid #f04a00;
-          border-radius: 8px;
-          padding: 0.7rem 0.9rem;
-          color: #e8e8f0;
-          font-family: 'Rajdhani', sans-serif;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-          animation: yuzu-toast-in 0.3s cubic-bezier(.22,1,.36,1) both;
-          transition: opacity 0.25s ease, transform 0.25s ease;
-        }
-        .yuzu-toast:hover { border-left-color: #ff6a1a; background: #1a1a28; }
-        .yuzu-toast .yuzu-toast-title {
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 1rem;
-          letter-spacing: 1px;
-          color: #f04a00;
-          margin-bottom: 0.2rem;
-        }
-        .yuzu-toast .yuzu-toast-body {
-          font-size: 0.9rem;
-          color: #c8c8da;
-          line-height: 1.3;
-        }
-        .yuzu-toast.yuzu-toast-closing {
-          animation: yuzu-toast-out 0.25s ease both;
-        }
-      `;
-      document.head.appendChild(style);
+    let c = document.getElementById('notif-container');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'notif-container';
+      document.body.appendChild(c);
     }
-
-    return container;
+    return c;
   }
 
-  /* ── Afficher un toast in-page ─────────────────────────────────── */
-  function showToast(title, body, onClick) {
-    const cont = getContainer();
-    const el = document.createElement('div');
-    el.className = 'yuzu-toast';
-    el.innerHTML =
-      '<div class="yuzu-toast-title"></div>' +
-      '<div class="yuzu-toast-body"></div>';
-    el.querySelector('.yuzu-toast-title').textContent = title;
-    el.querySelector('.yuzu-toast-body').textContent  = body;
+  // ── Durée d'affichage en ms ───────────────────────────────────────────────
+  const DURATION = 6000;
 
-    function close() {
-      el.classList.add('yuzu-toast-closing');
-      setTimeout(() => { try { el.remove(); } catch (_) {} }, 250);
+  function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ── showNotif(type, icon, title, text, sub, href) ─────────────────────────
+  // type : 'challenge' | 'dm'
+  // href : URL to navigate to on click (optional)
+  function showNotif(type, icon, title, text, sub, href) {
+    injectStyles();
+    const container = getContainer();
+
+    const popup = document.createElement('div');
+    popup.className = `notif-popup type-${type}`;
+    popup.innerHTML = `
+      <div class="notif-icon">${icon}</div>
+      <div class="notif-body">
+        <div class="notif-title">${esc(title)}</div>
+        <div class="notif-text">${esc(text)}</div>
+        ${sub ? `<div class="notif-sub">${esc(sub)}</div>` : ''}
+      </div>
+      <button class="notif-close" title="Dismiss">✕</button>
+      <div class="notif-progress" style="width:100%;"></div>
+    `;
+
+    // Click on body → navigate
+    if (href) {
+      popup.style.cursor = 'pointer';
+      popup.addEventListener('click', (e) => {
+        if (e.target.classList.contains('notif-close')) return;
+        window.location.href = href;
+      });
     }
 
-    el.addEventListener('click', function () {
-      close();
-      if (typeof onClick === 'function') onClick();
+    // Close button
+    popup.querySelector('.notif-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismiss(popup);
     });
 
-    cont.appendChild(el);
-    setTimeout(close, TOAST_TTL);
+    container.appendChild(popup);
+
+    // Slide in
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { popup.classList.add('show'); });
+    });
+
+    // Progress bar shrink
+    const bar = popup.querySelector('.notif-progress');
+    bar.style.transition = `width ${DURATION}ms linear`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { bar.style.width = '0%'; });
+    });
+
+    // Auto-dismiss
+    const timer = setTimeout(() => dismiss(popup), DURATION);
+    popup._notifTimer = timer;
   }
 
-  /* ── Gestion des challenges déjà vus ────────────────────────────── */
-  function getSeenSet() {
-    try { return new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || '[]')); }
-    catch (_) { return new Set(); }
-  }
-  function markSeen(id) {
-    try {
-      const s = getSeenSet();
-      s.add(id);
-      sessionStorage.setItem(SEEN_KEY, JSON.stringify([...s]));
-    } catch (_) {}
+  function dismiss(popup) {
+    clearTimeout(popup._notifTimer);
+    popup.classList.remove('show');
+    popup.classList.add('hide');
+    popup.addEventListener('transitionend', () => popup.remove(), { once: true });
   }
 
-  /* ── Challenge reçu via "Find a Player" ──────────────────────────
-     event socket : dashboard_update → { challenges_received: { [cid]: c } }
-  ─────────────────────────────────────────────────────────────────── */
-  function handleDashboardUpdate(data) {
-    if (!data || !data.challenges_received) return;
-    const seen = getSeenSet();
-    const newChallenges = Object.entries(data.challenges_received).filter(([cid]) => !seen.has(cid));
-    if (!newChallenges.length) return;
+  // ── Attach listeners once socket is ready ────────────────────────────────
+  function attachListeners(socket) {
+    // Évite de double-attacher
+    if (socket._notifAttached) return;
+    socket._notifAttached = true;
 
-    /* Marquer immédiatement pour éviter les doublons */
-    newChallenges.forEach(([cid]) => markSeen(cid));
+    // ── new_challenge ────────────────────────────────────────────────────
+    socket.on('new_challenge', (d) => {
+      if (!d) return;
+      const name   = d.challenger_name || 'Someone';
+      const format = d.format || '';
+      const cid    = d.challenge_id;
+      showNotif(
+        'challenge',
+        '⚔',
+        'CHALLENGE RECEIVED',
+        `${name} challenged you to a ${format} match!`,
+        'Click to go to your dashboard',
+        '/dashboard'
+      );
+    });
 
-    newChallenges.forEach(([cid, c]) => {
-      playSound();
-      showToast(
-        '⚔ Challenge reçu !',
-        (c.challenger_name || '???') + ' te défie — ' + (c.format || ''),
-        function () { window.location.href = '/dashboard'; }
+    // ── dm_notification ──────────────────────────────────────────────────
+    socket.on('dm_notification', (d) => {
+      if (!d) return;
+      const name = d.from_name || 'Someone';
+      const text = d.text || '';
+      const href = d.from_id ? `/dm/${d.from_id}` : '/dashboard';
+      showNotif(
+        'dm',
+        '💬',
+        'NEW MESSAGE',
+        `${name}: ${text}`,
+        'Click to open the conversation',
+        href
       );
     });
   }
 
-  /* ── Nouveau message (DM ou chat de match relayé en DM) ──────────
-     event socket : dm_message → { roomId, uid, name, text, ... }
-                    chat_message → { challenge_id, uid, name, text, ... }
-  ─────────────────────────────────────────────────────────────────── */
-  function handleDmMessage(data) {
-    if (!data) return;
-    const myId = window.YUZU_USER_ID;
-
-    /* Ne pas se notifier soi-même */
-    if (myId && data.uid === myId) return;
-
-    /* Si la conversation concernée est déjà ouverte et l'onglet au premier plan, pas de toast */
-    if (window.YUZU_OPEN_DM_ROOM && data.roomId === window.YUZU_OPEN_DM_ROOM && document.hasFocus()) return;
-
-    const sender = data.name || '???';
-    const body   = (data.text || '').slice(0, 100) || 'Nouveau message';
-
-    playSound();
-    showToast(
-      '💬 ' + sender,
-      body,
-      function () {
-        let otherId = '';
-        if (data.roomId) {
-          const ids = String(data.roomId).replace(/^dm_/, '').split('_');
-          otherId = ids.find(id => id !== myId) || ids[0] || '';
-        }
-        window.location.href = otherId ? '/dm/' + otherId : '/dashboard';
-      }
-    );
-  }
-
-  function handleMatchChatMessage(data) {
-    if (!data) return;
-    const myId = window.YUZU_USER_ID;
-    if (myId && data.uid === myId) return;
-
-    /* Si l'onglet est au premier plan, l'utilisateur voit déjà le chat du match */
-    if (document.hasFocus()) return;
-
-    const sender = data.name || '???';
-    const body   = (data.text || '').slice(0, 100) || 'Nouveau message';
-
-    playSound();
-    showToast(
-      '💬 ' + sender,
-      body,
-      function () { window.focus(); }
-    );
-  }
-
-  /* ── Attacher les listeners sur window.socket ────────────────────
-     window.socket est exposé par la page hôte AVANT le chargement de ce fichier.
-     Si ce n'est pas encore disponible (page sans socket), on n'attache rien.
-  ─────────────────────────────────────────────────────────────────── */
-  function attach(sock) {
-    /* dashboard_update : émis régulièrement — on filtre les nouveaux challenges_received */
-    sock.on('dashboard_update', handleDashboardUpdate);
-
-    /* dm_message : nouveau message privé reçu */
-    sock.on('dm_message', handleDmMessage);
-
-    /* chat_message : nouveau message dans le chat d'un match */
-    sock.on('chat_message', handleMatchChatMessage);
-  }
-
-  /* Attente que window.socket soit disponible */
-  if (window.socket) {
-    attach(window.socket);
-  } else {
-    /* Fallback : poll léger (max 5 s) si le socket est initialisé après ce script */
+  // ── Bootstrap — attend que window.socket soit disponible ─────────────────
+  function bootstrap() {
+    if (window.socket) {
+      attachListeners(window.socket);
+      return;
+    }
+    // Polling léger : certaines pages créent leur socket après DOMContentLoaded
     let attempts = 0;
-    const poll = setInterval(function () {
-      if (window.socket) { attach(window.socket); clearInterval(poll); }
-      if (++attempts >= 50) clearInterval(poll); /* abandon après 5 s */
+    const interval = setInterval(() => {
+      if (window.socket) {
+        clearInterval(interval);
+        attachListeners(window.socket);
+      } else if (++attempts > 40) {
+        // Après 4s sans socket, on abandonne
+        clearInterval(interval);
+      }
     }, 100);
   }
 
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    bootstrap();
+  }
 })();
