@@ -783,7 +783,52 @@
   <div class="winner-name-big" id="winner-name-big">—</div>
   <div class="winner-score-big" id="winner-score-big">—</div>
   <div id="winner-elo-line" style="margin-top:0.75rem;font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;"></div>
-  <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted);letter-spacing:1px;">Redirecting to dashboard…</div>
+
+  <!-- Post-match action buttons -->
+  <div id="post-match-actions" style="
+    margin-top:2rem; display:flex; flex-direction:column; align-items:center; gap:0.9rem;
+    width:100%; max-width:320px;">
+
+    <!-- Rematch button -->
+    <button id="rematch-btn" onclick="requestRematch()" style="
+      width:100%; padding:1rem; border-radius:8px;
+      border:2px solid var(--accent2); background:rgba(255,128,0,0.12);
+      color:var(--accent2); font-family:'Bebas Neue',sans-serif;
+      font-size:1.3rem; letter-spacing:3px; cursor:pointer; transition:all 0.2s;"
+      onmouseover="this.style.background='var(--accent2)';this.style.color='#07070f'"
+      onmouseout="this.style.background='rgba(255,128,0,0.12)';this.style.color='var(--accent2)'">
+      ⚔ REMATCH
+    </button>
+
+    <!-- Rematch status line -->
+    <div id="rematch-status" style="font-size:0.82rem;color:var(--muted);letter-spacing:1px;min-height:1.2em;text-align:center;"></div>
+
+    <div style="display:flex;gap:0.75rem;width:100%;">
+      <!-- DM opponent -->
+      <a id="dm-btn" href="#" style="
+        flex:1; padding:0.85rem; border-radius:8px; text-align:center;
+        border:1px solid var(--border); background:rgba(79,142,247,0.08);
+        color:var(--blue); font-family:'Bebas Neue',sans-serif;
+        font-size:1rem; letter-spacing:2px; text-decoration:none;
+        transition:all 0.2s;"
+        onmouseover="this.style.background='rgba(79,142,247,0.2)'"
+        onmouseout="this.style.background='rgba(79,142,247,0.08)'">
+        💬 DM
+      </a>
+      <!-- Home -->
+      <a href="/" style="
+        flex:1; padding:0.85rem; border-radius:8px; text-align:center;
+        border:1px solid var(--border); background:transparent;
+        color:var(--muted); font-family:'Bebas Neue',sans-serif;
+        font-size:1rem; letter-spacing:2px; text-decoration:none;
+        transition:all 0.2s;"
+        onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--muted)'"
+        onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
+        🏠 HOME
+      </a>
+    </div>
+
+  </div>
 </div>
 
 <!-- Toast -->
@@ -934,6 +979,83 @@ let matchFinished = false; // guard contre double-traitement HTTP + socket
 let stockGameHistory = [];
 let currentGameMinP1 = 0; // minimum imposé = valeur fin du game précédent
 let currentGameMinP2 = 0;
+
+// ── REMATCH STATE ──
+let _rematchRequestedByMe       = false;
+let _rematchRequestedByOpponent = false;
+
+function requestRematch() {
+  const btn      = document.getElementById('rematch-btn');
+  const statusEl = document.getElementById('rematch-status');
+
+  if (_rematchRequestedByMe) {
+    // Cancel rematch request
+    _rematchRequestedByMe = false;
+    btn.textContent = '⚔ REMATCH';
+    btn.style.borderColor = 'var(--accent2)';
+    btn.style.color       = 'var(--accent2)';
+    btn.style.background  = 'rgba(255,128,0,0.12)';
+    btn.onmouseover = () => { btn.style.background = 'var(--accent2)'; btn.style.color = '#07070f'; };
+    btn.onmouseout  = () => { btn.style.background = 'rgba(255,128,0,0.12)'; btn.style.color = 'var(--accent2)'; };
+    statusEl.textContent = '';
+    if (matchSocket) matchSocket.emit('rematch_cancel', { challenge_id: CHALLENGE_ID });
+    return;
+  }
+
+  if (_rematchRequestedByOpponent) {
+    // Opponent already requested — both agree, create rematch
+    _rematchRequestedByMe = true;
+    btn.disabled = true;
+    statusEl.textContent = '⏳ Creating rematch…';
+    fetch('/api/rematch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge_id: CHALLENGE_ID }),
+    }).then(r => r.json()).then(data => {
+      if (data.new_challenge_id) {
+        window.location.href = '/match/' + data.new_challenge_id;
+      } else {
+        btn.disabled = false;
+        statusEl.textContent = data.error || 'Error — try again.';
+      }
+    }).catch(() => { btn.disabled = false; statusEl.textContent = 'Network error.'; });
+    return;
+  }
+
+  // First request — emit and wait
+  _rematchRequestedByMe = true;
+  btn.textContent = '✕ CANCEL REMATCH';
+  btn.style.borderColor = 'var(--muted)';
+  btn.style.color       = 'var(--muted)';
+  btn.style.background  = 'transparent';
+  btn.onmouseover = () => { btn.style.borderColor = 'var(--red)'; btn.style.color = 'var(--red)'; };
+  btn.onmouseout  = () => { btn.style.borderColor = 'var(--muted)'; btn.style.color = 'var(--muted)'; };
+  statusEl.innerHTML = `<span style="color:var(--muted)">Waiting for opponent… <span id="rematch-countdown">30</span>s</span>`;
+  if (matchSocket) matchSocket.emit('rematch_request', { challenge_id: CHALLENGE_ID });
+
+  // Auto-cancel after 30s
+  let t = 30;
+  const timer = setInterval(() => {
+    t--;
+    const el = document.getElementById('rematch-countdown');
+    if (el) el.textContent = t;
+    if (t <= 0 || !_rematchRequestedByMe) {
+      clearInterval(timer);
+      if (_rematchRequestedByMe && !_rematchRequestedByOpponent) {
+        // Timeout — cancel
+        _rematchRequestedByMe = false;
+        btn.textContent = '⚔ REMATCH';
+        btn.style.borderColor = 'var(--accent2)';
+        btn.style.color       = 'var(--accent2)';
+        btn.style.background  = 'rgba(255,128,0,0.12)';
+        btn.onmouseover = () => { btn.style.background = 'var(--accent2)'; btn.style.color = '#07070f'; };
+        btn.onmouseout  = () => { btn.style.background = 'rgba(255,128,0,0.12)'; btn.style.color = 'var(--accent2)'; };
+        statusEl.textContent = 'Rematch request expired.';
+        if (matchSocket) matchSocket.emit('rematch_cancel', { challenge_id: CHALLENGE_ID });
+      }
+    }
+  }, 1000);
+}
 
 // ── INIT ──
 function init() {
@@ -1840,7 +1962,7 @@ function applyGameResult(winner) {
   if (p1Score >= boState.maxWins || p2Score >= boState.maxWins) {
     // BO terminé
     const finalWinnerId = p1Score >= boState.maxWins ? P1_ID : P2_ID;
-    selectedResult = { winner_id: finalWinnerId, score: `${p1Score}-${p2Score}` };
+    selectedResult = { winner_id: finalWinnerId, score: `${p1Score}-${p2Score}`, bo_games: boState.games };
 
     // Clear arena chars
     const p1div = document.getElementById('p1-game-char');
@@ -2225,7 +2347,7 @@ async function submitBO() {
         matchFinished = true;
         showWinner(selectedResult.winner_id, selectedResult.score, data.elo_change);
         showToast(data.message, true);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
+        // auto-redirect supprimé — boutons post-match visibles
       } else {
         // First player submitted — wait for opponent confirmation
         pendingResult = selectedResult;
@@ -2368,7 +2490,7 @@ async function submitResult(result, isConfirm) {
           ? `${result.winner_stocks_taken} - ${result.loser_stocks_taken} medals`
           : result.score;
         showWinner(result.winner_id, scoreLabel, data.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
+        // auto-redirect supprimé — boutons post-match visibles
       } else {
         showToast("Result submitted \u2713 Waiting for confirmation\u2026", true);
         startMatchPolling();
@@ -2425,7 +2547,7 @@ function startHttpFallback() {
         stopPolling();
         document.getElementById('stocks-recap').classList.remove('show');
         showWinner(d.winner_id, d.score || '', d.elo_change);
-        setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
+        // auto-redirect supprimé — boutons post-match visibles
       } else if (d.status === 'disputed') {
         stopPolling();
         showToast('Result contested — contact an admin.', false);
@@ -2632,7 +2754,7 @@ function initMatchSocket() {
       matchFinished = true;
       document.getElementById('stocks-recap').classList.remove('show');
       showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
+      // No auto-redirect — post-match buttons are shown instead
     } else if (d.status === 'disputed') {
       showToast('Result contested — contact an admin.', false);
       setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 3000);
@@ -2641,6 +2763,96 @@ function initMatchSocket() {
       if (!document.getElementById('stocks-recap').classList.contains('show')) {
         showOpponentRecap(d);
       }
+    }
+  });
+
+  // ── Rematch via socket ────────────────────────────────────────────────────
+  matchSocket.on('rematch_request', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    // L'adversaire veut un rematch
+    _rematchRequestedByOpponent = true;
+    const statusEl = document.getElementById('rematch-status');
+    const btn = document.getElementById('rematch-btn');
+    if (_rematchRequestedByMe) {
+      // Les deux veulent — créer le rematch
+      statusEl.textContent = '✅ Both agreed — launching rematch…';
+      btn.disabled = true;
+      fetch('/api/rematch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge_id: CHALLENGE_ID }),
+      }).then(r => r.json()).then(data => {
+        if (data.new_challenge_id) {
+          window.location.href = '/match/' + data.new_challenge_id;
+        } else {
+          statusEl.textContent = data.error || 'Error — go to dashboard.';
+        }
+      }).catch(() => { statusEl.textContent = 'Network error.'; });
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--accent2)">⚔ Opponent wants a rematch!</span>`;
+      btn.textContent = '⚔ ACCEPT REMATCH';
+      btn.style.borderColor = 'var(--green)';
+      btn.style.color = 'var(--green)';
+      btn.onmouseover = () => { btn.style.background = 'var(--green)'; btn.style.color = '#07070f'; };
+      btn.onmouseout  = () => { btn.style.background = 'rgba(61,220,132,0.12)'; btn.style.color = 'var(--green)'; };
+      btn.style.background = 'rgba(61,220,132,0.12)';
+    }
+  });
+
+  matchSocket.on('rematch_cancelled', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    _rematchRequestedByOpponent = false;
+    const statusEl = document.getElementById('rematch-status');
+    const btn = document.getElementById('rematch-btn');
+    if (!_rematchRequestedByMe) {
+      statusEl.textContent = 'Opponent cancelled the rematch request.';
+      btn.textContent = '⚔ REMATCH';
+      btn.style.borderColor = 'var(--accent2)';
+      btn.style.color = 'var(--accent2)';
+      btn.style.background = 'rgba(255,128,0,0.12)';
+      btn.onmouseover = () => { btn.style.background = 'var(--accent2)'; btn.style.color = '#07070f'; };
+      btn.onmouseout  = () => { btn.style.background = 'rgba(255,128,0,0.12)'; btn.style.color = 'var(--accent2)'; };
+    }
+  });
+
+  matchSocket.on('rematch_redirect', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    // L'autre joueur a déclenché la création du rematch — on suit
+    window.location.href = '/match/' + d.new_challenge_id;
+  });
+
+  // ── OPPONENT LEFT THE MATCH PAGE ─────────────────────────────────────────
+  matchSocket.on('opponent_left', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    const btn      = document.getElementById('rematch-btn');
+    const statusEl = document.getElementById('rematch-status');
+    if (!btn) return; // winner announcement not shown yet — ignore
+
+    if (_rematchRequestedByMe) {
+      // Already pressed Rematch — cancel the request and disable the button
+      _rematchRequestedByMe = false;
+      _rematchRequestedByOpponent = false;
+      btn.textContent       = '⚔ REMATCH';
+      btn.disabled          = true;
+      btn.style.opacity     = '0.35';
+      btn.style.cursor      = 'not-allowed';
+      btn.style.borderColor = 'var(--muted)';
+      btn.style.color       = 'var(--muted)';
+      btn.style.background  = 'transparent';
+      btn.onmouseover       = null;
+      btn.onmouseout        = null;
+      statusEl.innerHTML    = '<span style="color:var(--red)">✕ Opponent left — rematch cancelled</span>';
+    } else {
+      // Not yet pressed — disable so it can't be clicked
+      btn.disabled          = true;
+      btn.style.opacity     = '0.35';
+      btn.style.cursor      = 'not-allowed';
+      btn.style.borderColor = 'var(--muted)';
+      btn.style.color       = 'var(--muted)';
+      btn.style.background  = 'transparent';
+      btn.onmouseover       = null;
+      btn.onmouseout        = null;
+      statusEl.innerHTML    = '<span style="color:var(--muted)">Opponent left the match</span>';
     }
   });
 
@@ -2654,8 +2866,9 @@ function initMatchSocket() {
     showToast(d.message, d.won);
     if (d.won) {
       showWinner(MY_ID, 'W-L (admin)', d.elo_change);
+    } else {
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     }
-    setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
   });
 
   matchSocket.on('chat_message', (d) => { chatReceive(d); });
@@ -2677,10 +2890,11 @@ function initMatchSocket() {
     if (d.outcome === 'forfeit') {
       showWinner(d.winner_id, 'W-L (forfeit)', d.elo_change);
       showToast(d.message || '⏱ Result validated automatically.', true);
+      // forfeit → post-match screen (no auto-redirect)
     } else {
       showToast(d.message || '⏱ Match cancelled — no activity (DRAW).', false);
+      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
     }
-    setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
   });
 }
 
@@ -2694,7 +2908,7 @@ function checkInitialState() {
       if (matchFinished) return;
       matchFinished = true;
       showWinner(d.winner_id, d.score || '', d.elo_change);
-      setTimeout(() => { window.location.href = '/dashboard?done=' + CHALLENGE_ID; }, 4500);
+      // No auto-redirect
     } else if (d.status === 'reported' && d.reported_by && d.reported_by !== MY_ID) {
       showOpponentRecap(d);
     } else if (d.status === 'reported' && d.reported_by === MY_ID) {
@@ -2858,7 +3072,13 @@ function showWinner(winnerId, score, eloChange) {
   } else {
     eloLine.textContent = '';
   }
+
+  // Set DM link to opponent
+  const OPPONENT_ID = MY_ID === P1_ID ? P2_ID : P1_ID;
+  document.getElementById('dm-btn').href = `/dm/${OPPONENT_ID}`;
+
   document.getElementById('winner-announcement').classList.add('show');
+  // No auto-redirect — player chooses what to do next
 }
 
 // ── Stocks end match confirmation ──
@@ -3028,6 +3248,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Crucial : le joueur qui attend la confirmation reçoit match_update en temps réel
   // même sans avoir soumis quoi que ce soit.
   initMatchSocket();
+
+  // Notify opponent when navigating away from the match page
+  window.addEventListener('beforeunload', () => {
+    if (matchSocket && matchSocket.connected) {
+      matchSocket.emit('match_leave', { challenge_id: CHALLENGE_ID });
+    }
+  });
 });
 </script>
 
