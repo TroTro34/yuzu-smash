@@ -1,5 +1,38 @@
 'use strict';
 
+// ════════════════════════════════════════════════════════════════════════════
+//  DEV MODE — set DEV_MODE=true to run locally without Supabase/Discord OAuth.
+//
+//  Usage:
+//    DEV_MODE=true node server.js
+//    (or just:  node dev-launcher.js)
+//
+//  Two fake players are pre-seeded. Open two browsers/tabs:
+//    Browser A (normal)    → http://localhost:10000/dev-login?player=1  (admin)
+//    Browser B (incognito) → http://localhost:10000/dev-login?player=2
+//
+//  Useful dev routes:
+//    /dev-login          chooser page (click to instantly log in)
+//    /dev-login?player=1 instant login as Player1
+//    /dev-login?player=2 instant login as Player2
+//    /dev-state          dump entire in-memory store as JSON
+//    /dev-reset          reset challenges/matches, keep players
+// ════════════════════════════════════════════════════════════════════════════
+
+const DEV_MODE = process.env.DEV_MODE === 'true' || process.env.DEV_MODE === '1';
+
+if (DEV_MODE) {
+  // Stub out mandatory env vars so server.js doesn't exit(1)
+  process.env.SECRET_KEY              = process.env.SECRET_KEY              || 'dev_secret_local';
+  process.env.KOFI_VERIFICATION_TOKEN = process.env.KOFI_VERIFICATION_TOKEN || 'dev_kofi_token';
+  process.env.DISCORD_CLIENT_SECRET   = process.env.DISCORD_CLIENT_SECRET   || 'dev_discord_secret';
+  process.env.SUPABASE_URL            = process.env.SUPABASE_URL            || 'http://localhost:1';
+  process.env.SUPABASE_KEY            = process.env.SUPABASE_KEY            || 'dev_supabase_key';
+  process.env.REDIRECT_URI            = process.env.REDIRECT_URI            || 'http://localhost:10000/callback';
+  process.env.ADMIN_DISCORD_ID        = process.env.ADMIN_DISCORD_ID        || 'dev_player1';
+  process.env.NODE_ENV                = 'development';
+}
+
 const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
@@ -300,7 +333,94 @@ function sbHeaders() {
   };
 }
 
+// ── DEV_MODE: in-memory store replacing Supabase ─────────────────────────────
+const _devStore = DEV_MODE ? (() => {
+  const DEV_PLAYERS_SEED = [
+    { id:'dev_player1', username:'Player1', avatar:null, points:1200, wins:5, losses:3,
+      matches_played:8, main_char:'mario', secondary_char:'pikachu', stocks_taken:20,
+      stocks_lost:14, rcoins:500, owned_banners:[], is_admin:true, is_banned:false,
+      ban_reason:null, yuzu_pseudo:null, char_stats:{}, banner_dash:null, banner_lb:null },
+    { id:'dev_player2', username:'Player2', avatar:null, points:1050, wins:3, losses:5,
+      matches_played:8, main_char:'link', secondary_char:'', stocks_taken:14,
+      stocks_lost:20, rcoins:200, owned_banners:[], is_admin:false, is_banned:false,
+      ban_reason:null, yuzu_pseudo:null, char_stats:{}, banner_dash:null, banner_lb:null },
+  ];
+  const s = {
+    players: new Map(DEV_PLAYERS_SEED.map(p => [p.id, {...p}])),
+    matches: new Map(), challenges: new Map(), kofi_transactions: new Map(),
+    banners: new Map(), lfm_posts: new Map(), whatsup_posts: new Map(),
+    dm_messages: new Map(), suggestions: new Map(), reports: new Map(), game_results: new Map(),
+  };
+  s._seed = DEV_PLAYERS_SEED;
+  return s;
+})() : null;
+
+function _devParseParams(paramStr) {
+  const filters = {}; let order=null, limit=null, select=null;
+  for (const part of (paramStr||'').split('&')) {
+    if (!part) continue;
+    if (part.startsWith('order='))  { order  = part.slice(6); continue; }
+    if (part.startsWith('limit='))  { limit  = parseInt(part.slice(6)); continue; }
+    if (part.startsWith('select=')) { select = part.slice(7); continue; }
+    if (part.startsWith('or='))     { filters['_or'] = part.slice(3); continue; }
+    const ei = part.indexOf('='); if (ei===-1) continue;
+    const field = part.slice(0,ei), rest=part.slice(ei+1), di=rest.indexOf('.');
+    filters[field] = di===-1 ? {op:'eq',val:rest} : {op:rest.slice(0,di),val:decodeURIComponent(rest.slice(di+1))};
+  }
+  return {filters,order,limit,select};
+}
+
+function _devMatch(row,field,{op,val}) {
+  const rv=row[field];
+  if(op==='eq')  return String(rv)===String(val);
+  if(op==='neq') return String(rv)!==String(val);
+  if(op==='gt')  return Number(rv)>Number(val);
+  if(op==='gte') return Number(rv)>=Number(val);
+  if(op==='lt')  return Number(rv)<Number(val);
+  if(op==='lte') return Number(rv)<=Number(val);
+  if(op==='in')  { const items=val.replace(/^\(|\)$/g,'').split(',').map(s=>s.trim()); return items.includes(String(rv)); }
+  if(op==='is')  return val==='null'?rv==null:rv!=null;
+  return true;
+}
+
+function _devOrFilter(rows, orStr) {
+  const inner = orStr.replace(/^\(|\)$/g,'');
+  const clauses=[]; let depth=0,buf='';
+  for(const ch of inner) {
+    if(ch==='('){depth++;buf+=ch;}else if(ch===')'){depth--;buf+=ch;}
+    else if(ch===','&&depth===0){clauses.push(buf);buf='';}else buf+=ch;
+  }
+  if(buf) clauses.push(buf);
+  return rows.filter(row=>clauses.some(clause=>{
+    if(clause.startsWith('and(')){
+      const sub=clause.slice(4,-1).split(',');
+      return sub.every(s=>{
+        const parts=s.split('.'); if(parts.length<3)return true;
+        const [f,op,...vp]=parts; return _devMatch(row,f,{op,val:vp.join('.')});
+      });
+    }
+    const parts=clause.split('.'); if(parts.length<3) return false;
+    const [f,op,...vp]=parts; return _devMatch(row,f,{op,val:vp.join('.')});
+  }));
+}
+
+function _devQuery(table, paramStr='') {
+  const map=_devStore[table]; if(!map) return [];
+  const {filters,order,limit,select}=_devParseParams(paramStr);
+  let rows=[...map.values()].filter(row=>{
+    for(const [f,cond] of Object.entries(filters)){if(f==='_or')continue;if(!_devMatch(row,f,cond))return false;}
+    return true;
+  });
+  if(filters['_or']) rows=_devOrFilter(rows,filters['_or']);
+  if(order){const [col,dir]=order.split('.');rows.sort((a,b)=>{const cmp=String(a[col]??'').localeCompare(String(b[col]??''),undefined,{numeric:true});return dir==='desc'?-cmp:cmp;});}
+  if(limit) rows=rows.slice(0,limit);
+  if(select&&select!=='*'){const flds=select.split(',').map(s=>s.trim());rows=rows.map(r=>Object.fromEntries(flds.map(f=>[f,r[f]])));}
+  return rows;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function sbGet(table, params = '') {
+  if (DEV_MODE) return _devQuery(table, params);
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: sbHeaders() });
     return r.ok ? r.json() : [];
@@ -308,6 +428,13 @@ async function sbGet(table, params = '') {
 }
 
 async function sbPost(table, data) {
+  if (DEV_MODE) {
+    if (!_devStore[table]) _devStore[table] = new Map();
+    const row = {...data};
+    const key = row.id || row.kofi_transaction_id || crypto.randomBytes(8).toString('hex');
+    _devStore[table].set(key, row);
+    return [row];
+  }
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
       method: 'POST', headers: sbHeaders(), body: JSON.stringify(data)
@@ -318,6 +445,16 @@ async function sbPost(table, data) {
 }
 
 async function sbPatch(table, match, data) {
+  if (DEV_MODE) {
+    const map = _devStore[table]; if(!map) return false;
+    let found=false;
+    for(const row of map.values()){
+      let ok=true;
+      for(const [k,v] of Object.entries(match)){if(String(row[k])!==String(v)){ok=false;break;}}
+      if(ok){Object.assign(row,data);found=true;}
+    }
+    return found;
+  }
   try {
     const params = Object.entries(match).map(([k, v]) => `${k}=eq.${v}`).join('&');
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
@@ -329,6 +466,21 @@ async function sbPatch(table, match, data) {
 }
 
 async function sbPatchIf(table, match, data) {
+  if (DEV_MODE) {
+    const map = _devStore[table]; if(!map) return false;
+    const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
+    let found=false;
+    for(const row of map.values()){
+      let ok=true;
+      for(const [k,v] of Object.entries(match)){
+        const s=String(v), op=s.split('.')[0];
+        const cond = OPERATORS.has(op) ? {op, val:s.slice(op.length+1)} : {op:'eq', val:s};
+        if(!_devMatch(row,k,cond)){ok=false;break;}
+      }
+      if(ok){Object.assign(row,data);found=true;}
+    }
+    return found;
+  }
   try {
     const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
     const params = Object.entries(match).map(([k, v]) => {
@@ -349,6 +501,20 @@ async function sbPatchIf(table, match, data) {
 }
 
 async function sbDelete(table, match) {
+  if (DEV_MODE) {
+    const map = _devStore[table]; if(!map) return true;
+    const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
+    for(const [key,row] of map.entries()){
+      let ok=true;
+      for(const [k,v] of Object.entries(match)){
+        const s=String(v), op=s.split('.')[0];
+        const cond = OPERATORS.has(op) ? {op, val:s.slice(op.length+1)} : {op:'eq', val:s};
+        if(!_devMatch(row,k,cond)){ok=false;break;}
+      }
+      if(ok) map.delete(key);
+    }
+    return true;
+  }
   try {
     const OPERATORS = new Set(['lt','gt','lte','gte','neq','like','ilike','is','in']);
     const parts = Object.entries(match).map(([k, v]) => {
@@ -392,39 +558,90 @@ function calcEloStocks(wp, lp, wSt, lSt) {
 }
 
 // ── CHAR STATS ────────────────────────────────────────────────────────────────
-// Met à jour le champ JSONB `char_stats` dans `players` pour les deux joueurs.
-// Structure : { mario: { wins: 3, losses: 1 }, pikachu: { wins: 0, losses: 2 }, ... }
-async function updateCharStats(winnerId, winnerChar, loserId, loserChar) {
-  const updates = [];
+// ── GAME RESULTS — insère les games détaillées dans la table `game_results` ──
+// Appelée après chaque match validé (BO ou admin).
+// challengerId = p1 (challenger), challengedId = p2 (challenged)
+async function saveGameResults(challengeId, matchId, challengerId, challengedId, boGames, fallbackWinnerChar, fallbackLoserId, fallbackLoserChar) {
+  const rows = [];
 
-  if (winnerChar) {
-    updates.push(
-      sbGet('players', `id=eq.${winnerId}`).then(rows => {
-        if (!rows.length) return;
-        const p = rows[0];
-        const stats = (typeof p.char_stats === 'object' && p.char_stats) ? { ...p.char_stats } : {};
-        if (!stats[winnerChar]) stats[winnerChar] = { wins: 0, losses: 0 };
-        stats[winnerChar].wins = (stats[winnerChar].wins || 0) + 1;
-        return sbPatch('players', { id: winnerId }, { char_stats: stats });
-      })
-    );
+  if (Array.isArray(boGames) && boGames.length > 0) {
+    // Mode BO — on a le détail complet par game
+    boGames.forEach((g, i) => {
+      rows.push({
+        id:           `gr_${require('crypto').randomBytes(6).toString('hex')}`,
+        challenge_id: challengeId,
+        match_id:     matchId || null,
+        game_number:  i + 1,
+        p1_id:        challengerId,
+        p2_id:        challengedId,
+        p1_char:      g.p1char || null,
+        p2_char:      g.p2char || null,
+        stage:        g.stage  || null,
+        winner:       g.winner || null,   // 'p1' | 'p2'
+        played_at:    new Date().toISOString(),
+      });
+    });
+  } else if (fallbackWinnerChar || fallbackLoserChar) {
+    // Fallback mode STOCKS ou décision admin — 1 seule ligne sans stage
+    // On détermine qui est p1/p2 selon challengerId
+    const winnerIsP1 = fallbackLoserId === challengedId;
+    rows.push({
+      id:           `gr_${require('crypto').randomBytes(6).toString('hex')}`,
+      challenge_id: challengeId,
+      match_id:     matchId || null,
+      game_number:  1,
+      p1_id:        challengerId,
+      p2_id:        challengedId,
+      p1_char:      winnerIsP1 ? fallbackWinnerChar : fallbackLoserChar,
+      p2_char:      winnerIsP1 ? fallbackLoserChar  : fallbackWinnerChar,
+      stage:        null,
+      winner:       winnerIsP1 ? 'p1' : 'p2',
+      played_at:    new Date().toISOString(),
+    });
   }
 
-  if (loserChar) {
-    updates.push(
-      sbGet('players', `id=eq.${loserId}`).then(rows => {
-        if (!rows.length) return;
-        const p = rows[0];
-        const stats = (typeof p.char_stats === 'object' && p.char_stats) ? { ...p.char_stats } : {};
-        if (!stats[loserChar]) stats[loserChar] = { wins: 0, losses: 0 };
-        stats[loserChar].losses = (stats[loserChar].losses || 0) + 1;
-        return sbPatch('players', { id: loserId }, { char_stats: stats });
-      })
-    );
-  }
+  if (!rows.length) return;
 
-  if (updates.length) await Promise.all(updates);
+  // Insert chaque ligne (Supabase REST ne supporte pas le bulk insert avec return=representation facilement)
+  await Promise.all(rows.map(row => sbPost('game_results', row)));
 }
+
+// ── CHAR STATS — recalcule char_stats depuis game_results pour un joueur ──────
+// Plus besoin de lire/merger manuellement : on relit toutes les game_results
+// du joueur et on recalcule from scratch pour éviter toute corruption.
+async function rebuildCharStats(playerId) {
+  try {
+    const rows = await sbGet('game_results',
+      `or=(p1_id.eq.${playerId},p2_id.eq.${playerId})`
+    );
+    if (!rows || !rows.length) {
+      await sbPatch('players', { id: playerId }, { char_stats: {} });
+      return;
+    }
+
+    const stats = {}; // { char: { wins, losses, games, stages: { stage: count } } }
+
+    for (const g of rows) {
+      const isP1   = g.p1_id === playerId;
+      const myChar = isP1 ? g.p1_char : g.p2_char;
+      if (!myChar) continue;
+      const won    = (isP1 && g.winner === 'p1') || (!isP1 && g.winner === 'p2');
+
+      if (!stats[myChar]) stats[myChar] = { wins: 0, losses: 0, games: 0, stages: {} };
+      stats[myChar].games++;
+      if (won) stats[myChar].wins++;
+      else     stats[myChar].losses++;
+      if (g.stage) {
+        stats[myChar].stages[g.stage] = (stats[myChar].stages[g.stage] || 0) + 1;
+      }
+    }
+
+    await sbPatch('players', { id: playerId }, { char_stats: stats });
+  } catch (e) {
+    console.error('[rebuildCharStats]', playerId, e);
+  }
+}
+
 
 function validateId(v) { return v && VALID_ID_RE.test(String(v)); }
 function sanitizeStr(v, max) { return String(v || '').trim().slice(0, max); }
@@ -691,6 +908,7 @@ io.on('connection', (socket) => {
     const c = challenges[0];
     if (![c.challenger_id, c.challenged_id].includes(uid)) return;
     socket.join(`match_${cid}`);
+    socket._lastMatchRoom = cid; // track for disconnect notification
     // Charger l'historique depuis Supabase
     const history = await getMessagesFromDb(`match_${cid}`);
     socket.emit('chat_history', history);
@@ -701,6 +919,42 @@ io.on('connection', (socket) => {
   socket.on('leave_match', (data) => {
     const cid = data?.challenge_id || '';
     if (validateId(cid)) socket.leave(`match_${cid}`);
+  });
+
+  // ── REMATCH via socket ────────────────────────────────────────────────────
+  // Pure relay — pas de création ici, juste broadcast à l'adversaire.
+  // La création réelle se fait via POST /api/rematch quand les deux acceptent.
+  socket.on('rematch_request', (data) => {
+    const uid = req.session?.user?.id;
+    const cid = data?.challenge_id || '';
+    if (!uid || !validateId(cid)) return;
+    socket.to(`match_${cid}`).emit('rematch_request', { challenge_id: cid });
+  });
+
+  socket.on('rematch_cancel', (data) => {
+    const uid = req.session?.user?.id;
+    const cid = data?.challenge_id || '';
+    if (!uid || !validateId(cid)) return;
+    socket.to(`match_${cid}`).emit('rematch_cancelled', { challenge_id: cid });
+  });
+
+  // ── PLAYER LEAVING MATCH PAGE ─────────────────────────────────────────────
+  // Emitted explicitly via beforeunload, and also handled on socket disconnect.
+  socket.on('match_leave', (data) => {
+    const uid = req.session?.user?.id;
+    const cid = data?.challenge_id || '';
+    if (!uid || !validateId(cid)) return;
+    socket._lastMatchRoom = cid; // track for disconnect fallback
+    socket.to(`match_${cid}`).emit('opponent_left', { challenge_id: cid });
+    socket.leave(`match_${cid}`);
+  });
+
+  socket.on('disconnect', () => {
+    // If the socket was in a match room, notify the opponent
+    const cid = socket._lastMatchRoom;
+    if (cid && validateId(cid)) {
+      socket.to(`match_${cid}`).emit('opponent_left', { challenge_id: cid });
+    }
   });
 
   socket.on('bo_phase_update', (data) => {
@@ -843,6 +1097,7 @@ io.on('connection', (socket) => {
 
 async function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect("/login");
+  if (DEV_MODE) return next(); // skip Supabase ban-check in dev mode
   try {
     const players = await sbGet("players", `id=eq.${req.session.user.id}`);
     if (!players.length) { req.session.destroy(() => {}); return res.redirect("/login"); }
@@ -883,7 +1138,116 @@ app.get('/ranking', publicApiLimiter, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// ── CHARACTERS PAGE ───────────────────────────────────────────────────────────
+// Shows only the logged-in player's own char_stats.
+
+app.get('/characters', requireAuth, async (req, res) => {
+  try {
+    const playerRows = await sbGet('players', `id=eq.${req.session.user.id}`);
+    const player = playerRows[0] || null;
+    const charStats = (player && player.char_stats && typeof player.char_stats === 'object')
+      ? player.char_stats
+      : {};
+
+    res.render('characters.html', {
+      user: req.session.user,
+      char_stats: charStats,
+      current_user_rcoins: player?.rcoins || 0,
+    });
+  } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// ── DEV MODE: fake login routes ───────────────────────────────────────────────
+if (DEV_MODE) {
+  app.get('/dev-login', (req, res) => {
+    const p = req.query.player;
+    if (p === '1' || p === '2') {
+      const player = _devStore._seed[parseInt(p) - 1];
+      req.session.user = { id: player.id, username: player.username, avatar: null };
+      return res.redirect('/dashboard');
+    }
+    res.send(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>DEV LOGIN</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0a0f;--accent:#f04a00;--text:#e8e8f0;--muted:#6b6b8a;--card:#13131a}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .box{background:var(--card);border:1px solid #222;border-radius:12px;
+       padding:3rem 4rem;text-align:center;max-width:500px;width:100%}
+  .tag{background:#f04a0022;color:var(--accent);font-size:.75rem;font-weight:700;
+       letter-spacing:2px;padding:.3rem .8rem;border-radius:4px;display:inline-block;margin-bottom:1.5rem}
+  h1{font-family:'Bebas Neue',sans-serif;font-size:2.5rem;letter-spacing:3px;margin-bottom:.5rem}
+  p{color:var(--muted);margin-bottom:2rem;font-size:1rem}
+  .players{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+  .pc{background:#0a0a0f;border:1px solid #333;border-radius:10px;padding:1.5rem 2rem;flex:1;min-width:160px}
+  .av{width:56px;height:56px;border-radius:50%;background:#f04a00;display:flex;align-items:center;
+      justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:1.6rem;margin:0 auto 1rem}
+  .av.p2{background:#5865F2}
+  .pname{font-weight:700;font-size:1.1rem;margin-bottom:.25rem}
+  .ppts{color:var(--muted);font-size:.85rem;margin-bottom:1rem}
+  .badge{font-size:.7rem;background:#f04a0033;color:var(--accent);padding:.2rem .5rem;
+         border-radius:3px;font-weight:700;letter-spacing:1px}
+  a.btn{display:block;margin-top:1rem;background:var(--accent);color:#fff;
+        padding:.7rem 1rem;border-radius:6px;text-decoration:none;font-weight:700;font-size:1rem}
+  a.btn:hover{opacity:.85}
+  a.btn.p2{background:#5865F2}
+  .hint{margin-top:2rem;font-size:.8rem;color:var(--muted);line-height:1.8}
+  .hint code{background:#1a1a2e;padding:.1rem .4rem;border-radius:3px;color:#a0a0c0}
+</style></head><body>
+<div class="box">
+  <div class="tag">⚙ DEV MODE</div>
+  <h1>CHOISIR UN JOUEUR</h1>
+  <p>Ouvre <strong>deux onglets / navigateurs</strong> différents pour simuler 2 joueurs.</p>
+  <div class="players">
+    <div class="pc">
+      <div class="av">P1</div>
+      <div class="pname">Player1</div>
+      <div class="ppts">1200 pts · 5W 3L</div>
+      <div class="badge">ADMIN</div>
+      <a href="/dev-login?player=1" class="btn">Se connecter</a>
+    </div>
+    <div class="pc">
+      <div class="av p2">P2</div>
+      <div class="pname">Player2</div>
+      <div class="ppts">1050 pts · 3W 5L</div>
+      <a href="/dev-login?player=2" class="btn p2">Se connecter</a>
+    </div>
+  </div>
+  <div class="hint">
+    Navigateur A (normal) → <code>/dev-login?player=1</code><br>
+    Navigateur B (incognito) → <code>/dev-login?player=2</code><br><br>
+    Données en RAM — reset au redémarrage du serveur.<br>
+    <code>/dev-state</code> → voir tout le store &nbsp;|&nbsp; <code>/dev-reset</code> → remettre à zéro
+  </div>
+</div>
+</body></html>`);
+  });
+
+  app.get('/dev-state', (req, res) => {
+    const snap = {};
+    for (const [t, map] of Object.entries(_devStore)) {
+      if (map instanceof Map) snap[t] = [...map.values()];
+    }
+    res.json(snap);
+  });
+
+  app.get('/dev-reset', (req, res) => {
+    _devStore.challenges.clear();
+    _devStore.matches.clear();
+    _devStore.lfm_posts.clear();
+    _devStore.dm_messages.clear();
+    _devStore.reports.clear();
+    for (const p of _devStore._seed) _devStore.players.set(p.id, {...p});
+    req.session.destroy(() => {});
+    res.send('<p style="font:1rem monospace;padding:2rem;color:#e8e8f0;background:#0a0a0f;min-height:100vh">✅ Store reset. <a href="/dev-login" style="color:#f04a00">→ login</a></p>');
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.get('/login', loginLimiter, (req, res) => {
+  if (DEV_MODE) return res.redirect('/dev-login');
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauth_state = state;
   res.redirect(DISCORD_AUTH_URL + `&state=${state}`);
@@ -1013,6 +1377,51 @@ app.get('/dm/:other_id', requireAuth, async (req, res) => {
       other: otherRows[0],
     });
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
+});
+
+// ── REMATCH ───────────────────────────────────────────────────────────────────
+// Crée un nouveau challenge accepted entre les deux mêmes joueurs avec le même format.
+// Appelé par le joueur qui confirme le rematch (les deux ont cliqué "Rematch" côté socket).
+app.post('/api/rematch', authApiLimiter, requireAuth, async (req, res) => {
+  const { challenge_id } = req.body || {};
+  if (!challenge_id || !validateId(challenge_id))
+    return res.status(400).json({ error: 'Invalid challenge ID' });
+
+  const userId = req.session.user.id;
+  const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+  if (!challenges.length) return res.status(404).json({ error: 'Original match not found' });
+  const c = challenges[0];
+
+  if (![c.challenger_id, c.challenged_id].includes(userId))
+    return res.status(403).json({ error: 'Not part of this match' });
+  if (c.status !== 'completed')
+    return res.status(400).json({ error: 'Match not completed yet' });
+
+  // Vérifier qu'aucun match actif entre eux n'existe déjà
+  const existing = await sbGet('challenges',
+    `status=in.(pending,accepted,reported)&or=(and(challenger_id.eq.${c.challenger_id},challenged_id.eq.${c.challenged_id}),and(challenger_id.eq.${c.challenged_id},challenged_id.eq.${c.challenger_id}))`
+  );
+  if (existing.length) return res.status(400).json({ error: 'A match between you two is already active' });
+
+  const newId = `ch_${crypto.randomBytes(8).toString('hex')}`;
+  await sbPost('challenges', {
+    id: newId,
+    challenger_id:   c.challenger_id,
+    challenger_name: c.challenger_name,
+    challenged_id:   c.challenged_id,
+    challenged_name: c.challenged_name,
+    status:          'accepted',
+    format:          c.format,
+    accepted_at:     new Date().toISOString(),
+  });
+
+  // Prévenir les deux joueurs via socket
+  io.to(`match_${challenge_id}`).emit('rematch_redirect', { challenge_id, new_challenge_id: newId });
+  io.to(`user_${c.challenger_id}`).emit('match_redirect', { challenge_id: newId, p1: c.challenger_name, p2: c.challenged_name });
+  io.to(`user_${c.challenged_id}`).emit('match_redirect', { challenge_id: newId, p1: c.challenger_name, p2: c.challenged_name });
+
+  await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id)]);
+  res.json({ success: true, new_challenge_id: newId });
 });
 
 app.get('/logout', (req, res) => {
@@ -1494,7 +1903,10 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
     }),
   ]);
 
-  await updateCharStats(winner_id, winner.main_char || null, loser_id, loser.main_char || null);
+  const adminMatchRows = await sbGet('matches', `challenge_id=eq.${report.challenge_id}&order=date.desc&limit=1`);
+  const adminMatchId   = adminMatchRows.length ? adminMatchRows[0].id : null;
+  await saveGameResults(report.challenge_id, adminMatchId, report.challenger_id, report.challenged_id, [], winner.main_char || null, loser_id, loser.main_char || null);
+  await Promise.all([rebuildCharStats(winner_id), rebuildCharStats(loser_id)]);
   await emitLeaderboardUpdate();
   await Promise.all([emitDashboardUpdate(winner_id), emitDashboardUpdate(loser_id)]);
 
@@ -1617,7 +2029,8 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
         winner_stocks_taken: wSt, loser_stocks_taken: lSt,
         winner_stocks_total: wStRaw, loser_stocks_total: lStRaw,
         is_stocks_mode: isStocks,
-        games_history: req.body.games_history || null
+        games_history: req.body.games_history || null,
+        bo_games: req.body.bo_games || null,
       }
     });
 
@@ -1683,7 +2096,12 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
             format: c.format, elo_change: eloGain, date: new Date().toISOString() }),
           sbPatch('challenges', { id: challenge_id }, { status: 'completed' }),
         ]);
-        await updateCharStats(winner_id, winner.main_char || null, loser_id, loser.main_char || null);
+        const boGames = Array.isArray(report.bo_games) ? report.bo_games : [];
+        // Récupérer le match_id inséré juste avant
+        const matchRows = await sbGet('matches', `challenge_id=eq.${challenge_id}&order=date.desc&limit=1`);
+        const matchId   = matchRows.length ? matchRows[0].id : null;
+        await saveGameResults(challenge_id, matchId, c.challenger_id, c.challenged_id, boGames, winner.main_char || null, loser_id, loser.main_char || null);
+        await Promise.all([rebuildCharStats(winner_id), rebuildCharStats(loser_id)]);
         await new Promise(r => setTimeout(r, 300));
         await emitLeaderboardUpdate();
         boPhaseCache.delete(challenge_id);
@@ -2069,6 +2487,12 @@ app.delete('/admin/shop/banner/:banner_id', requireAdmin, async (req, res) => {
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`⚔ Smash YUZU running on port ${PORT}`);
+  if (DEV_MODE) {
+    console.log('\n🛠  DEV MODE actif — données en RAM, pas de Supabase/Discord');
+    console.log(`   → Login :   http://localhost:${PORT}/dev-login`);
+    console.log(`   → Store :   http://localhost:${PORT}/dev-state`);
+    console.log(`   → Reset :   http://localhost:${PORT}/dev-reset\n`);
+  }
 
   resolveDeadMatches();
   setInterval(resolveDeadMatches, DEAD_MATCH_CHECK_INTERVAL);
