@@ -918,10 +918,7 @@ io.on('connection', (socket) => {
 
   socket.on('leave_match', (data) => {
     const cid = data?.challenge_id || '';
-    if (validateId(cid)) {
-      socket.leave(`match_${cid}`);
-      if (socket._lastMatchRoom === cid) socket._lastMatchRoom = null;
-    }
+    if (validateId(cid)) socket.leave(`match_${cid}`);
   });
 
   // ── REMATCH via socket ────────────────────────────────────────────────────
@@ -947,9 +944,9 @@ io.on('connection', (socket) => {
     const uid = req.session?.user?.id;
     const cid = data?.challenge_id || '';
     if (!uid || !validateId(cid)) return;
+    socket._lastMatchRoom = cid; // track for disconnect fallback
     socket.to(`match_${cid}`).emit('opponent_left', { challenge_id: cid });
     socket.leave(`match_${cid}`);
-    socket._lastMatchRoom = null; // already notified — avoid duplicate on disconnect
   });
 
   socket.on('disconnect', () => {
@@ -1083,6 +1080,13 @@ io.on('connection', (socket) => {
     // Save to Supabase DM room
     await saveMessageToDb(roomId, payload);
     io.to(roomId).emit('dm_message', { roomId, ...payload });
+
+    // Notif popup pour le receveur (même s'il n'est pas dans la room DM)
+    io.to(`user_${otherId}`).emit('dm_notification', {
+      from_id:   uid,
+      from_name: name,
+      text:      text.slice(0, 80),
+    });
 
     // If there is an active match between these two players, also forward to match room
     try {
@@ -1419,14 +1423,6 @@ app.post('/api/rematch', authApiLimiter, requireAuth, async (req, res) => {
   });
 
   // Prévenir les deux joueurs via socket
-  // Clear _lastMatchRoom for every socket currently in this match room so that
-  // the inevitable disconnect (page navigation to the new match) does not
-  // trigger a spurious "opponent_left" broadcast for the old room.
-  for (const [, s] of io.sockets.sockets) {
-    if (s.rooms.has(`match_${challenge_id}`) && s._lastMatchRoom === challenge_id) {
-      s._lastMatchRoom = null;
-    }
-  }
   io.to(`match_${challenge_id}`).emit('rematch_redirect', { challenge_id, new_challenge_id: newId });
   io.to(`user_${c.challenger_id}`).emit('match_redirect', { challenge_id: newId, p1: c.challenger_name, p2: c.challenged_name });
   io.to(`user_${c.challenged_id}`).emit('match_redirect', { challenge_id: newId, p1: c.challenger_name, p2: c.challenged_name });
