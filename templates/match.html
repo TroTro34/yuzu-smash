@@ -965,6 +965,8 @@ const P1_NAME      = {{ (challenger.username + (' (' + challenger.yuzu_pseudo + 
 const P2_ID        = {{ challenge.challenged_id | tojson }};
 const P2_NAME      = {{ (challenged.username + (' (' + challenged.yuzu_pseudo + ')' if challenged.yuzu_pseudo else '')) | tojson }};
 const MY_ID        = {{ user.id                 | tojson }};
+window.YUZU_USER_ID   = MY_ID;
+window.YUZU_USER_NAME = {{ user.username | tojson }};
 
 // ── STATE ──
 let p1Score = 0, p2Score = 0;
