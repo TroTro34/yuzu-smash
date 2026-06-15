@@ -727,6 +727,8 @@
 <script>
 const myId   = "{{ user.id }}";
 const myName = "{{ user.username }}";
+window.YUZU_USER_ID   = myId;
+window.YUZU_USER_NAME = myName;
 let currentChallengeId = null, selectedWinnerId = null, currentFormat = '', modalOpen = false;
 
 // Set des challenge IDs terminés — alimenté par ?done= au chargement ET par match_update en temps réel
