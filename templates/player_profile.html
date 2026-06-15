@@ -444,7 +444,7 @@ const CHAR_ICONS = {
         ${icon ? `<img src="${icon}" onerror="this.style.display='none'" alt="${s.char}">` : ''}
         <div class="char-stat-info">
           <div class="char-stat-name">${s.char.replace(/_/g,' ')}</div>
-          <div class="char-stat-meta">${s.games} set${s.games>1?'s':''}</div>
+          <div class="char-stat-meta">${s.games} game${s.games>1?'s':''}</div>
           <div class="char-stat-wr ${wrClass}">${s.wr}% WR</div>
         </div>
       </div>`;
