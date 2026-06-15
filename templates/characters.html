@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Character Stats — Smash YUZU</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07070f; --surface: #0f0f1a; --surface2: #16162a; --surface3: #1e1e35;
+      --border: #252540; --accent: #e8400a; --accent2: #ff8000;
+      --gold: #ffd700; --silver: #c0c0c0; --bronze: #cd7f32;
+      --text: #eeeef5; --muted: #6060a0; --green: #3ddc84; --red: #ff5555; --purple: #9b59b6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 10% 0%, rgba(232,64,10,0.08) 0%, transparent 45%),
+        radial-gradient(ellipse at 90% 100%, rgba(155,89,182,0.06) 0%, transparent 45%);
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(7,7,15,0.97); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px);
+    }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 4px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+    .nav-left { display: flex; align-items: center; gap: 1.2rem; }
+    .nav-right { display: flex; gap: 0.6rem; align-items: center; }
+    .nav-divider { width: 1px; height: 24px; background: var(--border); margin: 0 0.2rem; }
+    .btn { padding: 0.45rem 1.1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-home { background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); }
+    .btn-home:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,128,0,0.06); }
+    .nav-rcoin-badge {
+      display: flex; align-items: center; gap: 0.35rem;
+      background: linear-gradient(135deg, rgba(126,34,206,0.22) 0%, rgba(88,28,135,0.18) 100%);
+      border: 1px solid rgba(168,85,247,0.45); border-radius: 20px; padding: 0.3rem 0.9rem;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px;
+      color: #c084fc; text-decoration: none; transition: all 0.2s; box-shadow: 0 0 10px rgba(168,85,247,0.12);
+    }
+    .nav-rcoin-badge:hover { border-color: #a855f7; box-shadow: 0 0 18px rgba(168,85,247,0.28); color: #e9d5ff; }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+
+    .page-header { margin-bottom: 2rem; }
+    .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 5px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 60%, var(--accent) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
+    .page-subtitle { color: var(--muted); font-size: 1rem; margin-top: 0.4rem; letter-spacing: 1px; }
+
+    /* ── SECTION TITLES ── */
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 3px;
+      color: var(--accent); margin-bottom: 1.2rem; margin-top: 2.5rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── DIVIDER between played/unplayed ── */
+    .unplayed-divider {
+      display: flex; align-items: center; gap: 1rem;
+      margin: 2.5rem 0 1.5rem;
+    }
+    .unplayed-divider-line { flex: 1; height: 1px; background: var(--border); }
+    .unplayed-divider-label {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 3px;
+      color: var(--muted); white-space: nowrap; padding: 0 0.5rem;
+    }
+
+    /* ── CHARACTER GRID ── */
+    .char-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.8rem;
+    }
+
+    /* ── CHARACTER CARD ── */
+    .char-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1rem 0.8rem 0.8rem; cursor: pointer; transition: all 0.2s;
+      position: relative; overflow: hidden; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+    }
+    .char-card:hover {
+      border-color: var(--accent); transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(232,64,10,0.15);
+    }
+    .char-card.unplayed {
+      opacity: 0.45; cursor: default;
+    }
+    .char-card.unplayed:hover { transform: none; border-color: var(--border); box-shadow: none; }
+
+    .char-card img {
+      width: 56px; height: 56px; object-fit: contain;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+    }
+    .char-card.unplayed img { filter: grayscale(1) brightness(0.5); }
+
+    .char-name {
+      font-size: 0.78rem; font-weight: 700; text-transform: capitalize;
+      letter-spacing: 0.5px; color: var(--text); line-height: 1.2;
+    }
+
+    .char-games {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem;
+      letter-spacing: 1px; color: var(--muted);
+    }
+
+    .char-wr-bar {
+      width: 100%; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden;
+    }
+    .char-wr-fill {
+      height: 100%; border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+    .char-wr-fill.good { background: linear-gradient(90deg, var(--green), #2ecc71); }
+    .char-wr-fill.mid  { background: linear-gradient(90deg, var(--accent2), #e67e22); }
+    .char-wr-fill.bad  { background: linear-gradient(90deg, var(--red), #c0392b); }
+
+    .char-wr-label {
+      font-size: 0.82rem; font-weight: 700;
+    }
+    .char-wr-label.good { color: var(--green); }
+    .char-wr-label.mid  { color: var(--accent2); }
+    .char-wr-label.bad  { color: var(--red); }
+
+    .char-rank-badge {
+      position: absolute; top: 5px; left: 7px;
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.72rem;
+      letter-spacing: 1px; color: var(--muted);
+    }
+    .char-rank-badge.top { color: var(--gold); }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(7,7,15,0.85); backdrop-filter: blur(8px);
+      z-index: 500; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto;
+      padding: 2rem; position: relative;
+      transform: translateY(20px); transition: transform 0.2s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+
+    .modal-close {
+      position: absolute; top: 1rem; right: 1rem; background: transparent;
+      border: 1px solid var(--border); color: var(--muted); border-radius: 6px;
+      cursor: pointer; font-size: 1rem; width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+    }
+    .modal-close:hover { border-color: var(--red); color: var(--red); }
+
+    .modal-header {
+      display: flex; align-items: center; gap: 1.2rem; margin-bottom: 1.5rem;
+      padding-bottom: 1.2rem; border-bottom: 1px solid var(--border);
+    }
+    .modal-char-img { width: 72px; height: 72px; object-fit: contain;
+      filter: drop-shadow(0 2px 12px rgba(232,64,10,0.3)); }
+    .modal-char-name {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 3px;
+      line-height: 1; text-transform: capitalize;
+    }
+    .modal-char-stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.4rem; }
+    .modal-stat { font-size: 0.85rem; }
+    .modal-stat .val { font-weight: 700; font-size: 1rem; }
+    .modal-stat .val.g { color: var(--green); }
+    .modal-stat .val.r { color: var(--red); }
+    .modal-stat .val.o { color: var(--accent2); }
+    .modal-stat .lbl { color: var(--muted); font-size: 0.75rem; }
+
+    .modal-section-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 2px;
+      color: var(--accent); margin-bottom: 0.8rem; margin-top: 1.2rem;
+    }
+
+    /* Stage rows */
+    .stage-row {
+      display: flex; align-items: center; gap: 0.8rem;
+      padding: 0.5rem 0.8rem; border-radius: 6px; margin-bottom: 0.35rem;
+      border: 1px solid var(--border); position: relative; overflow: hidden;
+      min-height: 52px;
+    }
+    .stage-row-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background-size: cover; background-position: center 40%;
+      opacity: 0.18; pointer-events: none;
+    }
+    .stage-row > *:not(.stage-row-bg) { position: relative; z-index: 1; }
+    .stage-row-thumb {
+      width: 52px; height: 36px; object-fit: cover; border-radius: 4px;
+      flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .stage-name { flex: 1; font-size: 0.9rem; font-weight: 700; }
+    .stage-count { font-size: 0.8rem; color: var(--muted); min-width: 55px; text-align: right; }
+    .stage-bar-wrap { width: 80px; height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+    .stage-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; }
+
+    .no-stages { color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
+
+    /* WR big display */
+    .modal-wr-display {
+      display: flex; align-items: center; gap: 0.8rem; margin-top: 0.5rem;
+    }
+    .modal-wr-val {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; letter-spacing: 2px;
+    }
+    .modal-wr-val.good { color: var(--green); }
+    .modal-wr-val.mid  { color: var(--accent2); }
+    .modal-wr-val.bad  { color: var(--red); }
+    .modal-wr-bar { flex: 1; height: 8px; background: var(--surface3); border-radius: 4px; overflow: hidden; }
+    .modal-wr-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+    .modal-wr-bar-fill.good { background: linear-gradient(90deg, var(--green), #2ecc71); }
+    .modal-wr-bar-fill.mid  { background: linear-gradient(90deg, var(--accent2), #e67e22); }
+    .modal-wr-bar-fill.bad  { background: linear-gradient(90deg, var(--red), #c0392b); }
+
+    /* ── TOTALS BAR ── */
+    .totals-bar {
+      display: flex; gap: 1rem; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .total-item { text-align: center; min-width: 70px; }
+    .total-item .val {
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; display: block; line-height: 1;
+    }
+    .total-item .lbl { font-size: 0.68rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .total-item .val.o { color: var(--accent2); }
+    .total-item .val.g { color: var(--green); }
+    .total-item .val.r { color: var(--red); }
+    .total-item .val.p { color: var(--purple); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <a href="/" class="logo">⚔ YUZU</a>
+  </div>
+  <div class="nav-right">
+    <a href="/" class="btn btn-home">🏠 Home</a>
+    {% if user %}
+      <a href="/dashboard" class="btn btn-primary">⚡ Dashboard</a>
+      <a href="/wallet" class="nav-rcoin-badge" title="Wallet — RCoins">
+        <span style="color:#a855f7;font-size:0.8rem;">R</span>{{ current_user_rcoins or 0 }}
+      </a>
+      <div class="nav-divider"></div>
+      <a href="/logout" class="btn btn-ghost" style="font-size:0.85rem;padding:0.4rem 0.9rem;">↩ Out</a>
+    {% else %}
+      <a href="/login" class="btn btn-primary">Sign In</a>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <div class="page-title">CHARACTER STATS</div>
+    <div class="page-subtitle">All fighters ranked by total games played · Click a character for stage breakdown</div>
+  </div>
+
+  <!-- Global summary -->
+  <div class="totals-bar" id="totals-bar">
+    <!-- filled by JS -->
+  </div>
+
+  <div class="section-title">PLAYED CHARACTERS</div>
+  <div class="char-grid" id="played-grid">
+    <!-- filled by JS -->
+  </div>
+
+  <div class="unplayed-divider">
+    <div class="unplayed-divider-line"></div>
+    <div class="unplayed-divider-label">— NEVER PLAYED —</div>
+    <div class="unplayed-divider-line"></div>
+  </div>
+
+  <div class="char-grid" id="unplayed-grid">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModalBtn()">✕</button>
+    <div class="modal-header">
+      <img class="modal-char-img" id="modal-img" src="" alt="">
+      <div>
+        <div class="modal-char-name" id="modal-name"></div>
+        <div class="modal-char-stats" id="modal-stats"></div>
+      </div>
+    </div>
+    <div class="modal-wr-display" id="modal-wr-display"></div>
+    <div class="modal-section-title">WINS BY STAGE</div>
+    <div id="modal-stages"></div>
+  </div>
+</div>
+
+<script>
+// ── ALL SMASH ULTIMATE CHARACTER ICONS ─────────────────────────────────────────
+const CHAR_ICONS = {
+  mario:             "https://www.smashbros.com/assets_v2/img/fighter/pict/mario.png",
+  donkey_kong:       "https://www.smashbros.com/assets_v2/img/fighter/pict/donkey_kong.png",
+  link:              "https://www.smashbros.com/assets_v2/img/fighter/pict/link.png",
+  samus:             "https://www.smashbros.com/assets_v2/img/fighter/pict/samus.png",
+  dark_samus:        "https://www.smashbros.com/assets_v2/img/fighter/pict/dark_samus.png",
+  yoshi:             "https://www.smashbros.com/assets_v2/img/fighter/pict/yoshi.png",
+  kirby:             "https://www.smashbros.com/assets_v2/img/fighter/pict/kirby.png",
+  fox:               "https://www.smashbros.com/assets_v2/img/fighter/pict/fox.png",
+  pikachu:           "https://www.smashbros.com/assets_v2/img/fighter/pict/pikachu.png",
+  luigi:             "https://www.smashbros.com/assets_v2/img/fighter/pict/luigi.png",
+  ness:              "https://www.smashbros.com/assets_v2/img/fighter/pict/ness.png",
+  captain_falcon:    "https://www.smashbros.com/assets_v2/img/fighter/pict/captain_falcon.png",
+  jigglypuff:        "https://www.smashbros.com/assets_v2/img/fighter/pict/purin.png",
+  peach:             "https://www.smashbros.com/assets_v2/img/fighter/pict/peach.png",
+  daisy:             "https://www.smashbros.com/assets_v2/img/fighter/pict/daisy.png",
+  bowser:            "https://www.smashbros.com/assets_v2/img/fighter/pict/koopa.png",
+  ice_climbers:      "https://www.smashbros.com/assets_v2/img/fighter/pict/ice_climber.png",
+  sheik:             "https://www.smashbros.com/assets_v2/img/fighter/pict/sheik.png",
+  zelda:             "https://www.smashbros.com/assets_v2/img/fighter/pict/zelda.png",
+  dr_mario:          "https://ssb.wiki.gallery/images/thumb/7/78/DrMarioHeadSSBU.png/48px-DrMarioHeadSSBU.png",
+  pichu:             "https://www.smashbros.com/assets_v2/img/fighter/pict/pichu.png",
+  falco:             "https://www.smashbros.com/assets_v2/img/fighter/pict/falco.png",
+  marth:             "https://www.smashbros.com/assets_v2/img/fighter/pict/marth.png",
+  lucina:            "https://www.smashbros.com/assets_v2/img/fighter/pict/lucina.png",
+  young_link:        "https://www.smashbros.com/assets_v2/img/fighter/pict/young_link.png",
+  ganondorf:         "https://www.smashbros.com/assets_v2/img/fighter/pict/ganondorf.png",
+  mewtwo:            "https://www.smashbros.com/assets_v2/img/fighter/pict/mewtwo.png",
+  roy:               "https://www.smashbros.com/assets_v2/img/fighter/pict/roy.png",
+  chrom:             "https://www.smashbros.com/assets_v2/img/fighter/pict/chrom.png",
+  mr_game_and_watch: "https://ssb.wiki.gallery/images/thumb/6/6b/MrGame%26WatchHeadSSBU.png/48px-MrGame%26WatchHeadSSBU.png",
+  meta_knight:       "https://ssb.wiki.gallery/images/thumb/d/de/MetaKnightHeadSSBU.png/48px-MetaKnightHeadSSBU.png",
+  pit:               "https://www.smashbros.com/assets_v2/img/fighter/pict/pit.png",
+  dark_pit:          "https://ssb.wiki.gallery/images/thumb/e/ed/DarkPitHeadSSBU.png/48px-DarkPitHeadSSBU.png",
+  zero_suit_samus:   "https://ssb.wiki.gallery/images/thumb/7/71/ZeroSuitSamusHeadSSBU.png/48px-ZeroSuitSamusHeadSSBU.png",
+  wario:             "https://www.smashbros.com/assets_v2/img/fighter/pict/wario.png",
+  snake:             "https://www.smashbros.com/assets_v2/img/fighter/pict/snake.png",
+  ike:               "https://www.smashbros.com/assets_v2/img/fighter/pict/ike.png",
+  pokemon_trainer:   "https://www.smashbros.com/assets_v2/img/fighter/pict/pokemon_trainer.png",
+  diddy_kong:        "https://www.smashbros.com/assets_v2/img/fighter/pict/diddy_kong.png",
+  lucas:             "https://www.smashbros.com/assets_v2/img/fighter/pict/lucas.png",
+  sonic:             "https://www.smashbros.com/assets_v2/img/fighter/pict/sonic.png",
+  dedede:            "https://www.smashbros.com/assets_v2/img/fighter/pict/dedede.png",
+  olimar:            "https://ssb.wiki.gallery/images/thumb/9/97/OlimarHeadSSBUWebsite.png/180px-OlimarHeadSSBUWebsite.png",
+  lucario:           "https://www.smashbros.com/assets_v2/img/fighter/pict/lucario.png",
+  rob:               "https://www.smashbros.com/assets_v2/img/fighter/pict/robot.png",
+  toon_link:         "https://www.smashbros.com/assets_v2/img/fighter/pict/toon_link.png",
+  wolf:              "https://www.smashbros.com/assets_v2/img/fighter/pict/wolf.png",
+  villager:          "https://www.smashbros.com/assets_v2/img/fighter/pict/murabito.png",
+  mega_man:          "https://www.smashbros.com/assets_v2/img/fighter/pict/rockman.png",
+  wii_fit_trainer:   "https://ssb.wiki.gallery/images/thumb/8/87/WiiFitTrainerHeadSSBU.png/48px-WiiFitTrainerHeadSSBU.png",
+  rosalina_and_luma: "https://ssb.wiki.gallery/images/thumb/e/e8/RosalinaHeadSSBU.png/48px-RosalinaHeadSSBU.png",
+  little_mac:        "https://ssb.wiki.gallery/images/thumb/1/10/LittleMacHeadSSBU.png/48px-LittleMacHeadSSBU.png",
+  greninja:          "https://www.smashbros.com/assets_v2/img/fighter/pict/gekkouga.png",
+  mii_brawler:       "https://ssb.wiki.gallery/images/thumb/d/d8/MiiBrawlerHeadSSBU.png/48px-MiiBrawlerHeadSSBU.png",
+  mii_swordfighter:  "https://ssb.wiki.gallery/images/thumb/e/ef/MiiSwordfighterHeadSSBU.png/48px-MiiSwordfighterHeadSSBU.png",
+  mii_gunner:        "https://ssb.wiki.gallery/images/thumb/3/3d/MiiGunnerHeadSSBU.png/48px-MiiGunnerHeadSSBU.png",
+  palutena:          "https://www.smashbros.com/assets_v2/img/fighter/pict/palutena.png",
+  pac_man:           "https://ssb.wiki.gallery/images/thumb/4/45/Pac-ManHeadSSBU.png/48px-Pac-ManHeadSSBU.png",
+  robin:             "https://www.smashbros.com/assets_v2/img/fighter/pict/reflet.png",
+  shulk:             "https://www.smashbros.com/assets_v2/img/fighter/pict/shulk.png",
+  bowser_jr:         "https://ssb.wiki.gallery/images/thumb/0/07/BowserJrHeadSSBU.png/48px-BowserJrHeadSSBU.png",
+  duck_hunt:         "https://ssb.wiki.gallery/images/thumb/3/38/DuckHuntHeadSSBUWebsite.png/180px-DuckHuntHeadSSBUWebsite.png",
+  ryu:               "https://www.smashbros.com/assets_v2/img/fighter/pict/ryu.png",
+  ken:               "https://www.smashbros.com/assets_v2/img/fighter/pict/ken.png",
+  cloud:             "https://www.smashbros.com/assets_v2/img/fighter/pict/cloud.png",
+  corrin:            "https://www.smashbros.com/assets_v2/img/fighter/pict/kamui.png",
+  bayonetta:         "https://www.smashbros.com/assets_v2/img/fighter/pict/bayonetta.png",
+  inkling:           "https://www.smashbros.com/assets_v2/img/fighter/pict/inkling.png",
+  ridley:            "https://www.smashbros.com/assets_v2/img/fighter/pict/ridley.png",
+  simon:             "https://www.smashbros.com/assets_v2/img/fighter/pict/simon.png",
+  richter:           "https://www.smashbros.com/assets_v2/img/fighter/pict/richter.png",
+  king_k_rool:       "https://ssb.wiki.gallery/images/thumb/d/de/KingKRoolHeadSSBU.png/48px-KingKRoolHeadSSBU.png",
+  isabelle:          "https://www.smashbros.com/assets_v2/img/fighter/pict/shizue.png",
+  incineroar:        "https://www.smashbros.com/assets_v2/img/fighter/pict/gaogaen.png",
+  piranha_plant:     "https://ssb.wiki.gallery/images/thumb/3/38/PiranhaPlantHeadSSBU.png/48px-PiranhaPlantHeadSSBU.png",
+  joker:             "https://ssb.wiki.gallery/images/thumb/6/63/JokerHeadSSBUWebsite.png/180px-JokerHeadSSBUWebsite.png",
+  hero:              "https://ssb.wiki.gallery/images/thumb/1/1e/HeroHeadSSBUWebsite.png/180px-HeroHeadSSBUWebsite.png",
+  banjo_and_kazooie: "https://ssb.wiki.gallery/images/thumb/1/12/Banjo%26KazooieHeadSSBUWebsite.png/180px-Banjo%26KazooieHeadSSBUWebsite.png",
+  terry:             "https://ssb.wiki.gallery/images/thumb/2/2e/TerryHeadSSBUWebsite.png/180px-TerryHeadSSBUWebsite.png",
+  byleth:            "https://ssb.wiki.gallery/images/thumb/8/86/BylethHeadSSBUWebsite.png/180px-BylethHeadSSBUWebsite.png",
+  min_min:           "https://ssb.wiki.gallery/images/thumb/f/fc/MinMinHeadSSBUWebsite.png/180px-MinMinHeadSSBUWebsite.png",
+  steve:             "https://ssb.wiki.gallery/images/thumb/4/4f/SteveHeadSSBUWebsite.png/180px-SteveHeadSSBUWebsite.png",
+  sephiroth:         "https://ssb.wiki.gallery/images/thumb/6/64/SephirothHeadSSBUWebsite.png/180px-SephirothHeadSSBUWebsite.png",
+  pyra_mythra:       "https://ssb.wiki.gallery/images/f/fc/PyraMythraHeadSSBU.png",
+  kazuya:            "https://ssb.wiki.gallery/images/thumb/8/85/KazuyaHeadSSBUWebsite.png/180px-KazuyaHeadSSBUWebsite.png",
+  sora:              "https://ssb.wiki.gallery/images/thumb/6/61/SoraHeadSSBUWebsite.png/180px-SoraHeadSSBUWebsite.png",
+};
+
+const ALL_CHARS = Object.keys(CHAR_ICONS);
+
+// ── DATA from server ──────────────────────────────────────────────────────────
+// char_stats is aggregated across ALL players: { char: { wins, losses, games, stages: { stage: count } } }
+const RAW_CHAR_STATS = {{ char_stats | tojson }};
+
+// ── BUILD played / unplayed lists ────────────────────────────────────────────
+const playedList = Object.entries(RAW_CHAR_STATS)
+  .filter(([,s]) => (s.games || 0) > 0)
+  .map(([char, s]) => {
+    const wins   = s.wins   || 0;
+    const losses = s.losses || 0;
+    const games  = s.games  || (wins + losses);
+    const wr     = games > 0 ? Math.round(wins / games * 100) : 0;
+    const stages = s.stages || {};
+    return { char, wins, losses, games, wr, stages };
+  })
+  .sort((a, b) => b.games - a.games);
+
+const playedChars = new Set(playedList.map(p => p.char));
+const unplayedList = ALL_CHARS.filter(c => !playedChars.has(c));
+
+// ── TOTALS ───────────────────────────────────────────────────────────────────
+const totalGames   = playedList.reduce((s, c) => s + c.games, 0);
+const totalWins    = playedList.reduce((s, c) => s + c.wins, 0);
+const uniqueChars  = playedList.length;
+
+document.getElementById('totals-bar').innerHTML = `
+  <div class="total-item"><span class="val o">${totalGames}</span><span class="lbl">Total Games</span></div>
+  <div class="total-item"><span class="val g">${totalWins}</span><span class="lbl">Total Wins</span></div>
+  <div class="total-item"><span class="val r">${totalGames - totalWins}</span><span class="lbl">Total Losses</span></div>
+  <div class="total-item"><span class="val p">${uniqueChars}</span><span class="lbl">Chars Played</span></div>
+  <div class="total-item"><span class="val" style="color:var(--muted)">${unplayedList.length}</span><span class="lbl">Never Played</span></div>
+`;
+
+// ── WR colour helper ──────────────────────────────────────────────────────────
+function wrClass(wr) { return wr >= 60 ? 'good' : wr < 40 ? 'bad' : 'mid'; }
+
+// ── RENDER PLAYED GRID ────────────────────────────────────────────────────────
+const maxGames = playedList[0]?.games || 1;
+const playedGrid = document.getElementById('played-grid');
+
+playedList.forEach((entry, idx) => {
+  const icon = CHAR_ICONS[entry.char] || '';
+  const cls  = wrClass(entry.wr);
+  const isTop = idx < 3;
+  const label = ['#1 MOST PLAYED', '#2', '#3'][idx] || `#${idx + 1}`;
+
+  const card = document.createElement('div');
+  card.className = 'char-card';
+  card.dataset.char = entry.char;
+  card.innerHTML = `
+    <div class="char-rank-badge ${isTop ? 'top' : ''}">${label}</div>
+    ${icon ? `<img src="${icon}" onerror="this.style.display='none'" alt="${entry.char}">` : '<div style="width:56px;height:56px"></div>'}
+    <div class="char-name">${entry.char.replace(/_/g, ' ')}</div>
+    <div class="char-games">${entry.games} game${entry.games > 1 ? 's' : ''}</div>
+    <div class="char-wr-bar"><div class="char-wr-fill ${cls}" style="width:${entry.wr}%"></div></div>
+    <div class="char-wr-label ${cls}">${entry.wr}% WR</div>
+  `;
+  card.addEventListener('click', () => openModal(entry));
+  playedGrid.appendChild(card);
+});
+
+// ── RENDER UNPLAYED GRID ──────────────────────────────────────────────────────
+const unplayedGrid = document.getElementById('unplayed-grid');
+
+unplayedList.forEach(char => {
+  const icon = CHAR_ICONS[char] || '';
+  const card = document.createElement('div');
+  card.className = 'char-card unplayed';
+  card.innerHTML = `
+    ${icon ? `<img src="${icon}" onerror="this.style.display='none'" alt="${char}">` : '<div style="width:56px;height:56px"></div>'}
+    <div class="char-name">${char.replace(/_/g, ' ')}</div>
+    <div class="char-games">—</div>
+  `;
+  unplayedGrid.appendChild(card);
+});
+
+// ── STAGE IMAGES ──────────────────────────────────────────────────────────────
+const STAGE_IMAGES = {
+  battlefield:          "https://ssb.wiki.gallery/images/thumb/8/86/SSBU-Battlefield.png/300px-SSBU-Battlefield.png",
+  hollow_bastion:       "https://ssb.wiki.gallery/images/thumb/7/7e/SSBU-Hollow_Bastion.jpg/300px-SSBU-Hollow_Bastion.jpg",
+  yoshi_story:          "https://ssb.wiki.gallery/images/thumb/0/0c/SSBU-Yoshi%27s_Story.png/300px-SSBU-Yoshi%27s_Story.png",
+  kalos_pokemon_league: "https://ssb.wiki.gallery/images/thumb/b/bf/SSBU-Kalos_Pok%C3%A9mon_League.png/300px-SSBU-Kalos_Pok%C3%A9mon_League.png",
+  smashville:           "https://ssb.wiki.gallery/images/thumb/0/02/SSBU-Smashville.png/300px-SSBU-Smashville.png",
+  town_and_city:        "https://ssb.wiki.gallery/images/thumb/2/26/SSBU-Town_and_City.png/300px-SSBU-Town_and_City.png",
+  pokemon_stadium_2:    "https://ssb.wiki.gallery/images/thumb/7/73/SSBU-Pok%C3%A9mon_Stadium_2.png/300px-SSBU-Pok%C3%A9mon_Stadium_2.png",
+  final_destination:    "https://ssb.wiki.gallery/images/thumb/9/91/SSBU-Final_Destination.jpg/300px-SSBU-Final_Destination.jpg",
+  small_battlefield:    "https://ssb.wiki.gallery/images/thumb/7/7e/SSBU-Small-Battlefield.jpg/300px-SSBU-Small-Battlefield.jpg",
+};
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+let currentEntry = null;
+
+function openModal(entry) {
+  currentEntry = entry;
+  const icon = CHAR_ICONS[entry.char] || '';
+  const cls  = wrClass(entry.wr);
+
+  document.getElementById('modal-img').src = icon;
+  document.getElementById('modal-img').alt = entry.char;
+  document.getElementById('modal-name').textContent = entry.char.replace(/_/g, ' ');
+
+  document.getElementById('modal-stats').innerHTML = `
+    <div class="modal-stat"><span class="val o">${entry.games}</span><br><span class="lbl">GAMES</span></div>
+    <div class="modal-stat"><span class="val g">${entry.wins}</span><br><span class="lbl">WINS</span></div>
+    <div class="modal-stat"><span class="val r">${entry.losses}</span><br><span class="lbl">LOSSES</span></div>
+  `;
+
+  document.getElementById('modal-wr-display').innerHTML = `
+    <div class="modal-wr-val ${cls}">${entry.wr}%</div>
+    <div class="modal-wr-bar">
+      <div class="modal-wr-bar-fill ${cls}" style="width:${entry.wr}%"></div>
+    </div>
+    <div style="font-size:0.8rem;color:var(--muted);letter-spacing:1px;white-space:nowrap">WIN RATE</div>
+  `;
+
+  // Stage breakdown — sorted by plays desc
+  const stages = Object.entries(entry.stages || {})
+    .map(([stage, count]) => ({ stage, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const stageMax = stages[0]?.count || 1;
+  let stagesHtml = '';
+  if (stages.length === 0) {
+    stagesHtml = '<div class="no-stages">No stage data recorded.</div>';
+  } else {
+    for (const { stage, count } of stages) {
+      const pct = Math.round(count / stageMax * 100);
+      // Normalize stage key: lowercase + spaces→underscores, strip accents
+      const stageKey = stage.toLowerCase().replace(/\s+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const imgUrl = STAGE_IMAGES[stageKey] || null;
+      const thumbHtml = imgUrl
+        ? `<img class="stage-row-thumb" src="${imgUrl}" onerror="this.style.display='none'" alt="${stage}">`
+        : `<div style="width:52px;height:36px;flex-shrink:0;border-radius:4px;background:var(--surface3);border:1px solid var(--border);"></div>`;
+      const bgHtml = imgUrl
+        ? `<div class="stage-row-bg" style="background-image:url('${imgUrl}')"></div>`
+        : `<div style="background:var(--surface2);position:absolute;inset:0;z-index:0;"></div>`;
+      stagesHtml += `
+        <div class="stage-row">
+          ${bgHtml}
+          ${thumbHtml}
+          <div class="stage-name">${stage}</div>
+          <div class="stage-bar-wrap"><div class="stage-bar-fill" style="width:${pct}%"></div></div>
+          <div class="stage-count">${count} game${count > 1 ? 's' : ''}</div>
+        </div>`;
+    }
+  }
+  document.getElementById('modal-stages').innerHTML = stagesHtml;
+
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModalBtn();
+}
+function closeModalBtn() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalBtn(); });
+</script>
+<script src="/static/notifications.js"></script>
+</body>
+</html>
