@@ -1158,7 +1158,13 @@ async function requireAuth(req, res, next) {
 app.get('/', async (req, res) => {
   try {
     const now = new Date().toISOString();
-    await sbDelete('lfm_posts', { expires_at: `lt.${now}` });
+    const expiredPosts = await sbGet('lfm_posts', `expires_at=lt.${now}`);
+    if (expiredPosts.length) {
+      await sbDelete('lfm_posts', { expires_at: `lt.${now}` });
+      expiredPosts.forEach(p => {
+        if (p.discord_message_id) deleteDiscordLfmMessage(p.discord_message_id).catch(() => {});
+      });
+    }
     const [players, matches, lfm, bannersArr] = await Promise.all([
       sbGet('players', 'order=points.desc'),
       sbGet('matches', 'order=date.desc&limit=10'),
@@ -1587,10 +1593,19 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
     challenge_id,
   });
 
+  const [danglingChallengerPosts, danglingChallengedPosts] = await Promise.all([
+    sbGet('lfm_posts', `player_id=eq.${c.challenger_id}`),
+    sbGet('lfm_posts', `player_id=eq.${c.challenged_id}`),
+  ]);
   await Promise.all([
     sbDelete('lfm_posts', { player_id: c.challenger_id }),
     sbDelete('lfm_posts', { player_id: c.challenged_id }),
   ]);
+  // Pas le flow "accept LFM post" direct — juste un nettoyage de posts devenus obsolètes,
+  // donc on supprime simplement les messages Discord correspondants (pas de "Match found").
+  [...danglingChallengerPosts, ...danglingChallengedPosts].forEach(p => {
+    if (p.discord_message_id) deleteDiscordLfmMessage(p.discord_message_id).catch(() => {});
+  });
   await Promise.all([emitDashboardUpdate(c.challenger_id), emitDashboardUpdate(c.challenged_id), emitLeaderboardUpdate()]);
 });
 
@@ -1656,16 +1671,21 @@ app.post('/challenge/:challenge_id/cancel_match', requireAuth, async (req, res) 
 
 // ── DISCORD WEBHOOK — LFM NOTIFICATION ───────────────────────────────────────
 // Sends a message to a Discord channel when a player posts a "Find a Match" ad.
+// On accept → le message est édité en "Match found" avec les deux joueurs.
+// Sur suppression (manuelle ou auto-expiration) → le message est supprimé.
 
 const DISCORD_LFM_WEBHOOK_DISABLED = true; // ← passe à false pour réactiver le webhook Discord LFM
 
+function discordAvatarUrl(userId, avatarId) {
+  return avatarId ? `https://cdn.discordapp.com/avatars/${userId}/${avatarId}.png?size=64` : undefined;
+}
+
+// Renvoie l'id du message Discord créé (ou null si désactivé / échec / pas de wait).
 async function sendDiscordLfmNotification({ playerName, avatarId, playerId, format, mode, message, points }) {
-  if (DISCORD_LFM_WEBHOOK_DISABLED) return; // désactivé temporairement
-  if (!DISCORD_LFM_WEBHOOK_URL) return;
+  if (DISCORD_LFM_WEBHOOK_DISABLED) return null;
+  if (!DISCORD_LFM_WEBHOOK_URL) return null;
   try {
-    const avatarUrl = avatarId
-      ? `https://cdn.discordapp.com/avatars/${playerId}/${avatarId}.png?size=64`
-      : null;
+    const avatarUrl = discordAvatarUrl(playerId, avatarId);
 
     const formatLabel = { BO1: 'Best of 1', BO3: 'Best of 3', BO5: 'Best of 5', STOCKS: 'Stocks' }[format] || format;
     const modeLabel   = mode === 'stocks' ? 'Stocks' : 'Sets';
@@ -1692,7 +1712,9 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
     };
 
     const mention = DISCORD_LFM_ROLE_ID ? `<@&${DISCORD_LFM_ROLE_ID}>` : '@Yuzu LDN';
-    await fetch(DISCORD_LFM_WEBHOOK_URL, {
+    // ?wait=true : Discord renvoie l'objet du message créé (avec son id),
+    // indispensable pour pouvoir l'éditer/le supprimer plus tard.
+    const res = await fetch(`${DISCORD_LFM_WEBHOOK_URL}?wait=true`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1701,8 +1723,66 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
         embeds: [embed],
       }),
     });
+    if (!res.ok) {
+      console.error('[Discord LFM Webhook] Send failed:', res.status, await res.text().catch(() => ''));
+      return null;
+    }
+    const sent = await res.json().catch(() => null);
+    return sent?.id || null;
   } catch (e) {
     console.error('[Discord LFM Webhook] Error:', e);
+    return null;
+  }
+}
+
+// Édite le message Discord en "Match found" avec les deux joueurs (nom + avatar).
+async function editDiscordLfmMatchFound(messageId, { p1Id, p1Name, p1AvatarId, p2Id, p2Name, p2AvatarId }) {
+  if (DISCORD_LFM_WEBHOOK_DISABLED) return;
+  if (!DISCORD_LFM_WEBHOOK_URL || !messageId) return;
+  try {
+    const p1AvatarUrl = discordAvatarUrl(p1Id, p1AvatarId);
+    const p2AvatarUrl = discordAvatarUrl(p2Id, p2AvatarId);
+
+    const embed = {
+      color: 0x3ddc84,
+      author: {
+        name: `✅ Match found — ${p1Name} vs ${p2Name}`,
+        icon_url: p1AvatarUrl || p2AvatarUrl || undefined,
+      },
+      description: '─────────────────────────',
+      thumbnail: p2AvatarUrl ? { url: p2AvatarUrl } : undefined,
+      fields: [
+        { name: '🟠 Player 1', value: p1Name, inline: true },
+        { name: '🔵 Player 2', value: p2Name, inline: true },
+      ],
+      footer: { text: '─────────────────────────\nSmash YUZU • Match found' },
+      timestamp: new Date().toISOString(),
+    };
+
+    const res = await fetch(`${DISCORD_LFM_WEBHOOK_URL}/messages/${messageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: '', embeds: [embed] }),
+    });
+    if (!res.ok) {
+      console.error('[Discord LFM Webhook] Edit failed:', res.status, await res.text().catch(() => ''));
+    }
+  } catch (e) {
+    console.error('[Discord LFM Webhook] Edit error:', e);
+  }
+}
+
+// Supprime le message Discord (annulation manuelle par le poster, ou expiration auto).
+async function deleteDiscordLfmMessage(messageId) {
+  if (DISCORD_LFM_WEBHOOK_DISABLED) return;
+  if (!DISCORD_LFM_WEBHOOK_URL || !messageId) return;
+  try {
+    const res = await fetch(`${DISCORD_LFM_WEBHOOK_URL}/messages/${messageId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) {
+      console.error('[Discord LFM Webhook] Delete failed:', res.status, await res.text().catch(() => ''));
+    }
+  } catch (e) {
+    console.error('[Discord LFM Webhook] Delete error:', e);
   }
 }
 
@@ -1727,7 +1807,12 @@ app.post('/lfm', requireAuth, async (req, res) => {
     ]);
     if (activeC.length) return res.status(400).json({ error: 'You already have an active challenge or match — finish it first.' });
 
-    if (existingPost.length) await sbDelete('lfm_posts', { player_id: userId });
+    if (existingPost.length) {
+      await sbDelete('lfm_posts', { player_id: userId });
+      if (existingPost[0].discord_message_id) {
+        deleteDiscordLfmMessage(existingPost[0].discord_message_id).catch(() => {});
+      }
+    }
 
     const message = sanitizeStr(req.body.message || '', MAX_MESSAGE);
     const player  = await sbGet('players', `id=eq.${userId}`);
@@ -1752,7 +1837,11 @@ app.post('/lfm', requireAuth, async (req, res) => {
       mode,
       message,
       points:     pts,
-    });
+    }).then(async (discordMessageId) => {
+      if (discordMessageId) {
+        await sbPatch('lfm_posts', { id: postId }, { discord_message_id: discordMessageId });
+      }
+    }).catch(e => console.error('[LFM Discord] failed to store message id:', e));
   } finally {
     lfmPostingInProgress.delete(userId);
   }
@@ -1762,7 +1851,10 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
   const { post_id } = req.params;
   if (!validateId(post_id)) return res.status(400).json({ error: 'Invalid ID' });
   const userId = req.session.user.id;
-  const posts  = await sbGet('lfm_posts', `id=eq.${post_id}`);
+  const [posts, userOwnPosts] = await Promise.all([
+    sbGet('lfm_posts', `id=eq.${post_id}`),
+    sbGet('lfm_posts', `player_id=eq.${userId}`), // l'éventuel post de l'accepteur, à nettoyer aussi
+  ]);
   if (!posts.length) return res.status(404).json({ error: 'Not found' });
   const post = posts[0];
   if (post.player_id === userId) return res.status(400).json({ error: "Can't accept your own post" });
@@ -1783,6 +1875,18 @@ app.post('/lfm/:post_id/accept', requireAuth, async (req, res) => {
 
   res.json({ success: true, challenge_id: cid });
 
+  // Discord : le post accepté devient "✅ Match found" avec les deux joueurs (noms + avatars).
+  if (post.discord_message_id) {
+    editDiscordLfmMatchFound(post.discord_message_id, {
+      p1Id: post.player_id, p1Name: post.player_name, p1AvatarId: post.player_avatar,
+      p2Id: userId, p2Name: myDisplayName2, p2AvatarId: req.session.user.avatar,
+    }).catch(() => {});
+  }
+  // Si l'accepteur avait lui aussi un post LFM en cours, son message Discord est simplement supprimé.
+  userOwnPosts.forEach(p => {
+    if (p.discord_message_id) deleteDiscordLfmMessage(p.discord_message_id).catch(() => {});
+  });
+
   io.to(`user_${userId}`).emit('match_redirect', { challenge_id: cid, p1: myDisplayName2, p2: post.player_name });
   io.to(`user_${post.player_id}`).emit('match_redirect', { challenge_id: cid, p1: myDisplayName2, p2: post.player_name });
   await Promise.all([emitDashboardUpdate(userId), emitDashboardUpdate(post.player_id), emitLeaderboardUpdate()]);
@@ -1797,6 +1901,9 @@ app.post('/lfm/:post_id/cancel', requireAuth, async (req, res) => {
   if (posts[0].player_id !== userId) return res.status(403).json({ error: 'Not your post' });
   await sbDelete('lfm_posts', { id: post_id });
   res.json({ success: true });
+  if (posts[0].discord_message_id) {
+    deleteDiscordLfmMessage(posts[0].discord_message_id).catch(() => {});
+  }
   await emitLeaderboardUpdate(); 
 });
 
