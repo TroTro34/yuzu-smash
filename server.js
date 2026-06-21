@@ -880,6 +880,13 @@ function isChatRateLimited(uid) {
   return entry.count > CHAT_RATE_LIMIT_COUNT;
 }
 
+// ── MATCH PRESENCE — délai de grâce avant de prévenir l'adversaire ──────────
+// Une coupure websocket (réseau, veille mobile, etc.) déclenche 'disconnect'
+// même si le joueur n'a pas vraiment quitté. On attend quelques secondes pour
+// voir s'il revient (join_match) avant de notifier l'autre joueur.
+const pendingLeaveTimers = new Map(); // key: `${challenge_id}:${uid}` → Timeout
+const MATCH_LEAVE_GRACE_MS = 8000;
+
 io.on('connection', (socket) => {
   const req = socket.request;
 
@@ -911,6 +918,18 @@ io.on('connection', (socket) => {
     if (![c.challenger_id, c.challenged_id].includes(uid)) return;
     socket.join(`match_${cid}`);
     socket._lastMatchRoom = cid; // track for disconnect notification
+    socket._matchUid = uid;      // track for disconnect grace-period lookup
+
+    // Si un 'opponent_left' était en attente (déconnexion récente) pour CE joueur
+    // sur CE match, on l'annule — il s'agissait d'une coupure temporaire — et on
+    // prévient l'adversaire qu'il est bien revenu.
+    const timerKey = `${cid}:${uid}`;
+    if (pendingLeaveTimers.has(timerKey)) {
+      clearTimeout(pendingLeaveTimers.get(timerKey));
+      pendingLeaveTimers.delete(timerKey);
+      socket.to(`match_${cid}`).emit('opponent_rejoined', { challenge_id: cid });
+    }
+
     // Charger l'historique depuis Supabase
     const history = await getMessagesFromDb(`match_${cid}`);
     socket.emit('chat_history', history);
@@ -941,22 +960,35 @@ io.on('connection', (socket) => {
   });
 
   // ── PLAYER LEAVING MATCH PAGE ─────────────────────────────────────────────
-  // Emitted explicitly via beforeunload, and also handled on socket disconnect.
+  // Emitted explicitly via beforeunload (vraie fermeture/navigation volontaire) :
+  // pas besoin de délai de grâce ici, c'est une action explicite de l'utilisateur.
   socket.on('match_leave', (data) => {
     const uid = req.session?.user?.id;
     const cid = data?.challenge_id || '';
     if (!uid || !validateId(cid)) return;
     socket._lastMatchRoom = cid; // track for disconnect fallback
+    socket._explicitLeave = true; // évite un double opponent_left via le disconnect qui suivra
     socket.to(`match_${cid}`).emit('opponent_left', { challenge_id: cid });
     socket.leave(`match_${cid}`);
   });
 
   socket.on('disconnect', () => {
-    // If the socket was in a match room, notify the opponent
+    // Coupure du socket (réseau, veille, refresh...) — pas forcément un vrai départ.
+    // Si match_leave a déjà notifié explicitement, on ne fait rien de plus.
+    if (socket._explicitLeave) return;
     const cid = socket._lastMatchRoom;
-    if (cid && validateId(cid)) {
+    const uid = socket._matchUid;
+    if (!cid || !validateId(cid) || !uid) return;
+
+    const timerKey = `${cid}:${uid}`;
+    // Si un timer existe déjà pour cette clé (cas limite), on le remplace.
+    if (pendingLeaveTimers.has(timerKey)) clearTimeout(pendingLeaveTimers.get(timerKey));
+
+    const timer = setTimeout(() => {
+      pendingLeaveTimers.delete(timerKey);
       socket.to(`match_${cid}`).emit('opponent_left', { challenge_id: cid });
-    }
+    }, MATCH_LEAVE_GRACE_MS);
+    pendingLeaveTimers.set(timerKey, timer);
   });
 
   socket.on('bo_phase_update', (data) => {
@@ -1625,7 +1657,10 @@ app.post('/challenge/:challenge_id/cancel_match', requireAuth, async (req, res) 
 // ── DISCORD WEBHOOK — LFM NOTIFICATION ───────────────────────────────────────
 // Sends a message to a Discord channel when a player posts a "Find a Match" ad.
 
+const DISCORD_LFM_WEBHOOK_DISABLED = true; // ← passe à false pour réactiver le webhook Discord LFM
+
 async function sendDiscordLfmNotification({ playerName, avatarId, playerId, format, mode, message, points }) {
+  if (DISCORD_LFM_WEBHOOK_DISABLED) return; // désactivé temporairement
   if (!DISCORD_LFM_WEBHOOK_URL) return;
   try {
     const avatarUrl = avatarId
