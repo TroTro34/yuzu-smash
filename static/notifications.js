@@ -3,8 +3,9 @@
 // Fonctionne avec le socket partagé via window.socket (défini par chaque page).
 //
 // Events écoutés :
-//   new_challenge   → invitation de match reçue
-//   dm_notification → message DM reçu hors de la page DM
+//   new_challenge      → invitation de match reçue
+//   challenge_accepted → ton défi vient d'être accepté
+//   dm_notification     → message DM reçu hors de la page DM
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function () {
@@ -137,6 +138,30 @@
   // ── Durée d'affichage en ms ───────────────────────────────────────────────
   const DURATION = 6000;
 
+  // ── Son de notification ───────────────────────────────────────────────────
+  // Un seul élément Audio réutilisé (currentTime reset à chaque lecture pour
+  // permettre des notifs rapprochées sans attendre la fin du son précédent).
+  let _notifAudio = null;
+  function getAudio() {
+    if (!_notifAudio) {
+      _notifAudio = new Audio('/static/melee-menu-select.mp3');
+      _notifAudio.volume = 0.5;
+    }
+    return _notifAudio;
+  }
+  function playSound() {
+    try {
+      const a = getAudio();
+      a.currentTime = 0;
+      // play() renvoie une Promise qui peut être rejetée si le navigateur
+      // bloque l'autoplay (aucune interaction utilisateur encore détectée) —
+      // on l'ignore silencieusement, ça n'est jamais le cas après une vraie
+      // interaction (clic, navigation) sur le site.
+      const p = a.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) { /* silent */ }
+  }
+
   function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -147,6 +172,7 @@
   // href : URL to navigate to on click (optional)
   function showNotif(type, icon, title, text, sub, href) {
     injectStyles();
+    playSound();
     const container = getContainer();
 
     const popup = document.createElement('div');
@@ -222,6 +248,21 @@
         `${name} challenged you to a ${format} match!`,
         'Click to go to your dashboard',
         '/dashboard'
+      );
+    });
+
+    // ── challenge_accepted ───────────────────────────────────────────────
+    socket.on('challenge_accepted', (d) => {
+      if (!d) return;
+      const name = d.opponent_name || 'Your opponent';
+      const cid  = d.challenge_id;
+      showNotif(
+        'challenge',
+        '✅',
+        'CHALLENGE ACCEPTED',
+        `${name} accepted your challenge!`,
+        'Click to go to your match',
+        cid ? '/match/' + cid : '/dashboard'
       );
     });
 
