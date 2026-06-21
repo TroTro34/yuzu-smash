@@ -2823,6 +2823,26 @@ function initMatchSocket() {
     window.location.href = '/match/' + d.new_challenge_id;
   });
 
+  // ── OPPONENT REJOINED (annule un faux 'opponent_left' suite à une coupure) ─
+  matchSocket.on('opponent_rejoined', (d) => {
+    if (!d || d.challenge_id !== CHALLENGE_ID) return;
+    const btn      = document.getElementById('rematch-btn');
+    const statusEl = document.getElementById('rematch-status');
+    if (!btn) return; // winner announcement pas encore affiché — rien à restaurer
+
+    // On ne restaure que si on n'a pas nous-même déjà annulé / changé d'état entre temps
+    btn.disabled          = false;
+    btn.style.opacity     = '1';
+    btn.style.cursor      = 'pointer';
+    btn.style.borderColor = 'var(--accent2)';
+    btn.style.color       = 'var(--accent2)';
+    btn.style.background  = 'rgba(255,128,0,0.12)';
+    btn.onmouseover       = () => { btn.style.background = 'var(--accent2)'; btn.style.color = '#07070f'; };
+    btn.onmouseout        = () => { btn.style.background = 'rgba(255,128,0,0.12)'; btn.style.color = 'var(--accent2)'; };
+    btn.textContent       = '⚔ REMATCH';
+    if (statusEl) statusEl.innerHTML = '';
+  });
+
   // ── OPPONENT LEFT THE MATCH PAGE ─────────────────────────────────────────
   matchSocket.on('opponent_left', (d) => {
     if (!d || d.challenge_id !== CHALLENGE_ID) return;
