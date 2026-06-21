@@ -5,6 +5,7 @@
 // Events écoutés :
 //   new_challenge      → invitation de match reçue
 //   challenge_accepted → ton défi vient d'être accepté
+//   match_redirect     → ton annonce LFM (post de match) vient d'être acceptée
 //   dm_notification     → message DM reçu hors de la page DM
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -261,6 +262,38 @@
         '✅',
         'CHALLENGE ACCEPTED',
         `${name} accepted your challenge!`,
+        'Click to go to your match',
+        cid ? '/match/' + cid : '/dashboard'
+      );
+    });
+
+    // ── match_redirect ────────────────────────────────────────────────────
+    // Émis quand quelqu'un accepte ton annonce LFM (post de match sur index).
+    // Doit jouer le son même si on n'est pas sur index.html / onglet inactif.
+    socket.on('match_redirect', (d) => {
+      if (!d) return;
+      // Si on est en train d'accepter nous-même (acceptLFM sur index), c'est déjà
+      // géré par son propre listener avec son propre overlay — on ne fait rien ici.
+      if (window._lfmAccepting) return;
+
+      const hasOwnOverlay = !!document.getElementById('match-found-overlay');
+      if (hasOwnOverlay) {
+        // La page (index.html) gère déjà l'affichage de l'overlay "match found" :
+        // on se contente de jouer le son pour ne pas dupliquer le visuel.
+        playSound();
+        return;
+      }
+
+      // Sur les autres pages (dashboard, match, dm...), pas d'overlay dédié :
+      // on affiche une popup classique, qui joue le son automatiquement.
+      const p1  = (d.p1) || 'Player 1';
+      const p2  = (d.p2) || 'Player 2';
+      const cid = d.challenge_id;
+      showNotif(
+        'challenge',
+        '🎮',
+        'MATCH FOUND',
+        `${p1} vs ${p2}`,
         'Click to go to your match',
         cid ? '/match/' + cid : '/dashboard'
       );
