@@ -631,7 +631,9 @@ async function rebuildCharStats(playerId) {
       stats[myChar].games++;
       if (won) stats[myChar].wins++;
       else     stats[myChar].losses++;
-      if (g.stage) {
+      // "stages" alimente la section "WINS BY STAGE" côté client : ne compter
+      // que les games GAGNÉES sur ce stage, pas tous les games joués.
+      if (g.stage && won) {
         stats[myChar].stages[g.stage] = (stats[myChar].stages[g.stage] || 0) + 1;
       }
     }
@@ -1545,6 +1547,13 @@ app.post('/challenge/:challenge_id/accept', requireAuth, async (req, res) => {
   if (c.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
   res.json({ success: true }); 
   await sbPatch('challenges', { id: challenge_id }, { status: 'accepted', accepted_at: new Date().toISOString() });
+
+  // Notifie le challenger (popup + son côté client via notifications.js) — sans ça,
+  // J1 n'a aucun signal que son défi a été accepté tant qu'il ne regarde pas le dashboard.
+  io.to(`user_${c.challenger_id}`).emit('challenge_accepted', {
+    opponent_name: c.challenged_name,
+    challenge_id,
+  });
 
   await Promise.all([
     sbDelete('lfm_posts', { player_id: c.challenger_id }),
