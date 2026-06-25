@@ -1711,15 +1711,14 @@ async function sendDiscordLfmNotification({ playerName, avatarId, playerId, form
       timestamp: new Date().toISOString(),
     };
 
-    const mention = DISCORD_LFM_ROLE_ID ? `<@&${DISCORD_LFM_ROLE_ID}>` : '@Yuzu LDN';
     // ?wait=true : Discord renvoie l'objet du message créé (avec son id),
     // indispensable pour pouvoir l'éditer/le supprimer plus tard.
     const res = await fetch(`${DISCORD_LFM_WEBHOOK_URL}?wait=true`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        content: mention,
-        allowed_mentions: { parse: ['roles'] },
+        content: '',
+        allowed_mentions: { parse: [] },
         embeds: [embed],
       }),
     });
