@@ -1674,7 +1674,7 @@ app.post('/challenge/:challenge_id/cancel_match', requireAuth, async (req, res) 
 // On accept → le message est édité en "Match found" avec les deux joueurs.
 // Sur suppression (manuelle ou auto-expiration) → le message est supprimé.
 
-const DISCORD_LFM_WEBHOOK_DISABLED = true; // ← passe à false pour réactiver le webhook Discord LFM
+const DISCORD_LFM_WEBHOOK_DISABLED = false;
 
 function discordAvatarUrl(userId, avatarId) {
   return avatarId ? `https://cdn.discordapp.com/avatars/${userId}/${avatarId}.png?size=64` : undefined;
