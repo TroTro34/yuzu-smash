@@ -42,6 +42,7 @@ const crypto     = require('crypto');
 const fetch      = require('node-fetch');
 const path       = require('path');
 const rateLimit   = require('express-rate-limit');
+const pgSession  = require('connect-pg-simple')(session);
 
 const SECRET_KEY          = process.env.SECRET_KEY;
 if (!SECRET_KEY) { console.error('SECRET_KEY missing'); process.exit(1); }
@@ -95,11 +96,22 @@ app.set("trust proxy", 1);
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
 
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 jours
+
+const sessionStore = (!DEV_MODE && process.env.DATABASE_URL)
+  ? new pgSession({
+      conString:   process.env.DATABASE_URL,
+      tableName:   'sessions',
+      pruneSessionInterval: 60 * 60,
+    })
+  : undefined;
+
 const sessionMiddleware = session({
+  store: sessionStore,
   secret: SECRET_KEY,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV !== 'development', httpOnly: true, sameSite: process.env.NODE_ENV !== 'development' ? 'none' : 'lax', maxAge: 86400 * 1000 }
+  cookie: { secure: process.env.NODE_ENV !== 'development', httpOnly: true, sameSite: process.env.NODE_ENV !== 'development' ? 'none' : 'lax', maxAge: SESSION_MAX_AGE }
 });
 app.use(sessionMiddleware);
 
