@@ -223,50 +223,6 @@
     .match-format { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
     .elo-change { font-size: 0.8rem; color: var(--green); font-weight: 700; }
 
-    /* ── RECENT SETS TABLE ── */
-    .matches-table { display: flex; flex-direction: column; gap: 0.35rem; }
-    .match-row-grid {
-      display: grid;
-      grid-template-columns: 35% 90px 35% 64px 1fr;
-      align-items: center;
-      width: 100%;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 6px; font-size: 0.9rem;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .match-row-grid:hover { border-color: rgba(255,128,0,0.25); background: var(--surface2); }
-    .mrg-winner {
-      padding: 0.65rem 0.8rem 0.65rem 1.2rem;
-      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-      color: var(--green); font-weight: 700;
-      text-align: left;
-    }
-    .mrg-score {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
-      color: var(--accent2); letter-spacing: 2px;
-      text-align: center;
-      padding: 0.65rem 0;
-    }
-    .mrg-loser {
-      padding: 0.65rem 0.8rem;
-      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-      color: var(--muted);
-      text-align: left;
-    }
-    .mrg-fmt {
-      font-size: 0.72rem; color: var(--muted);
-      background: var(--surface3); padding: 2px 6px; border-radius: 3px;
-      text-align: center; justify-self: center;
-    }
-    .mrg-elo {
-      padding: 0.65rem 1.2rem 0.65rem 0;
-      font-size: 0.8rem; color: var(--green); font-weight: 700;
-      text-align: right;
-    }
-
-    /* ── ACTIVE MATCH — clickable hover ── */
-    .active-match-card[onclick]:hover { border-color: rgba(61,220,132,0.7); box-shadow: 0 4px 20px rgba(61,220,132,0.15); }
-
     /* ── LFM ── */
     .lfm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     .lfm-card {
@@ -1071,12 +1027,8 @@
       const ch2Av = m.challenged_avatar
         ? `<img class="amc-avatar" src="https://cdn.discordapp.com/avatars/${escHtml(m.challenged_id)}/${escHtml(m.challenged_avatar)}.png" alt="">`
         : `<div class="amc-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>`;
-      const matchUrl = m.id ? `/match/${escHtml(m.id)}` : null;
-      return `<div class="active-match-card" ${matchUrl ? `onclick="window.location='${matchUrl}'" style="cursor:pointer;"` : ''}>
-        <div class="amc-label">
-          <span class="amc-live-dot"></span>LIVE
-          ${matchUrl ? `<span style="float:right;font-size:0.65rem;color:var(--muted);letter-spacing:1px;opacity:0.8;">👁 WATCH</span>` : ''}
-        </div>
+      return `<div class="active-match-card">
+        <div class="amc-label"><span class="amc-live-dot"></span>LIVE</div>
         <div class="amc-players">
           <div class="amc-player">
             ${ch1Av}
