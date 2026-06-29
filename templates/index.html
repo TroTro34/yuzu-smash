@@ -223,40 +223,44 @@
     .match-format { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
     .elo-change { font-size: 0.8rem; color: var(--green); font-weight: 700; }
 
-    /* ── RECENT SETS TABLE (true table layout — columns fully independent) ── */
+    /* ── RECENT SETS TABLE (CSS grid — colonnes fixes et alignement parfait) ── */
     .matches-table { display: flex; flex-direction: column; gap: 0.35rem; }
     .match-row-grid {
-      display: table; width: 100%; table-layout: fixed;
-      padding: 0; border-collapse: collapse;
+      display: grid;
+      grid-template-columns: 1fr 72px 1fr 60px 80px;
+      align-items: center;
+      width: 100%;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 6px; font-size: 0.9rem;
       transition: background 0.15s, border-color 0.15s;
+      min-width: 0;
     }
     .match-row-grid:hover { border-color: rgba(255,128,0,0.25); background: var(--surface2); }
     .mrg-winner, .mrg-score, .mrg-loser, .mrg-fmt, .mrg-elo {
-      display: table-cell; vertical-align: middle;
       padding: 0.65rem 0;
       overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      min-width: 0;
     }
     .mrg-winner {
-      width: 30%; color: var(--green); font-weight: 700;
+      color: var(--green); font-weight: 700;
       text-align: right; padding-right: 1rem; padding-left: 1.2rem;
     }
     .mrg-score {
-      width: 70px; font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
       color: var(--accent2); letter-spacing: 2px; text-align: center;
+      flex-shrink: 0;
     }
     .mrg-loser {
-      width: 30%; color: var(--muted);
-      padding-left: 1rem;
+      color: var(--muted);
+      padding-left: 1rem; padding-right: 0.5rem;
     }
     .mrg-fmt {
-      width: 56px; font-size: 0.72rem; color: var(--muted);
+      font-size: 0.72rem; color: var(--muted);
       background: var(--surface3); padding: 2px 6px; border-radius: 3px;
-      text-align: center;
+      text-align: center; justify-self: center;
     }
     .mrg-elo {
-      width: 80px; font-size: 0.8rem; color: var(--green); font-weight: 700;
+      font-size: 0.8rem; color: var(--green); font-weight: 700;
       text-align: right; padding-right: 1.2rem;
     }
 
