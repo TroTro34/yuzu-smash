@@ -223,36 +223,35 @@
     .match-format { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
     .elo-change { font-size: 0.8rem; color: var(--green); font-weight: 700; }
 
-    /* ── RECENT SETS TABLE (CSS grid — colonnes fixes et alignement parfait) ── */
+    /* ── RECENT SETS TABLE ── */
     .matches-table { display: flex; flex-direction: column; gap: 0.35rem; }
     .match-row-grid {
       display: grid;
-      grid-template-columns: 1fr 72px 1fr 60px 80px;
+      grid-template-columns: 35% 90px 35% 64px 1fr;
       align-items: center;
       width: 100%;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 6px; font-size: 0.9rem;
       transition: background 0.15s, border-color 0.15s;
-      min-width: 0;
     }
     .match-row-grid:hover { border-color: rgba(255,128,0,0.25); background: var(--surface2); }
-    .mrg-winner, .mrg-score, .mrg-loser, .mrg-fmt, .mrg-elo {
-      padding: 0.65rem 0;
-      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-      min-width: 0;
-    }
     .mrg-winner {
+      padding: 0.65rem 0.8rem 0.65rem 1.2rem;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
       color: var(--green); font-weight: 700;
-      text-align: right; padding-right: 1rem; padding-left: 1.2rem;
+      text-align: left;
     }
     .mrg-score {
       font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
-      color: var(--accent2); letter-spacing: 2px; text-align: center;
-      flex-shrink: 0;
+      color: var(--accent2); letter-spacing: 2px;
+      text-align: center;
+      padding: 0.65rem 0;
     }
     .mrg-loser {
+      padding: 0.65rem 0.8rem;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
       color: var(--muted);
-      padding-left: 1rem; padding-right: 0.5rem;
+      text-align: left;
     }
     .mrg-fmt {
       font-size: 0.72rem; color: var(--muted);
@@ -260,8 +259,9 @@
       text-align: center; justify-self: center;
     }
     .mrg-elo {
+      padding: 0.65rem 1.2rem 0.65rem 0;
       font-size: 0.8rem; color: var(--green); font-weight: 700;
-      text-align: right; padding-right: 1.2rem;
+      text-align: right;
     }
 
     /* ── ACTIVE MATCH — clickable hover ── */
