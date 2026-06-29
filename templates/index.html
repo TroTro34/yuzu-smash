@@ -223,11 +223,11 @@
     .match-format { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
     .elo-change { font-size: 0.8rem; color: var(--green); font-weight: 700; }
 
-    /* ── RECENT SETS TABLE (aligned grid) ── */
+    /* ── RECENT SETS TABLE (fixed columns, score always centered) ── */
     .matches-table { display: flex; flex-direction: column; gap: 0.35rem; }
     .match-row-grid {
       display: grid;
-      grid-template-columns: 1fr 70px 1fr 56px 72px;
+      grid-template-columns: 200px 70px 200px 56px 72px;
       align-items: center; gap: 0;
       padding: 0.65rem 1.2rem;
       background: var(--surface); border: 1px solid var(--border);
@@ -243,7 +243,7 @@
     .mrg-score {
       font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
       color: var(--accent2); letter-spacing: 2px;
-      text-align: center; flex-shrink: 0;
+      text-align: center;
     }
     .mrg-loser {
       color: var(--muted);
