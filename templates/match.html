@@ -1790,7 +1790,11 @@ function renderGameResult() {
           <span style="font-family:'Bebas Neue',sans-serif;font-size:0.95rem;color:var(--blue);">${P1_NAME}</span>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:0.6rem;color:var(--muted);letter-spacing:2px;">STAGE</div>
+          <div style="font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:0.3rem;">STAGE</div>
+          ${stage && STAGE_IMAGES[stage.id] ? `
+          <div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);width:120px;margin:0 auto 0.3rem;">
+            <img src="${STAGE_IMAGES[stage.id]}" style="width:100%;height:50px;object-fit:cover;display:block;" onerror="this.parentElement.style.display='none'">
+          </div>` : ''}
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;color:var(--accent2);">${stage?.name||'?'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem;">
