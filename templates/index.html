@@ -223,41 +223,41 @@
     .match-format { font-size: 0.75rem; color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 3px; }
     .elo-change { font-size: 0.8rem; color: var(--green); font-weight: 700; }
 
-    /* ── RECENT SETS TABLE (fixed columns, score always centered) ── */
+    /* ── RECENT SETS TABLE (true table layout — columns fully independent) ── */
     .matches-table { display: flex; flex-direction: column; gap: 0.35rem; }
     .match-row-grid {
-      display: grid;
-      grid-template-columns: 200px 70px 200px 56px 72px;
-      align-items: center; gap: 0;
-      padding: 0.65rem 1.2rem;
+      display: table; width: 100%; table-layout: fixed;
+      padding: 0; border-collapse: collapse;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 6px; font-size: 0.9rem;
       transition: background 0.15s, border-color 0.15s;
     }
     .match-row-grid:hover { border-color: rgba(255,128,0,0.25); background: var(--surface2); }
+    .mrg-winner, .mrg-score, .mrg-loser, .mrg-fmt, .mrg-elo {
+      display: table-cell; vertical-align: middle;
+      padding: 0.65rem 0;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
     .mrg-winner {
-      color: var(--green); font-weight: 700;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      text-align: right; padding-right: 1rem;
+      width: 30%; color: var(--green); font-weight: 700;
+      text-align: right; padding-right: 1rem; padding-left: 1.2rem;
     }
     .mrg-score {
-      font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
-      color: var(--accent2); letter-spacing: 2px;
-      text-align: center;
+      width: 70px; font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
+      color: var(--accent2); letter-spacing: 2px; text-align: center;
     }
     .mrg-loser {
-      color: var(--muted);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      width: 30%; color: var(--muted);
       padding-left: 1rem;
     }
     .mrg-fmt {
-      font-size: 0.72rem; color: var(--muted);
-      background: var(--surface2); padding: 2px 8px; border-radius: 3px;
-      text-align: center; white-space: nowrap; margin-left: 0.8rem;
+      width: 56px; font-size: 0.72rem; color: var(--muted);
+      background: var(--surface3); padding: 2px 6px; border-radius: 3px;
+      text-align: center;
     }
     .mrg-elo {
-      font-size: 0.8rem; color: var(--green); font-weight: 700;
-      text-align: right; white-space: nowrap; padding-left: 0.5rem;
+      width: 80px; font-size: 0.8rem; color: var(--green); font-weight: 700;
+      text-align: right; padding-right: 1.2rem;
     }
 
     /* ── ACTIVE MATCH — clickable hover ── */
