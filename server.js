@@ -799,15 +799,17 @@ async function saveMessageToDb(roomId, payload) {
       ts:           payload.ts,
       source:       payload.source || 'dm',
       challenge_id: payload.challenge_id || null,
+      read:         false,
     });
   } catch (e) { console.error('[saveMessageToDb]', e); }
 }
 
 async function cleanOldMessages() {
   try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Les messages des tchats (DM + match) sont conservés 1 semaine avant suppression.
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     await sbDelete('dm_messages', { ts: `lt.${cutoff}` });
-    console.log('[cleanOldMessages] Messages older than 24h deleted');
+    console.log('[cleanOldMessages] Messages older than 1 week deleted');
   } catch (e) { console.error('[cleanOldMessages]', e); }
 }
 
@@ -839,6 +841,7 @@ async function copyMatchMsgsToDmRoom(challengeId, player1Id, player2Id) {
         ts:           m.ts,
         source:       'match',
         challenge_id: challengeId,
+        read:         false,
       });
       copied++;
     }
@@ -1079,6 +1082,11 @@ io.on('connection', (socket) => {
     // Load DM history from Supabase (already includes match messages written there in real-time)
     const history = await getMessagesFromDb(roomId, 100);
     socket.emit('dm_history', { roomId, messages: history });
+    // Marquer comme lus tous les messages de ce salon qui ne sont pas les nôtres,
+    // puis prévenir ce client (autres onglets/pages) que son badge non-lu doit baisser.
+    sbPatchIf('dm_messages', { room_id: roomId, uid: `neq.${uid}` }, { read: true })
+      .then(() => io.to(`user_${uid}`).emit('unread_update'))
+      .catch(() => {});
   });
 
   socket.on('dm_leave', (data) => {
@@ -1133,6 +1141,8 @@ io.on('connection', (socket) => {
       from_name: name,
       text:      text.slice(0, 80),
     });
+    // Permet au badge non-lu (coin haut-gauche) du receveur de se mettre à jour en direct
+    io.to(`user_${otherId}`).emit('unread_update');
 
     // If there is an active match between these two players, also forward to match room
     try {
@@ -1347,7 +1357,7 @@ app.get('/callback', async (req, res) => {
     const existing = await sbGet('players', `id=eq.${uid}`);
     if (!existing.length) {
       await sbPost('players', { id: uid, username: displayName, avatar,
-        points: 1000, wins: 0, losses: 0, matches_played: 0,
+        points: 1000, peak_elo: 1000, wins: 0, losses: 0, matches_played: 0,
         main_char: '', secondary_char: '', stocks_taken: 0, stocks_lost: 0, rcoins: 0, owned_banners: [] });
     } else {
 
@@ -1418,6 +1428,44 @@ app.get('/match/:challenge_id', requireAuth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).send('Server error'); }
 });
 
+// ── UNREAD MESSAGES (bulle de notification) ─────────────────────────────────
+// Renvoie le nombre total de messages non lus de l'utilisateur, regroupés par
+// conversation, pour alimenter la bulle en haut à gauche.
+app.get('/api/unread-messages', requireAuth, async (req, res) => {
+  const uid = req.session.user.id;
+  try {
+    const rows = await sbGet('dm_messages', `read=eq.false&uid=neq.${uid}&order=ts.desc&limit=300`);
+    const convMap = new Map();
+    for (const m of rows) {
+      if (!m.room_id || !m.room_id.startsWith('dm_')) continue; // ignore les salons de match live
+      const ids = m.room_id.slice(3).split('_');
+      if (!ids.includes(uid)) continue;
+      const otherId = ids.find(x => x !== uid);
+      if (!otherId) continue;
+      if (!convMap.has(otherId)) convMap.set(otherId, { other_id: otherId, count: 0, last_text: m.text, last_ts: m.ts });
+      const c = convMap.get(otherId);
+      c.count++;
+      if (m.ts > c.last_ts) { c.last_text = m.text; c.last_ts = m.ts; }
+    }
+    const otherIds = [...convMap.keys()];
+    let players = [];
+    if (otherIds.length) players = await sbGet('players', `id=in.(${otherIds.join(',')})`);
+    const pMap = Object.fromEntries(players.map(p => [p.id, p]));
+    const conversations = [...convMap.values()]
+      .map(c => ({
+        other_id: c.other_id,
+        count:    c.count,
+        last_text: c.last_text,
+        last_ts:   c.last_ts,
+        name:   pMap[c.other_id]?.username || 'Unknown',
+        avatar: pMap[c.other_id]?.avatar || null,
+      }))
+      .sort((a, b) => new Date(b.last_ts) - new Date(a.last_ts));
+    const total = conversations.reduce((s, c) => s + c.count, 0);
+    res.json({ total, conversations });
+  } catch (e) { console.error('[api/unread-messages]', e); res.json({ total: 0, conversations: [] }); }
+});
+
 // ── DM PAGE ──────────────────────────────────────────────────────────────────
 app.get('/dm/:other_id', requireAuth, async (req, res) => {
   const { other_id } = req.params;
@@ -1430,6 +1478,7 @@ app.get('/dm/:other_id', requireAuth, async (req, res) => {
       sbGet('players', `id=eq.${uid}`),
     ]);
     if (!otherRows.length) return res.redirect('/dashboard');
+    sbPatchIf('dm_messages', { room_id: dmRoomId(uid, other_id), uid: `neq.${uid}` }, { read: true }).catch(() => {});
     res.render('dm.html', {
       user: req.session.user,
       me: myRow[0] || {},
@@ -2048,10 +2097,12 @@ app.post('/admin/reports/:report_id/resolve', requireAdmin, async (req, res) => 
 
   const winner = winnerArr[0], loser = loserArr[0];
   const eloGain = calcElo(winner.points, loser.points);
+  const newWinnerPoints = winner.points + eloGain;
+  const newWinnerPeak   = Math.max(winner.peak_elo || winner.points || 1000, newWinnerPoints);
 
   await Promise.all([
     sbPatch('players', { id: winner_id }, {
-      points: winner.points + eloGain, wins: winner.wins + 1,
+      points: newWinnerPoints, peak_elo: newWinnerPeak, wins: winner.wins + 1,
       matches_played: winner.matches_played + 1,
     }),
     sbPatch('players', { id: loser_id }, {
@@ -2252,8 +2303,10 @@ app.post('/result/:challenge_id', authApiLimiter, requireAuth, async (req, res) 
         const eloGain = report.is_stocks_mode
           ? calcEloStocks(wp, lp, report.winner_stocks_taken || 0, report.loser_stocks_taken || 0)
           : calcElo(wp, lp);
+        const newWinnerPoints = wp + eloGain;
+        const newWinnerPeak   = Math.max(winner.peak_elo || winner.points || 1000, newWinnerPoints);
         await Promise.all([
-          sbPatch('players', { id: winner_id }, { points: wp + eloGain, wins: winner.wins + 1,
+          sbPatch('players', { id: winner_id }, { points: newWinnerPoints, peak_elo: newWinnerPeak, wins: winner.wins + 1,
             matches_played: winner.matches_played + 1,
             stocks_taken: (winner.stocks_taken || 0) + (report.winner_stocks_taken || 0) }),
           sbPatch('players', { id: loser_id }, { points: Math.max(0, lp - eloGain), losses: loser.losses + 1,
