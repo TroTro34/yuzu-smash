@@ -143,6 +143,7 @@
   // Un seul élément Audio réutilisé (currentTime reset à chaque lecture pour
   // permettre des notifs rapprochées sans attendre la fin du son précédent).
   let _notifAudio = null;
+  let _audioUnlocked = false;
   function getAudio() {
     if (!_notifAudio) {
       _notifAudio = new Audio('/static/melee-menu-select.mp3');
@@ -150,14 +151,41 @@
     }
     return _notifAudio;
   }
+  // "Déverrouille" l'audio dès la première interaction utilisateur sur la page
+  // (clic, touch, ou touche clavier — peu importe sur quoi). Les navigateurs
+  // autorisent ensuite play() déclenché par du code asynchrone (socket event),
+  // alors qu'ils le bloquent tant qu'aucune interaction n'a eu lieu.
+  // Indispensable pour le flow "find a match" : un joueur qui poste un LFM et
+  // attend passivement (sans re-cliquer sur la page) perdrait sinon le son
+  // d'alerte quand l'adversaire accepte, car le navigateur considère qu'il n'y
+  // a "pas d'interaction récente" au moment où la notif arrive.
+  function unlockAudio() {
+    if (_audioUnlocked) return;
+    _audioUnlocked = true;
+    try {
+      const a = getAudio();
+      a.muted = true;
+      const p = a.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; })
+         .catch(() => { a.muted = false; _audioUnlocked = false; }); // retentera à la prochaine interaction
+      } else {
+        a.muted = false;
+      }
+    } catch (e) { _audioUnlocked = false; }
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(evt =>
+    document.addEventListener(evt, unlockAudio, { once: true, passive: true })
+  );
+
   function playSound() {
     try {
       const a = getAudio();
       a.currentTime = 0;
       // play() renvoie une Promise qui peut être rejetée si le navigateur
-      // bloque l'autoplay (aucune interaction utilisateur encore détectée) —
-      // on l'ignore silencieusement, ça n'est jamais le cas après une vraie
-      // interaction (clic, navigation) sur le site.
+      // bloque l'autoplay. unlockAudio() ci-dessus couvre l'essentiel des cas,
+      // mais on ignore quand même un éventuel rejet résiduel pour ne pas
+      // polluer la console.
       const p = a.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
     } catch (e) { /* silent */ }
@@ -334,6 +362,10 @@
       }
     }, 100);
   }
+
+  // Exposé pour que d'autres scripts (ex: acceptLFM dans index.html) puissent
+  // jouer le même son via le même élément Audio déjà déverrouillé.
+  window.playNotifSound = playSound;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootstrap);
