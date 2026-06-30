@@ -314,7 +314,7 @@
     .active-match-card {
       background: var(--surface); border: 1px solid rgba(61,220,132,0.25);
       border-radius: 10px; padding: 1.2rem; position: relative; overflow: hidden;
-      transition: all 0.2s;
+      transition: all 0.2s; cursor: pointer;
     }
     .active-match-card::before {
       content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
@@ -345,6 +345,50 @@
     .amc-tag { padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; }
     .amc-tag.format { background: rgba(232,64,10,0.2); color: var(--accent); border: 1px solid rgba(232,64,10,0.3); }
     .amc-tag.duration { background: rgba(61,220,132,0.1); color: var(--green); border: 1px solid rgba(61,220,132,0.2); font-size: 0.7rem; }
+
+    /* ── MATCH PREVIEW MODAL ── */
+    .mp-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(5,5,10,0.75);
+      backdrop-filter: blur(3px); z-index: 500; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .mp-overlay.open { display: flex; }
+    .mp-modal {
+      width: 100%; max-width: 480px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.4rem; position: relative; max-height: 86vh; overflow-y: auto;
+    }
+    .mp-close {
+      position: absolute; top: 0.8rem; right: 0.9rem; background: none; border: none;
+      color: var(--muted); font-size: 1.3rem; cursor: pointer; line-height: 1;
+    }
+    .mp-close:hover { color: var(--text); }
+    .mp-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .mp-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .mp-title { font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; font-size: 1.1rem; color: var(--green); }
+    .mp-format { margin-left: auto; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700;
+      background: rgba(232,64,10,0.2); color: var(--accent); border: 1px solid rgba(232,64,10,0.3); }
+    .mp-players { display: flex; align-items: center; justify-content: center; gap: 1.2rem; margin-bottom: 1rem; }
+    .mp-player { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
+    .mp-player img.mp-avatar { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--border); }
+    .mp-player-name { font-weight: 700; font-size: 0.92rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+    .mp-score { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 2px; flex-shrink: 0; }
+    .mp-char-row { display: flex; align-items: center; justify-content: center; gap: 0.4rem; }
+    .mp-char-row img { width: 32px; height: 32px; object-fit: contain; }
+    .mp-char-label { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.5px; }
+    .mp-phase {
+      text-align: center; margin: 0.2rem 0 1rem; padding: 0.5rem 0.8rem; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border); font-size: 0.85rem; color: var(--accent2); font-weight: 700;
+    }
+    .mp-games-title { font-size: 0.7rem; letter-spacing: 2px; color: var(--muted); margin-bottom: 0.5rem; text-transform: uppercase; }
+    .mp-game-row {
+      display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.6rem; border-radius: 6px;
+      background: var(--surface2); margin-bottom: 0.35rem; font-size: 0.82rem;
+    }
+    .mp-game-num { font-weight: 700; color: var(--muted); width: 18px; flex-shrink: 0; }
+    .mp-game-chars { display: flex; align-items: center; gap: 0.3rem; flex: 1; }
+    .mp-game-chars img { width: 22px; height: 22px; object-fit: contain; }
+    .mp-game-stage { color: var(--muted); font-size: 0.72rem; }
+    .mp-game-winner { font-size: 0.72rem; font-weight: 700; color: var(--green); flex-shrink: 0; }
+    .mp-empty { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 1rem 0; }
 
     /* ── EMPTY ── */
     .empty { text-align: center; padding: 3rem; color: var(--muted); font-size: 1rem; }
@@ -1083,7 +1127,7 @@
       const ch2Av = m.challenged_avatar
         ? `<img class="amc-avatar" src="https://cdn.discordapp.com/avatars/${escHtml(m.challenged_id)}/${escHtml(m.challenged_avatar)}.png" alt="">`
         : `<div class="amc-avatar" style="background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>`;
-      return `<div class="active-match-card">
+      return `<div class="active-match-card" onclick="openMatchPreview('${escHtml(m.id)}')">
         <div class="amc-label"><span class="amc-live-dot"></span>LIVE</div>
         <div class="amc-players">
           <div class="amc-player">
@@ -1101,6 +1145,100 @@
         </div>
       </div>`;
     }).join('') + `</div>`;
+  }
+
+  // ── Live match preview modal (click on an Ongoing Match card) ───────────
+  const MP_PHASE_LABELS = {
+    p1_char: 'Picking characters',
+    p2_char: 'Picking characters',
+    p1_ban:  'Banning stages',
+    p2_ban:  'Banning stages',
+    p1_pick: 'Picking final stage',
+    result:  'Playing — confirming result',
+  };
+  const MP_STAGE_NAMES = {
+    battlefield: 'Battlefield', small_battlefield: 'Small BF', final_destination: 'Final Destination',
+    hollow_bastion: 'Hollow Bastion', pokemon_stadium_2: 'Pokémon Stadium 2',
+    town_and_city: 'Town & City', smashville: 'Smashville', kalos_pokemon_league: 'Kalos',
+    yoshi_story: "Yoshi's Story",
+  };
+
+  function mpCharImg(charId, size) {
+    if (!charId) return `<div style="width:${size}px;height:${size}px;border-radius:6px;background:var(--surface3);"></div>`;
+    const url = CHAR_ICONS[charId];
+    return url ? `<img src="${url}" alt="" style="width:${size}px;height:${size}px;object-fit:contain;">` : '';
+  }
+
+  function openMatchPreview(challengeId) {
+    const overlay = document.getElementById('mp-overlay');
+    const content = document.getElementById('mp-content');
+    overlay.classList.add('open');
+    content.innerHTML = '<div class="mp-empty">Loading…</div>';
+    fetch('/api/match_live/' + encodeURIComponent(challengeId))
+      .then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
+      .then(renderMatchPreview)
+      .catch(() => { content.innerHTML = '<div class="mp-empty">This match just ended or is unavailable.</div>'; });
+  }
+
+  function closeMatchPreview() {
+    document.getElementById('mp-overlay').classList.remove('open');
+  }
+
+  function renderMatchPreview(d) {
+    const content = document.getElementById('mp-content');
+    if (!d || !d.challenger) { content.innerHTML = '<div class="mp-empty">Match unavailable.</div>'; return; }
+
+    const ch1Av = d.challenger.avatar
+      ? `https://cdn.discordapp.com/avatars/${escHtml(d.challenger.id)}/${escHtml(d.challenger.avatar)}.png`
+      : 'https://cdn.discordapp.com/embed/avatars/0.png';
+    const ch2Av = d.challenged.avatar
+      ? `https://cdn.discordapp.com/avatars/${escHtml(d.challenged.id)}/${escHtml(d.challenged.avatar)}.png`
+      : 'https://cdn.discordapp.com/embed/avatars/0.png';
+
+    const live = d.live;
+    const p1Char = (live && (live.p1Char || live.p1LastChar)) || d.challenger.main_char || null;
+    const p2Char = (live && (live.p2Char || live.p2LastChar)) || d.challenged.main_char || null;
+    const score  = d.score || { p1: 0, p2: 0 };
+    const phaseLabel = live && live.phase
+      ? `${MP_PHASE_LABELS[live.phase] || 'In progress'} · Game ${live.currentGame || 1}`
+      : 'Match just started — waiting for first picks';
+
+    const games = (live && live.games) || [];
+    const gamesHtml = games.length
+      ? games.map((g, i) => {
+          const winnerName = g.winner === 'p1' ? (d.challenger.name || 'P1') : (d.challenged.name || 'P2');
+          const stageName = MP_STAGE_NAMES[g.stage] || g.stage || '';
+          return `<div class="mp-game-row">
+            <span class="mp-game-num">G${i + 1}</span>
+            <span class="mp-game-chars">${mpCharImg(g.p1char, 22)}<span style="color:var(--muted);">vs</span>${mpCharImg(g.p2char, 22)}</span>
+            <span class="mp-game-stage">${escHtml(stageName)}</span>
+            <span class="mp-game-winner">🏆 ${escHtml(winnerName)}</span>
+          </div>`;
+        }).join('')
+      : '';
+
+    content.innerHTML = `
+      <div class="mp-header">
+        <span class="mp-live-dot"></span>
+        <span class="mp-title">LIVE MATCH</span>
+        <span class="mp-format">${escHtml(d.format || 'BO3')}</span>
+      </div>
+      <div class="mp-players">
+        <div class="mp-player">
+          <img class="mp-avatar" src="${ch1Av}" alt="">
+          <div class="mp-player-name">${escHtml(d.challenger.name || '???')}</div>
+          <div class="mp-char-row">${mpCharImg(p1Char, 32)}</div>
+        </div>
+        <div class="mp-score">${score.p1} - ${score.p2}</div>
+        <div class="mp-player">
+          <img class="mp-avatar" src="${ch2Av}" alt="">
+          <div class="mp-player-name">${escHtml(d.challenged.name || '???')}</div>
+          <div class="mp-char-row">${mpCharImg(p2Char, 32)}</div>
+        </div>
+      </div>
+      <div class="mp-phase">${escHtml(phaseLabel)}</div>
+      ${gamesHtml ? `<div class="mp-games-title">Games played</div>${gamesHtml}` : ''}
+    `;
   }
 
   function fetchActiveMatches() {
@@ -1293,6 +1431,13 @@ function showMatchFound(p1, p2) {
 }
 </script>
 
+<!-- ── LIVE MATCH PREVIEW MODAL ── -->
+<div class="mp-overlay" id="mp-overlay" onclick="if(event.target===this) closeMatchPreview()">
+  <div class="mp-modal">
+    <button class="mp-close" onclick="closeMatchPreview()">✕</button>
+    <div id="mp-content"><div class="mp-empty">Loading…</div></div>
+  </div>
+</div>
 <script src="/static/notifications.js"></script>
 </body>
 </html>
