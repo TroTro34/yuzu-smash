@@ -108,6 +108,7 @@
     .stat-box .val { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; display: block; }
     .stat-box .lbl { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
     .stat-box.pts .val { color: var(--accent2); }
+    .stat-box.peak .val { color: var(--gold, #e0a83a); }
     .stat-box.wins .val { color: var(--green); }
     .stat-box.losses .val { color: var(--red); }
     .stat-box.stocks .val { color: var(--purple); }
@@ -445,6 +446,7 @@
       </div>
       <div class="profile-stats">
         <div class="stat-box pts"><span class="val" id="stat-points">{{ player.points }}</span><span class="lbl">ELO</span></div>
+        <div class="stat-box peak"><span class="val" id="stat-peak">{{ player.peak_elo or player.points }}</span><span class="lbl">Peak ELO</span></div>
         <div class="stat-box wins"><span class="val" id="stat-wins">{{ player.wins }}</span><span class="lbl">Wins</span></div>
         <div class="stat-box losses"><span class="val" id="stat-losses">{{ player.losses }}</span><span class="lbl">Losses</span></div>
         <div class="stat-box"><span class="val">{{ player.matches_played }}</span><span class="lbl">Sets</span></div>
@@ -1040,6 +1042,7 @@ function pollBurst() {}
 
 function applyDashboardData(d) {
     document.getElementById('stat-points').textContent = d.player.points;
+    document.getElementById('stat-peak').textContent = d.player.peak_elo || d.player.points;
     document.getElementById('stat-wins').textContent = d.player.wins;
     document.getElementById('stat-losses').textContent = d.player.losses;
     document.getElementById('profile-rank').textContent = d.rank;
