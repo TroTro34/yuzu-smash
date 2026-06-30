@@ -93,6 +93,50 @@
     }
     .nav-rcoin-badge:hover { border-color: #a855f7; box-shadow: 0 0 18px rgba(168,85,247,0.28); color: #e9d5ff; }
 
+    /* Unread DM bubble (top-left) */
+    .unread-bell-wrap { position: relative; }
+    .unread-bell {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--surface2); cursor: pointer; font-size: 1.1rem; transition: all 0.2s;
+    }
+    .unread-bell:hover { border-color: #4f8ef7; box-shadow: 0 0 14px rgba(79,142,247,0.28); }
+    .unread-bell-count {
+      position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px;
+      padding: 0 4px; border-radius: 9px; background: linear-gradient(135deg, #4f8ef7, #7c60ff);
+      color: #fff; font-size: 0.68rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      line-height: 1; box-shadow: 0 0 0 2px var(--bg);
+    }
+    .unread-panel {
+      position: absolute; top: calc(100% + 0.6rem); left: 0; width: 320px; max-height: 420px;
+      overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.5); z-index: 200; display: none; padding: 0.5rem;
+    }
+    .unread-panel.open { display: block; }
+    .unread-panel-title {
+      font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; font-size: 0.85rem;
+      color: var(--muted); padding: 0.4rem 0.6rem 0.6rem;
+    }
+    .unread-conv {
+      display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.6rem; border-radius: 8px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .unread-conv:hover { background: var(--surface2); }
+    .unread-conv img { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; background: var(--surface3); }
+    .unread-conv-body { flex: 1; min-width: 0; }
+    .unread-conv-name { font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; gap: 0.4rem; }
+    .unread-conv-text { font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .unread-conv-count {
+      background: linear-gradient(135deg, #4f8ef7, #7c60ff); color: #fff; font-size: 0.68rem; font-weight: 700;
+      min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px;
+    }
+    .unread-conv-btn {
+      flex-shrink: 0; background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+      font-size: 0.72rem; font-weight: 700; padding: 0.3rem 0.6rem; border-radius: 6px; text-decoration: none;
+    }
+    .unread-conv-btn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+    .unread-empty { padding: 1.2rem 0.6rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+
     /* Nav layout */
     .nav-left { display: flex; align-items: center; gap: 1.2rem; }
     .nav-center { display: flex; gap: 0.6rem; align-items: center; }
@@ -413,6 +457,18 @@
 <nav>
   <div class="nav-left">
     <a href="/" class="logo">⚔ YUZU</a>
+    {% if user %}
+    <div class="unread-bell-wrap" id="unread-bell-wrap">
+      <div class="unread-bell" id="unread-bell" title="Messages non lus" onclick="toggleUnreadPanel()">
+        💬
+        <span class="unread-bell-count" id="unread-bell-count" style="display:none;">0</span>
+      </div>
+      <div class="unread-panel" id="unread-panel">
+        <div class="unread-panel-title">UNREAD MESSAGES</div>
+        <div id="unread-panel-list"><div class="unread-empty">No unread messages</div></div>
+      </div>
+    </div>
+    {% endif %}
     <div class="nav-center">
       <a href="/ranking" class="btn btn-ranking">🏅 Rankings</a>
       <a href="/shop" class="btn btn-shop">✨ Shop</a>
@@ -1054,6 +1110,60 @@
       .catch(() => {});
   }
 
+  // ── Unread DM bubble (top-left) ──────────────────────────────────────────
+  function renderUnreadPanel(data) {
+    const countEl = document.getElementById('unread-bell-count');
+    const listEl  = document.getElementById('unread-panel-list');
+    if (!countEl || !listEl) return;
+    const total = (data && data.total) || 0;
+    if (total > 0) {
+      countEl.textContent = total > 99 ? '99+' : total;
+      countEl.style.display = 'flex';
+    } else {
+      countEl.style.display = 'none';
+    }
+    const convs = (data && data.conversations) || [];
+    if (!convs.length) {
+      listEl.innerHTML = '<div class="unread-empty">No unread messages</div>';
+      return;
+    }
+    listEl.innerHTML = convs.map(c => {
+      const avatar = c.avatar
+        ? `https://cdn.discordapp.com/avatars/${escHtml(c.other_id)}/${escHtml(c.avatar)}.png`
+        : 'https://cdn.discordapp.com/embed/avatars/0.png';
+      return `<div class="unread-conv" onclick="window.location='/dm/${escHtml(c.other_id)}'">
+        <img src="${avatar}" alt="">
+        <div class="unread-conv-body">
+          <div class="unread-conv-name">${escHtml(c.name)} <span class="unread-conv-count">${c.count > 99 ? '99+' : c.count}</span></div>
+          <div class="unread-conv-text">${escHtml(c.last_text || '')}</div>
+        </div>
+        <a class="unread-conv-btn" href="/dm/${escHtml(c.other_id)}">Open</a>
+      </div>`;
+    }).join('');
+  }
+
+  function fetchUnreadMessages() {
+    if (!currentUserId) return;
+    fetch('/api/unread-messages')
+      .then(r => r.json())
+      .then(renderUnreadPanel)
+      .catch(() => {});
+  }
+
+  function toggleUnreadPanel() {
+    const panel = document.getElementById('unread-panel');
+    if (!panel) return;
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) fetchUnreadMessages();
+  }
+
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('unread-bell-wrap');
+    const panel = document.getElementById('unread-panel');
+    if (!wrap || !panel || !panel.classList.contains('open')) return;
+    if (!wrap.contains(e.target)) panel.classList.remove('open');
+  });
+
   // Fetch active matches when tab is opened, and also on leaderboard_changed
   function showTab(name, el) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1067,10 +1177,13 @@
   // notifications.js (chargé après) peut partager ce socket via window.socket.
   document.addEventListener('DOMContentLoaded', () => {
     fetchActiveMatches(); // load count badge immediately
+    fetchUnreadMessages(); // load unread DM bubble immediately
     if (typeof io === 'undefined') return; // socket.io pas chargé
     const sock = io({ transports: ['websocket'], upgrade: false });
     if (currentUserId) sock.emit('join_user', {});
     window.socket = sock; // partagé avec notifications.js
+    sock.on('unread_update', () => { fetchUnreadMessages(); });
+    sock.on('dm_notification', () => { fetchUnreadMessages(); });
     sock.on('whatsup_update', () => { loadWhatsUp(); });
     sock.on('match_redirect', (data) => {
       // Si on est déjà en train de rediriger (via acceptLFM), on ignore — acceptLFM a son propre once()
