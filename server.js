@@ -1570,6 +1570,55 @@ app.get('/api/active-matches', publicApiLimiter, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// Détails "live" d'un match en cours (score, perso en jeu, étape du BO) pour
+// le preview cliquable depuis la liste "Ongoing Matches" de la home page.
+// boPhaseCache est alimenté en mémoire par les events bo_phase_update émis
+// depuis match.html — pas besoin d'être un participant pour consulter.
+app.get('/api/match_live/:challenge_id', publicApiLimiter, async (req, res) => {
+  const { challenge_id } = req.params;
+  if (!validateId(challenge_id)) return res.status(400).json({ error: 'Invalid ID' });
+  try {
+    const challenges = await sbGet('challenges', `id=eq.${challenge_id}`);
+    if (!challenges.length) return res.status(404).json({ error: 'Not found' });
+    const c = challenges[0];
+    if (c.status !== 'accepted') return res.status(404).json({ error: 'Match not ongoing' });
+
+    const [challengerRows, challengedRows] = await Promise.all([
+      sbGet('players', `id=eq.${c.challenger_id}`),
+      sbGet('players', `id=eq.${c.challenged_id}`),
+    ]);
+    const challenger = challengerRows[0] || {};
+    const challenged = challengedRows[0] || {};
+
+    const live  = boPhaseCache.get(challenge_id) || null;
+    const games = live && Array.isArray(live.games) ? live.games : [];
+    const score = {
+      p1: games.filter(g => g.winner === 'p1').length,
+      p2: games.filter(g => g.winner === 'p2').length,
+    };
+
+    res.json({
+      challenge_id,
+      format: c.format || 'BO3',
+      accepted_at: c.accepted_at || null,
+      challenger: { id: c.challenger_id, name: challenger.username || c.challenger_name, avatar: challenger.avatar || null, main_char: challenger.main_char || null },
+      challenged: { id: c.challenged_id, name: challenged.username || c.challenged_name, avatar: challenged.avatar || null, main_char: challenged.main_char || null },
+      score,
+      live: live ? {
+        phase:        live.phase || null,
+        currentGame:  live.currentGame || 1,
+        p1Char:       live.p1Char || null,
+        p2Char:       live.p2Char || null,
+        p1LastChar:   live.p1LastChar || null,
+        p2LastChar:   live.p2LastChar || null,
+        selectedStage:live.selectedStage || null,
+        games,
+      } : null,
+    });
+  } catch (e) { console.error('[api/match_live]', e); res.status(500).json({ error: 'Server error' }); }
+});
+
+
 app.get('/api/players/search', publicApiLimiter, async (req, res) => {
   const q = (req.query.q || '').toLowerCase();
   let players = await sbGet('players', 'order=points.desc');
